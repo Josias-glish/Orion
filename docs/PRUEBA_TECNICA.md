@@ -1,0 +1,104 @@
+# Prueba técnica de la Etapa 1
+
+Objetivo: validar la tecnología (Tauri 2, React, TypeScript, Vite y SQLite con el plugin SQL de Tauri)
+antes de construir funciones. Fecha: 2026-10-01.
+
+## Resumen
+
+**El stack funciona y recomiendo mantenerlo**, con un ajuste: el plugin SQL no sirve para transacciones
+(varias escrituras que deben guardarse todas o ninguna). Propongo resolverlo con un comando pequeño en Rust
+(decisión D-004) antes de la Etapa 2, y espero tu aprobación.
+
+| Prueba | Resultado | Dónde se verificó |
+| --- | --- | --- |
+| a) Crear un animal con su identificador | Funciona | Programa real en Linux + Vitest |
+| b) Crear tres generaciones con padre y madre | Funciona | Programa real en Linux + Vitest |
+| c) Consulta recursiva de ancestros | Funciona (6 ancestros, parentesco correcto) | Programa real en Linux + Vitest |
+| d) Los datos persisten al cerrar y volver a abrir | Funciona | Programa real en Linux (cerrado y reabierto por la prueba) |
+| Migración aplicada por el plugin y catálogos precargados | Funciona (7 razas, 5 libros) | Programa real en Linux + Vitest |
+| Claves foráneas activas en la conexión del plugin | Sí | Programa real en Linux |
+| `npm run tauri dev` abre la ventana | Funciona | Linux (en este contenedor); **falta tu prueba en Windows o Mac** |
+| `npm test` | 41 de 41 pruebas pasan | Linux; GitHub Actions en Linux, Windows y macOS |
+| Instaladores de Windows y Mac | Ver sección «Instaladores» | GitHub Actions |
+| Transacciones con el plugin SQL | **Falla** | Programa real en Linux (19 de 20 intentos) |
+
+## Cómo se probó
+
+El desarrollo ocurre en un contenedor Linux en la nube, sin Windows ni Mac. Por eso hubo tres niveles:
+
+1. **Pruebas automáticas (Vitest).** 41 pruebas sobre SQLite en memoria que aplican las mismas migraciones
+   del programa: dominio (UUID, fechas, caminos genealógicos), restricciones de la base (formatos, R2,
+   claves foráneas, prohibición de borrar), repositorio de animales, consulta recursiva y la pantalla de diagnóstico.
+   Para comprobar que las pruebas sirven, se dañó el código a propósito (límite de generaciones y un cambio en
+   la migración) y las pruebas fallaron; al restaurarlo, volvieron a pasar.
+2. **Programa real, manejado por una prueba automática.** Se compiló el programa con Tauri en Linux y se manejó con
+   `tauri-driver` (la herramienta oficial de Tauri para WebDriver), sin intervención humana: abre la ventana,
+   pulsa los botones de las pruebas a), b) y c), cierra el programa, lo vuelve a abrir y compara los datos (prueba d).
+   Se ejecutó en los dos modos: programa construido (`registro-caprino.db`) y modo desarrollo (`registro-caprino-desarrollo.db`).
+   Resultado en ambos: **8 de 8 comprobaciones correctas**. El script está en `pruebas-e2e/prueba-tecnica.mjs`.
+3. **GitHub Actions.** Ejecuta `npm test` en Linux, Windows y macOS, y construye los instaladores en Windows y macOS.
+
+Lo que **no** se pudo comprobar desde aquí y debes probar tú: que la ventana abra en tu Windows o Mac con
+`npm run tauri dev`, que la prueba técnica funcione allí y que los instaladores se instalen (CA-12).
+
+## Qué funcionó
+
+- **Tauri 2.12 + React 19 + TypeScript 6 + Vite 8.** La plantilla oficial (`create-tauri-app` 4.7.4) arrancó sin cambios
+  y compiló en Linux en unos 2 minutos (la primera vez; luego, segundos).
+- **Plugin SQL 2.5.** Crea el archivo de la base en la carpeta de configuración del programa, aplica la migración al
+  abrirla y registra la versión aplicada en `_sqlx_migrations`. SQLite del plugin: 3.46.0.
+- **Consultas recursivas** (`WITH RECURSIVE`): devuelven padres, abuelos y generaciones siguientes con su parentesco,
+  respetan el límite de generaciones y terminan aunque los datos tengan un ciclo.
+- **Integridad en la base**: rechaza fechas imposibles (29 de febrero de 2023), sexos desconocidos, padres inexistentes,
+  identificadores repetidos y el borrado físico de filas.
+- **Persistencia**: los datos siguen ahí al cerrar y abrir el programa, con la misma hora de creación.
+- **Seguridad**: la política de contenido (CSP) de la ventana no permite conexiones a internet, y los estilos funcionan con ella.
+
+## Qué falló o hay que vigilar
+
+1. **Transacciones con el plugin SQL (importante).** El plugin reparte cada orden entre varias conexiones
+   (un *pool*). Si se envían `BEGIN`, `INSERT` y `ROLLBACK` por separado, pueden caer en conexiones distintas.
+   El experimento `pruebas-e2e/transacciones.mjs` lo confirmó: en **19 de 20 rondas** el `ROLLBACK` no deshizo el
+   `INSERT` o dio errores como «cannot rollback - no transaction is active» y «database is locked».
+   Es un problema conocido y abierto del plugin ([plugins-workspace#886](https://github.com/tauri-apps/plugins-workspace/issues/886)).
+   - **Riesgo:** en etapas siguientes, un parto de tres crías que falle a la mitad dejaría datos incompletos.
+     Peor aún: un `BEGIN` perdido deja una conexión bloqueando las demás escrituras.
+   - **Qué se hizo en esta etapa:** el programa nunca envía `BEGIN`. Cada escritura se confirma sola, y antes de
+     escribir se revisa lo que podría fallar (por ejemplo, un arete repetido) para no dejar un animal a medias.
+   - **Alternativa propuesta (D-004):** un comando de unas 50 líneas en Rust que reciba la lista de órdenes y las ejecute
+     dentro de una transacción, usando el mismo pool del plugin. Toda la lógica sigue en TypeScript; el plugin sigue
+     siendo el de la especificación. La otra opción es reemplazar el plugin por una capa propia con una sola conexión,
+     pero eso es más Rust para mantener. **Espero tu aprobación antes de implementarlo.**
+2. **El plugin crea un pool nuevo cada vez que se abre la base.** Si la interfaz la abriera dos veces, quedarían dos pools
+   y la migración podría aplicarse en uno mientras el otro ya consulta. Solución aplicada: la base se abre una sola vez (D-011).
+3. **El plugin usa el modo WAL de SQLite.** Junto al archivo `.db` aparecen `-wal` y `-shm`, que son parte de la base.
+   Importa para la copia de respaldo (Etapa 9): no basta con copiar el `.db` con el programa abierto.
+4. **Versiones de SQLite distintas.** Las pruebas usan la de Node 24 (3.53) y el programa la del plugin (3.46).
+   No hay que usar funciones de SQLite más nuevas que la 3.46.
+5. **Mac sin firma.** En un Mac con chip Apple, un programa descargado sin ninguna firma aparece como «dañado».
+   Se configuró la firma *ad hoc* que recomienda la guía de Tauri (no es un certificado y no cuesta). Las advertencias
+   de Gatekeeper siguen, y desde macOS 15 se abre desde *Privacidad y seguridad* → «Abrir igualmente», no con clic derecho.
+   Detalles en `docs/INSTALACION.md`.
+6. **Windows 11 con «Control inteligente de aplicaciones».** Si está activo, bloquea cualquier programa sin firma y no ofrece
+   continuar. Solo se resuelve con firma de código (fuera del alcance del MVP) o desactivando ese control.
+
+## Instaladores (GitHub Actions)
+
+_Esta sección se completa con el resultado real del flujo «Instaladores» del pull request._
+
+## Recomendación
+
+**Mantener el stack** (Tauri 2, React, TypeScript, Vite, SQLite con el plugin SQL), **aprobar D-004** para las
+transacciones y empezar la Etapa 2 cuando confirmes que en tu computador funcionan `npm run tauri dev`,
+la pantalla de diagnóstico y el instalador.
+
+## Cómo repetir la prueba de extremo a extremo (Linux)
+
+```bash
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev \
+  libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver xvfb
+cargo install tauri-driver --locked
+npx tauri build --debug --no-bundle
+rm -f ~/.config/co.registrocaprino.escritorio/registro-caprino.db*
+xvfb-run -a node pruebas-e2e/prueba-tecnica.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas
+```
