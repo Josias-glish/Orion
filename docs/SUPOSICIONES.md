@@ -1,0 +1,145 @@
+# Suposiciones
+
+Todo lo que `docs/ESPECIFICACION.md` no define y que el programa necesita para funcionar. Cada suposición tiene un
+marcador `SUPOSICION:` en el código (columna «Dónde está») y se reemplaza cuando haya un dato real.
+
+Están agrupadas por **quién debe confirmarlas**, cada una con la pregunta concreta que hay que hacer. Cuando llegue una
+respuesta: se corrige el programa (si hace falta), se cambia el estado a «Confirmada» o «Cambiada (versión x)» y se
+quita el marcador del código.
+
+**Total: 51 suposiciones abiertas** — ANCO: 8 · ICA: 4 · aprisco: 39.
+
+## 1. Para confirmar con ANCO
+
+Formato y contenido del registro genealógico y de los documentos para la asociación.
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-03 | Forma de concepción | En la base es texto libre. Desde la Etapa 2 el formulario ofrece: monta natural, inseminación artificial, transferencia de embriones o desconocida. | ¿Qué valores de «forma de concepción» acepta ANCO en el registro (monta natural, inseminación artificial, transferencia de embriones, otro)? | `0001_esquema_inicial.sql` (tabla `animal`), `src/dominio/tipos.ts` | Abierta (pregunta 9) |
+| S-08 | Generaciones recorridas | Seis como máximo (R6 lo propone para la consanguinidad); también evita bucles si hubiera un ciclo en los datos. Será configurable. | ¿Cuántas generaciones usa ANCO para calcular la consanguinidad? ¿Publica un límite aceptable? | `src/dominio/genealogia.ts` | Abierta |
+| S-17 | Composición racial vacía (R3) | Una composición vacía es válida (raza aún no registrada); si tiene razas, deben sumar 100 % con un margen de 0,01 puntos por redondeo. Se guarda como proporción entre 0 y 1. | ¿Cómo expresa ANCO la composición racial (porcentajes, fracciones como 1/2 o 3/4)? ¿Acepta que la cría tenga el promedio de sus padres? ¿Hay un mínimo por libro? | `src/dominio/composicion.ts` | Abierta |
+| S-31 | Padre de las crías (R5) | Es el macho del último servicio «preñada» anterior al parto. Si no hay ninguno, o si fue una inseminación con pajilla sin macho registrado, el padre queda vacío y «sin verificar». La forma de concepción sale del tipo de servicio. | Para registrar una cría de inseminación con pajilla, ¿ANCO exige el registro del macho donante? ¿Qué dato de la pajilla hay que conservar? | `src/dominio/reproduccion.ts` (`padreDelParto`) | Abierta |
+| S-45 | Tabla `certificado` | Tipo «propio» = certificado interno del criadero; tipo «asociacion» = expediente preparado para ANCO. `archivo` es la ruta del PDF dentro de la carpeta de datos; el CSV del expediente queda al lado con el mismo nombre. | ¿Interesa también anotar el CRG oficial que entrega ANCO (número, fecha y una copia escaneada) como documento del animal? | `0004_salud_y_documentos.sql` | Abierta |
+| S-47 | Campos del expediente (R13) | Los de R13, en ese orden. Criador y propietario = el primer usuario propietario de la finca (el programa no registra el criador de un animal comprado); criadero = el de Ajustes → Finca; marcas = identificadores vigentes que no son el registro de asociación. El CRG del animal y el de sus ancestros no son obligatorios («si existe»); un padre o abuelo desconocido sí se avisa como faltante, y un vínculo «sin verificar» se avisa aparte. La especificación ya marca la lista como SUPOSICION hasta tener un CRG real. | ¿Qué campos pide ANCO exactamente para registrar un animal? (Con un CRG real o el formulario de inscripción se corrige esta lista.) ¿Cómo se definen «criador» y «propietario» para un animal comprado? | `src/dominio/expediente.ts`, `src/datos/repositorios/documentos.ts` | Abierta |
+| S-48 | Formatos del expediente | PDF tamaño carta con la nota «Formato provisional … no es un formato oficial de ANCO». CSV de una fila por animal, separado por punto y coma (lo que espera Excel en español), UTF-8 con BOM, fechas dd/mm/aaaa y una columna final con los campos que faltan. | ¿En qué forma recibe ANCO los datos: formulario en papel, PDF, hoja de cálculo? ¿Tiene una plantilla? | `src/documentos/expediente.ts` | Abierta |
+| S-49 | Contenido del certificado interno (R12) | Título «Certificado interno del criadero»; el aviso de R12 en un recuadro arriba y en el pie de cada página; datos del animal, identificadores, composición racial, consanguinidad y ascendencia hasta abuelos. Sin código QR, sin imágenes, sin sellos y sin la sigla CRG (el número de la asociación se rotula «Registro de asociación»). | ¿Tiene ANCO alguna objeción a que el criadero emita un certificado interno con este contenido y este aviso? | `src/documentos/certificado.ts` | Abierta |
+
+## 2. Para confirmar con el ICA
+
+Registro de tratamientos y tiempos de retiro.
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-50 | Registro de Tratamientos del ICA | La especificación dice que está por confirmar si la Resolución 20148 de 2016 (Registro Oficial de Tratamientos Veterinarios) aplica a un aprisco lechero. Mientras tanto el programa guarda todos sus campos (producto, número de registro ICA, lote, dosis, vía, animal, fechas, retiros, aplicador y veterinario). El documento oficial del ICA con su formato está fuera del alcance (sección 4). | ¿La Resolución 20148 de 2016 aplica al Aprisco El Paraíso? ¿El ICA pide el registro en un formato propio o basta con tener los datos? | `0004_salud_y_documentos.sql`, `src/pantallas/salud/Salud.tsx` | Abierta |
+| S-38 | Retiro (R7) | Sin días de retiro (vacío o 0) no hay retiro. La alerta está vigente desde el día de aplicación hasta el día de fin del retiro, ambos incluidos. La fecha de fin del tratamiento puede ser futura (un tratamiento que sigue); la de aplicación no. | ¿El retiro se cuenta desde la última aplicación (fecha de fin)? ¿El último día del retiro ya se puede vender la leche o la carne, o el día siguiente? | `src/dominio/salud.ts` | Abierta |
+| S-39 | Tratamiento a un lote | Se guarda una fila por cada animal activo del lote ese día (con el lote anotado). Así el retiro sigue al animal tratado y no a quien entre al lote después. Un lote sin animales activos no recibe tratamientos. | Para el ICA, ¿un tratamiento a un lote se registra animal por animal o como una sola línea del lote? | `0004_salud_y_documentos.sql`, `src/datos/repositorios/salud.ts` | Abierta |
+| S-42 | R11 en salud | No se registran eventos de salud a animales vendidos o muertos, y sus retiros dejan de mostrarse (ya no hay leche ni carne que vender desde la finca). Su historial se conserva. | Si se vende un animal con retiro de carne vigente, ¿qué debe quedar registrado? ¿Se debe avisar al marcarlo como vendido? | `src/datos/repositorios/salud.ts` | Abierta |
+
+## 3. Para confirmar con el aprisco
+
+Cómo trabaja el Aprisco El Paraíso. Algunas se responden cambiando un ajuste del programa.
+
+### 3.1 Manejo del hato
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-01 | Días de gestación | 150 días por defecto, editable por finca (ya marcado como SUPOSICION en la especificación). | ¿Cuántos días de gestación usa el aprisco para calcular la fecha probable de parto? (Se cambia en Ajustes → Finca.) | `src/datos/migraciones/0001_esquema_inicial.sql` (tabla `finca`) | Abierta |
+| S-02 | Días de lactancia | 305 días por defecto, editable por finca (ya marcado como SUPOSICION en la especificación). | ¿Cuántos días dura una lactancia de referencia en el aprisco? (Se cambia en Ajustes → Finca.) | `0001_esquema_inicial.sql` (tabla `finca`) | Abierta |
+| S-26 | Día de lactancia | El día del parto es el día 1. | ¿El día del parto cuenta como día 1 de la lactancia? | `src/dominio/leche.ts` (`diaDeLactancia`) | Abierta |
+| S-27 | Jornadas de ordeño | Dos: mañana y tarde. Un solo pesaje por lactancia, fecha y jornada; si se vuelve a anotar, se corrige el anterior (y queda en el historial). La pantalla propone la mañana antes del mediodía y la tarde después. | ¿El aprisco ordeña dos veces al día (mañana y tarde)? ¿Hay días con un solo ordeño o con tres? | `0003_reproduccion_leche_pesos.sql`, `src/pantallas/leche/Leche.tsx` | Abierta (pregunta 11) |
+| S-25 | Fórmula de la proyección (R8) | Ver la sección «Fórmula de R8» más abajo. | ¿Sirve esta proyección para el aprisco, o se prefiere otra fórmula (por ejemplo, curva de Wood o lactancia a 305 días normalizada)? | `src/dominio/leche.ts` (`calcularProyeccion`) | Abierta |
+| S-28 | Servicios | Una monta necesita el macho; una inseminación necesita el macho o el código de la pajilla. Para una inseminación también se puede elegir un macho registrado solo para la genealogía (el donante); para una monta, solo machos del hato. | ¿Está bien que una inseminación pueda registrarse solo con el código de la pajilla, sin el macho? | `src/datos/repositorios/reproduccion.ts` | Abierta |
+| S-29 | Diagnóstico | El diagnóstico no puede ser anterior al servicio; todo resultado distinto de «sin diagnóstico» lleva fecha. «Aborto» se anota sobre el servicio que estaba «preñada». | ¿El diagnóstico se anota siempre con fecha? ¿Se usan otros resultados además de preñada, vacía y aborto? | `0003_reproduccion_leche_pesos.sql` | Abierta |
+| S-30 | Partos próximos | Servicios «preñada» o sin diagnóstico cuya fecha probable de parto cae entre hace 15 días y dentro de 30, de hembras activas del hato y sin un parto registrado después del servicio. | ¿Con cuántos días de anticipación quiere ver los partos próximos? ¿Y hasta cuántos días de atraso? | `src/datos/repositorios/reproduccion.ts` (`listarPartosProximos`) | Abierta |
+| S-32 | Fichas de las crías (R5) | Una cría nacida muerta también tiene ficha, en estado «muerto». Cada cría necesita nombre o arete. Su composición racial es el promedio de la del padre y la madre (vacía si falta alguno). El formulario admite hasta 6 crías. | ¿Se hace ficha a las crías que nacen muertas? ¿Seis crías como máximo por parto es suficiente? | `src/dominio/reproduccion.ts`, `src/dominio/composicion.ts`, `src/pantallas/reproduccion/RegistrarParto.tsx` | Abierta (pregunta 8) |
+| S-33 | Lactancia anterior | Si la madre tenía una lactancia abierta al parir, se seca el día anterior al parto. Una hembra tiene a lo sumo una lactancia abierta. No se puede secar antes del último pesaje anotado. | Cuando una cabra pare con una lactancia abierta, ¿está bien secarla automáticamente el día anterior al parto? | `src/datos/repositorios/reproduccion.ts`, `0003_reproduccion_leche_pesos.sql` | Abierta |
+| S-34 | Ganancia diaria (R10) | Se calcula entre cada pesaje y el anterior del mismo animal. Dos pesajes el mismo día no tienen ganancia (no se divide por cero). | ¿La ganancia diaria se calcula entre pesajes seguidos, o desde el nacimiento? | `src/dominio/pesos.ts` | Abierta |
+| S-35 | Metas de peso por edad (RF-31) | El usuario anota el peso meta por sexo y edad en meses (solo el propietario las cambia). Entre dos metas, la meta de cada día se calcula en línea recta; fuera del rango anotado no se compara. Un mes = 30,4375 días. Las metas de `npm run semillas` son solo de ejemplo. | ¿Qué pesos meta por sexo y edad usa el aprisco? (Se anotan en Pesos → Metas por edad; las de los datos de ejemplo son inventadas.) | `0003_reproduccion_leche_pesos.sql`, `src/dominio/pesos.ts` | Abierta |
+| S-40 | Condición corporal (RF-25) | Escala de 1 a 5 en pasos de medio punto (1 = muy flaca, 3 = ideal, 5 = muy gorda). La especificación ya la marcaba como SUPOSICION. | ¿El veterinario del aprisco usa la escala de condición corporal de 1 a 5 en medios puntos? | `0004_salud_y_documentos.sql`, `src/dominio/salud.ts` | Abierta |
+| S-41 | Calendario de vacunas (RF-22) | Muestra las próximas fechas de los siguientes 30 días y las ya vencidas. Una aplicación posterior del mismo tipo y producto al mismo animal cumple la fecha pendiente de la anterior. La próxima fecha debe ser posterior a la aplicación. | ¿Con cuántos días de anticipación quiere ver las vacunas y desparasitaciones por vencer? | `src/dominio/salud.ts` (`proximasAplicaciones`) | Abierta |
+| S-51 | Rendimiento (sección 10) | «Guardar un pesaje responde en menos de un segundo con 500 animales y 5 usuarios»: la especificación ya lo marca como SUPOSICION. Se midió con 500 animales (230 en ordeño): de 146 a 352 ms por pesaje en el programa real. «5 usuarios» se entiende como 5 usuarios registrados que se turnan en el mismo computador (el programa no es multiusuario en red). | ¿Cuántos animales y cuántos usuarios tendrá el aprisco en el mismo computador? | `scripts/datos-de-rendimiento.ts`, `pruebas-e2e/etapa3.mjs` | Abierta |
+
+### 3.2 Registro de animales
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-04 | Nombre y nacimiento | La base admite animales sin nombre o sin fecha de nacimiento (ancestros de animales comprados, por ejemplo). El programa decidirá en cada pantalla cuándo exigirlos. | ¿Hay animales (ancestros o comprados) sin nombre o sin fecha de nacimiento conocidos? ¿Cuáles datos son obligatorios al registrar? | `0001_esquema_inicial.sql` (tabla `animal`) | Abierta |
+| S-12 | Animales solo de genealogía | Campo `en_hato` (sí/no) en `animal`: los ancestros que nunca estuvieron en la finca (abuelos de una cabra comprada, macho de una pajilla) se registran con «Pertenece al hato» desmarcado. No salen en la lista por defecto ni en los conteos, pero sí se pueden elegir como padre o madre. | ¿Se registrarán los abuelos de cabras compradas y los machos donantes de pajillas como animales «solo de genealogía»? | `0002_nucleo_y_genealogia.sql`, `src/datos/repositorios/animales.ts` | Abierta (pregunta 6) |
+| S-13 | Fechas desconocidas en R1 | Si falta la fecha de nacimiento del animal o del padre o la madre, no se puede comparar y no se rechaza. Se rechaza nacer el mismo día que un progenitor. | Si falta la fecha de nacimiento de un padre o de una cría, ¿está bien aceptar el vínculo sin comprobar el orden? | `src/dominio/genealogia.ts`, disparadores de `0002` | Abierta |
+| S-14 | Fecha de nacimiento futura | No se acepta una fecha de nacimiento posterior a hoy. | ¿Está bien que no se acepten fechas de nacimiento futuras? | `src/datos/repositorios/animales.ts` | Abierta |
+| S-15 | Nombre o identificador | Un animal debe tener nombre o al menos un identificador para poder reconocerlo. | ¿Está bien exigir nombre o al menos un identificador para cada animal? | `src/datos/repositorios/animales.ts` | Abierta |
+| S-18 | Consanguinidad con padres sin verificar | Los padres marcados «sin verificar» se usan en el cálculo, y la pantalla avisa que el resultado los incluye. Si un ancestro aparece por varios caminos, el recorte de seis generaciones usa el camino más corto. | ¿Debe el cálculo de consanguinidad usar los padres «sin verificar» (con aviso), o ignorarlos? | `src/dominio/consanguinidad.ts`, `src/pantallas/animales/Genealogia.tsx` | Abierta |
+| S-05 | Unicidad de identificadores (R2) | No distingue mayúsculas de minúsculas: «ar-7» y «AR-7» son el mismo arete. Con una sola finca en el MVP, «único por finca» es único en la base. | ¿Está bien que «ar-7» y «AR-7» se consideren el mismo arete? | `0001_esquema_inicial.sql` (índice `identificador_valor_vigente_unico`) | Abierta |
+| S-06 | Identificador principal (R2) | Un identificador que ya no está vigente no puede ser el principal. La base impide dos principales; que haya al menos uno lo validará el programa en la Etapa 2. | ¿Está bien que un identificador que ya no está vigente no pueda ser el principal? | `0001_esquema_inicial.sql` (tabla `identificador`) | Abierta |
+| S-16 | Identificador principal (R2) | Si el animal tiene identificadores vigentes, exactamente uno es el principal; un animal sin identificadores (por ejemplo, una cría recién nacida) es válido. | ¿Está bien que una cría recién nacida pueda registrarse sin identificador? | `src/dominio/identificadores.ts` | Abierta |
+
+### 3.3 Usuarios, permisos y datos
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-19 | PIN | De 4 a 6 números. Se guarda con PBKDF2-SHA256, 600 000 iteraciones (recomendación de OWASP) y sal aleatoria. Se calcula con la criptografía nativa de la ventana (unos 0,2 s al entrar, medido en Linux) y, si no existe, en JavaScript puro (de 2 a 4 s). Se puede cambiar el número sin perder los PIN guardados (el formato guarda las iteraciones). No hay bloqueo por intentos fallidos. El PIN separa usuarios; no cifra el archivo de datos. | ¿El PIN de 4 a 6 números es suficiente? ¿Se necesita bloquear tras varios intentos fallidos? | `src/dominio/pin.ts` | Abierta |
+| S-20 | Permisos del operario (R14) | Además de lo que R14 prohíbe (genealogía, ajustes, copia completa), el operario tampoco crea ni edita fichas de animales, porque R14 no lo incluye entre lo permitido. Solo consulta fichas, genealogía e historial. | ¿El operario debe poder registrar animales nuevos (por ejemplo, compras), o solo el propietario? | `src/dominio/permisos.ts` | Abierta (pregunta 10) |
+| S-36 | Servicios y diagnósticos del operario (R14) | R14 permite al operario registrar partos, leche y pesos, pero no menciona los servicios: por ahora solo el propietario registra servicios y diagnósticos. | ¿El operario debe poder registrar servicios y diagnósticos de preñez? | `src/dominio/permisos.ts` | Abierta (pregunta 10) |
+| S-43 | Permisos de salud y documentos (R14) | El operario registra vacunas, desparasitaciones, tratamientos y condición corporal (R14 le da «tratamientos»). Solo el propietario retira un evento anotado por error y solo él emite certificados y expedientes (R14 no se los da al operario). | ¿El operario debe poder emitir certificados internos o expedientes? ¿Y retirar un evento de salud anotado por error? | `src/dominio/permisos.ts` | Abierta (pregunta 10) |
+| S-21 | Usuarios | Siempre queda al menos un propietario; nadie retira su propio usuario; no hay dos usuarios activos con el mismo nombre. | ¿Está bien que no haya dos usuarios con el mismo nombre? | `src/dominio/usuarios.ts`, `0002_nucleo_y_genealogia.sql` | Abierta |
+| S-22 | Lotes | Solo se retira un lote vacío, para no cambiar muchos animales sin querer. | ¿Está bien que solo se pueda retirar un lote vacío? | `src/datos/repositorios/lotes.ts` | Abierta |
+| S-44 | Copia de respaldo y restauración (RF-43) | La copia es un `.zip` con `datos.json` (todas las tablas, incluido el historial, los registros retirados y los hash de PIN), las fotos y los documentos. Restaurar solo se permite en una instalación vacía (primera pantalla), para no borrar ni mezclar datos; en el mismo computador, primero se aparta el archivo de la base (docs/INSTALACION.md, sección 5). Una copia hecha con una versión más nueva del programa se rechaza. La especificación ya marcaba «restaurar» como SUPOSICION. | ¿Basta con restaurar solo en una instalación nueva? ¿Cada cuánto se hará la copia y dónde se guardará? | `src/datos/respaldo.ts`, `src-tauri/src/archivos.rs` | Abierta |
+| S-46 | Numeración de documentos | `CI-AAAA-NNNN` (certificado interno) y `EX-AAAA-NNNN` (expediente), correlativos por tipo y año. Un número no se reutiliza. | ¿El aprisco ya usa una numeración para sus certificados internos que convenga mantener? | `src/datos/repositorios/documentos.ts` | Abierta |
+
+### 3.4 Funcionamiento del programa (basta con que el aprisco esté de acuerdo)
+
+| Id | Tema | Suposición actual | Pregunta para confirmar | Dónde está | Estado |
+| --- | --- | --- | --- | --- | --- |
+| S-07 | Ancestros eliminados | Un animal con borrado lógico se trata como desconocido en la genealogía y corta esa rama del árbol. | Ninguna, salvo que el aprisco quiera ver los ancestros retirados en el árbol. | `src/datos/repositorios/genealogia.ts` (`consultarArbol`) | Abierta |
+| S-09 | Historial al crear | Al crear un registro se guarda una fila por cada campo con valor, con «valor anterior» vacío. Los catálogos que precarga la migración no generan historial. | Ninguna: es cómo el programa anota el historial. | `src/datos/cambios.ts` | Abierta |
+| S-10 | Identificador del programa | `co.registrocaprino.escritorio`. Define la carpeta de datos: cambiarlo después de cargar datos reales obligaría a mover los archivos. | Confirmar que no se cambiará: define la carpeta donde quedan los datos. | `src-tauri/tauri.conf.json` | Provisional (pregunta 4) |
+| S-11 | Formato de fechas | En pantalla: dd/mm/aaaa y hora local de 24 horas. En la base: ISO 8601 (fechas `AAAA-MM-DD`, marcas de tiempo en UTC). | ¿Las fechas en dd/mm/aaaa están bien para todos los usuarios? | `src/dominio/fechas.ts` | Abierta |
+| S-23 | Fotos | Se aceptan JPG, PNG y WebP; se copian sin reducir a la carpeta `fotos` junto a la base de datos. Quitar la foto de una ficha no borra el archivo. | ¿Las fotos de celular (JPG) son suficientes? ¿Hace falta reducir su tamaño? | `src-tauri/src/lib.rs` (`copiar_foto`) | Abierta |
+| S-24 | Historial del PIN | El historial anota que el PIN cambió, pero guarda «[protegido]» en lugar del hash. | Ninguna: el historial dice que el PIN cambió, sin mostrarlo. | `src/datos/cambios.ts` | Abierta |
+| S-37 | Partos de ejemplo | Para tener lactancias en curso, `npm run semillas` agrega cuatro crías nacidas en partos recientes (EJ-13 a EJ-16): quedan 16 animales en lugar de 12. La fecha de nacimiento de Gema pasó a 2022-03-10 para que Bella no tenga dos partos con 81 días de diferencia. | Ninguna: solo afecta los datos de ejemplo de desarrollo. | `scripts/reproduccion-de-ejemplo.ts`, `scripts/datos-de-ejemplo.ts` | Abierta |
+
+## 4. Preguntas de la Etapa 0 que siguen sin respuesta
+
+Las suposiciones de arriba que dicen «pregunta N» vienen de estas dudas del comienzo del proyecto:
+
+| Pregunta | Tema | Suposiciones |
+| --- | --- | --- |
+| 4 | Identificador del programa (carpeta de datos) | S-10 |
+| 6 | Animales que nunca estuvieron en la finca (ancestros, donantes) | S-12 |
+| 8 | Datos de las crías al nacer | S-32 |
+| 9 | Valores de forma de concepción | S-03 |
+| 10 | Permisos del operario | S-20, S-36, S-43 |
+| 11 | Jornadas de ordeño | S-27 |
+
+Las demás dudas de la Etapa 0 (sistema operativo, flujo de trabajo con Git, repositorio público o privado) no
+cambian cómo funciona el programa.
+
+## 5. Fórmula de R8 (proyección de la lactancia)
+
+La especificación pide «una fórmula documentada». Se usa la más simple que se puede comprobar a mano:
+
+```
+proyección = acumulado + promedio × días que faltan
+
+acumulado       = suma de todos los kilos anotados en la lactancia (mañana y tarde)
+promedio        = kilos por día de los últimos 7 días que tienen algún pesaje
+                  (o de los que haya, si hay menos de 7)
+días que faltan = máximo(0, días de lactancia de la finca − día de lactancia del último pesaje)
+día de lactancia: el día del parto es el día 1
+```
+
+Ejemplo (es la prueba de CA-08 en `src/dominio/leche.test.ts`): lactancia que empezó el 1 de agosto, 305 días de
+lactancia en la finca, y 10 días con registro (días 2 a 11) con 3, 4, …, 12 kg por día entre mañana y tarde.
+
+- Acumulado = 3 + 4 + … + 12 = 75 kg.
+- Últimos 7 días con registro: 6, 7, …, 12 kg → suma 63 → promedio 9 kg por día.
+- Día del último registro = 11 → días que faltan = 305 − 11 = 294.
+- Proyección = 75 + 9 × 294 = **2721 kg**. La prueba comprueba exactamente ese número.
+
+Limitaciones conocidas, para revisar con datos reales:
+
+- No usa una curva de lactancia (Wood u otra): supone que la producción sigue igual al promedio reciente, así que
+  sobreestima al comienzo de la lactancia (antes del pico) y subestima poco después.
+- Un día con una sola jornada anotada cuenta como día con registro: mientras se ordeña, la proyección baja un poco
+  hasta que se anota la otra jornada.
+- Si una lactancia ya pasó los días de la finca, la proyección es igual al acumulado.

@@ -1,0 +1,152 @@
+# Construye los instaladores de Windows (.msi y .exe) y de macOS (.dmg universal).
+# Configuración tomada de la documentación de tauri-action v1 y de la guía de Tauri 2 para GitHub.
+#
+# Cuándo corre:
+#   * Al subir una etiqueta v* (por ejemplo v0.1.0): pruebas, instaladores y borrador de release.
+#   * A mano, desde la pestaña Actions («Run workflow»): igual que con una etiqueta.
+#   * A mano con «publicar» marcado: no construye nada; publica el borrador de release de la versión
+#     actual (después de revisar que tenga los instaladores). Al publicarlo, GitHub crea la etiqueta.
+#   * En cada pull request: pruebas e instaladores, sin release. Los instaladores quedan como
+#     «artifacts» del flujo para descargarlos y probarlos.
+name: Instaladores
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar el borrador del release de la versión actual (no construye)"
+        type: boolean
+        default: false
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+concurrency:
+  group: instaladores-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    # Con etiquetas y pull requests «inputs.publicar» llega vacío: corre siempre.
+    if: ${{ !inputs.publicar }}
+    uses: ./.github/workflows/pruebas.yml
+
+  construir:
+    name: Construir (${{ matrix.nombre }})
+    if: ${{ !inputs.publicar }}
+    needs: pruebas
+    permissions:
+      contents: write # necesario para crear el borrador de release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: Windows
+            sistema: windows-latest
+            args: ""
+          - nombre: macOS universal
+            sistema: macos-latest
+            # Un solo .dmg que funciona en Mac con chip Apple y en Mac con Intel.
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.sistema }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Comprobar que la etiqueta coincide con la versión del programa
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::La etiqueta ${GITHUB_REF_NAME} no coincide con la versión v${version} de src-tauri/tauri.conf.json"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # El .dmg universal necesita compilar para los dos tipos de procesador de Mac.
+          targets: ${{ matrix.sistema == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Caché de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Pruebas de la parte en Rust (documentos y copia de respaldo .zip) en Windows y macOS.
+      # Necesitan la interfaz construida (dist/) porque el programa la incluye al compilar.
+      - name: Pruebas de Rust
+        shell: bash
+        run: |
+          npm run build
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Construir instaladores
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Sin tagName (pull requests) no se crea release; solo se suben los artifacts.
+          tagName: ${{ github.event_name != 'pull_request' && 'v__VERSION__' || '' }}
+          releaseName: "Registro Caprino v__VERSION__"
+          releaseBody: |
+            Instaladores de Registro Caprino v__VERSION__.
+
+            - Windows: descargue el archivo que termina en `-setup.exe` (o el `.msi`).
+            - Mac: descargue el archivo `.dmg` (sirve para Mac con chip Apple y con Intel).
+
+            Los instaladores no tienen firma de código: Windows y macOS mostrarán advertencias de seguridad.
+            Siga la guía docs/INSTALACION.md del repositorio.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: true
+
+  publicar:
+    name: Publicar el borrador del release
+    if: ${{ inputs.publicar }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # necesario para publicar el release; GitHub crea la etiqueta al publicarlo
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Revisar el borrador y publicarlo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          etiqueta="v${version}"
+          if ! gh release view "$etiqueta" --json isDraft > /dev/null; then
+            echo "::error::No hay un release ${etiqueta}. Primero construya los instaladores («Run workflow» sin marcar «publicar»)."
+            exit 1
+          fi
+          if [ "$(gh release view "$etiqueta" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "El release ${etiqueta} ya estaba publicado: no hay nada que hacer."
+            exit 0
+          fi
+          archivos=$(gh release view "$etiqueta" --json assets --jq '.assets[].name')
+          echo "Archivos del borrador:"
+          echo "$archivos"
+          for final in "_x64-setup.exe" ".msi" "_universal.dmg"; do
+            if ! grep -qF -- "$final" <<< "$archivos"; then
+              echo "::error::Al borrador ${etiqueta} le falta el instalador que termina en ${final}."
+              exit 1
+            fi
+          done
+          echo "La etiqueta ${etiqueta} se creará sobre: $(gh release view "$etiqueta" --json targetCommitish --jq .targetCommitish)"
+          gh release edit "$etiqueta" --draft=false --latest
+          echo "Publicado: $(gh release view "$etiqueta" --json url --jq .url)"

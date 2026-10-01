@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permisos de la ventana principal: solo lo que el programa usa (Etapa 5, decisión D-038)",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:app:allow-version",
+    "core:path:allow-resolve-directory",
+    "core:path:allow-join",
+    "sql:allow-load",
+    "sql:allow-select",
+    "sql:allow-execute",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}
