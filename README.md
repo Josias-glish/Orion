@@ -70,6 +70,7 @@ usuarios. Si hace falta para encontrar el error, se acuerda aparte cómo compart
 ## Documentos
 
 - [Especificación](docs/ESPECIFICACION.md): qué debe hacer el programa (fuente de verdad).
+- [Especificación 2](docs/ESPECIFICACION_2.md): etapas 6 a 15, después de la versión 0.1.0.
 - [Instalar el programa](docs/INSTALACION.md): descarga, advertencias de Windows y Mac, datos y copia de respaldo.
 - [Preparar el computador para desarrollar](docs/PREPARAR_EQUIPO.md).
 - [Pruebas](docs/PRUEBAS.md): qué prueba cada criterio de aceptación y cómo ejecutarlas.

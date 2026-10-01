@@ -10,21 +10,37 @@
 6. Stack: Tauri 2, React, TypeScript, Vite y SQLite local (plugin SQL de Tauri) con migraciones `.sql` numeradas.
 7. Las reglas del dominio son funciones puras en `src/dominio`, probadas con Vitest.
 8. Los textos de la interfaz viven solo en `src/textos/es.ts`; el código usa los nombres del dominio en español.
-9. El programa no hace llamadas de red, no borra filas (borrado lógico) y registra cada cambio en `historial_cambios`.
-10. Se construye por etapas autorizadas por el usuario; los instaladores salen de GitHub Actions con `tauri-action`.
+9. Funciona completo sin red (la red solo se usa como dice la regla de red), no borra filas (borrado lógico) y registra cada cambio en `historial_cambios`.
+10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md`. Instaladores con GitHub Actions y `tauri-action`.
 
 ## Regla principal
 
-**Lee `docs/ESPECIFICACION.md` antes de empezar cada etapa.** Es la fuente de verdad. Lo que no esté definido ahí se anota en `docs/SUPOSICIONES.md` y en el código con el marcador `SUPOSICION:`, y se le avisa al usuario.
+**Lee `docs/ESPECIFICACION.md` antes de empezar cada etapa, y desde la Etapa 6 también `docs/ESPECIFICACION_2.md`** (etapas 6 a 15: amplía la primera y reemplaza su regla de red). Son la fuente de verdad. Lo que no esté definido ahí se anota en `docs/SUPOSICIONES.md` y en el código con el marcador `SUPOSICION:`, y se le avisa al usuario.
 
-Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13):
+Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13, y de la especificación 2, secciones 1 y 11):
 
 - No avances de etapa sin que el usuario lo pida («Etapa N»).
 - Al cerrar una etapa: resumen de diez líneas, pasos para probar, pruebas ejecutadas con su resultado real y un commit claro.
 - Verifica comandos, versiones y APIs en la documentación oficial vigente (Tauri 2, SQLite, cada librería). No de memoria.
-- No edites una migración ya aplicada: crea una nueva con el número siguiente.
-- No guardes el PIN en texto plano. No hagas llamadas de red. No agregues funciones fuera de la sección 4.
+- No edites una migración ya aplicada: crea una nueva con el número siguiente. Quien instaló la 0.1.0 debe poder actualizar sin perder datos (CA-33: se prueba con datos de ejemplo).
+- No guardes el PIN en texto plano. No agregues funciones fuera del alcance (sección 4 de la especificación y sección 3 de la especificación 2).
+- Puertas (especificación 2, sección 10): si a una etapa le falta la decisión del usuario, haz solo lo que se puede sin ella y detente.
+- Secretos: nunca pedirlos en el chat ni escribirlos en el repositorio o en los registros; van en los secretos de GitHub o en el panel del servicio.
+- Costos: antes de recomendar un servicio, lo que cuesta según su página oficial vigente y si tiene capa gratuita. No inventar precios.
+- Datos reales del aprisco: no usarlos en pruebas ni subirlos a ningún servicio sin permiso del usuario.
+- Cada etapa publica la versión siguiente a la última publicada (borrador con «Run workflow» y luego publicar; ver D-041).
 - El usuario es estudiante: dale comandos exactos y dile qué debería ver. Responde en español.
+
+## Regla de red (especificación 2, sección 4)
+
+Reemplaza el «sin red» del MVP. La red solo se permite para: sincronización (Etapa 10), página pública (Etapa 11),
+actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Etapa 14). Todo es opcional:
+
+- El programa abre y funciona completo sin red, y nada se queda esperando la red.
+- El usuario ve si está en línea y cuántos cambios faltan por enviar.
+- Cada dirección a la que se conecte se declara en los permisos de Tauri, con la lista mínima, y en
+  `src/seguridad.test.ts`. Hasta que una etapa autorizada agregue una dirección, esa prueba sigue exigiendo cero red.
+- Nunca se piden por red fotos, fuentes tipográficas ni íconos (R33).
 
 ## Comandos
 
@@ -126,3 +142,4 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-039** · 2026-10-01 · Etapa 5 · Vigente. CA-10 se prueba de dos formas: revisión estática en Vitest (sin `fetch`, WebSocket ni URLs en el código del programa, CSP sin orígenes externos, lista cerrada de dependencias de npm y de Rust, plugin SQL solo con SQLite) y el programa real dentro de un espacio de red vacío (`pruebas-e2e/todas.sh`), con los flujos 0, 1, 2, 3 y 5.
 - **D-040** · 2026-10-01 · Etapa 5 · Vigente. Las pruebas de Rust (`cargo test`) corren en Windows y macOS dentro del flujo de instaladores, antes de construir (necesitan `dist/`, por eso se construye la interfaz primero). No se agregan al flujo de pruebas de cada envío porque compilar Tauri en tres sistemas tarda mucho más que Vitest.
 - **D-041** · 2026-10-01 · Etapa 5 · Vigente. Versión 0.1.0 publicada desde la rama de trabajo, en el commit `95c2451` (el pull request no se ha fusionado: fusionarlo lo decide el usuario). Las sesiones de Claude Code en la nube solo pueden subir a su rama: subir la etiqueta dio error 403. Por eso el flujo de instaladores se ejecutó a mano («Run workflow», previsto en D-017): `tauri-action` crea el borrador «Registro Caprino v0.1.0» con la etiqueta `v0.1.0` sobre el commit de la ejecución (`releaseCommitish`, por defecto el SHA actual). GitHub crea la etiqueta cuando se publica el borrador. A pedido del usuario, el borrador se publicó con la opción «publicar» del mismo flujo: un trabajo aparte, sin construir, revisa que el borrador tenga el `.exe`, el `.msi` y el `.dmg` y lo publica con `gh release edit --draft=false` y el token de GitHub Actions. Para versiones siguientes: «Run workflow» para construir y, después de revisar el borrador, «Run workflow» con «publicar»; o, con permiso, `git push origin vX.Y.Z`.
+- **D-042** · 2026-10-01 · Prompt maestro 2 · Vigente. La especificación de las etapas 6 a 15 se guarda sin cambios en `docs/ESPECIFICACION_2.md`. Su regla de red (sección 4) reemplaza la del MVP. El release v0.1.0 se publicó antes de empezar (la sección 0 lo exige): etiqueta `v0.1.0` sobre `95c2451`.
