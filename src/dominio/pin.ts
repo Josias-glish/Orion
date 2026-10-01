@@ -14,8 +14,7 @@ const BYTES_HASH = 32;
 
 /**
  * Devuelve el texto que se guarda en usuario.pin_hash: «pbkdf2-sha256$iteraciones$sal$hash» (en base64).
- * Nunca se guarda el PIN. Se usa @noble/hashes (JavaScript puro) para que funcione igual en Windows,
- * macOS y en las pruebas, sin depender de que la ventana ofrezca crypto.subtle.
+ * Nunca se guarda el PIN.
  */
 export async function crearHashPin(pin: string, iteraciones: number = ITERACIONES_PIN): Promise<string> {
   const sal = new Uint8Array(BYTES_SAL);
@@ -34,7 +33,34 @@ export async function verificarPin(pin: string, hashGuardado: string): Promise<b
   return igualesEnTiempoConstante(esperado, obtenido);
 }
 
-function derivar(pin: string, sal: Uint8Array, iteraciones: number): Promise<Uint8Array> {
+/**
+ * PBKDF2-SHA256. Usa la criptografía nativa de la ventana (crypto.subtle) cuando existe: es unas 15 veces más
+ * rápida (106 ms frente a 1,8 s en Linux; en Windows, el JavaScript puro tardó 4 s). Si la ventana no la ofrece,
+ * usa @noble/hashes en JavaScript puro. Las dos dan el mismo resultado: es un algoritmo estándar.
+ */
+async function derivar(pin: string, sal: Uint8Array, iteraciones: number): Promise<Uint8Array> {
+  if (globalThis.crypto?.subtle) {
+    try {
+      return await derivarConWebCrypto(pin, sal, iteraciones);
+    } catch {
+      // Algunas ventanas no admiten PBKDF2 en crypto.subtle: se sigue con la versión en JavaScript.
+    }
+  }
+  return derivarConJavaScript(pin, sal, iteraciones);
+}
+
+export async function derivarConWebCrypto(pin: string, sal: Uint8Array, iteraciones: number): Promise<Uint8Array> {
+  const subtle = globalThis.crypto.subtle;
+  const clave = await subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: new Uint8Array(sal), iterations: iteraciones },
+    clave,
+    BYTES_HASH * 8,
+  );
+  return new Uint8Array(bits);
+}
+
+export function derivarConJavaScript(pin: string, sal: Uint8Array, iteraciones: number): Promise<Uint8Array> {
   return pbkdf2Async(sha256, new TextEncoder().encode(pin), sal, { c: iteraciones, dkLen: BYTES_HASH });
 }
 

@@ -168,7 +168,7 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    npm test
    ```
 
-   Debe ver al final una línea como `Tests  134 passed (134)`: todas aprobadas, ninguna `failed`.
+   Debe ver al final una línea como `Tests  136 passed (136)`: todas aprobadas, ninguna `failed`.
 
 5. Abra el programa en modo desarrollo:
 
