@@ -1,6 +1,6 @@
 // npm run semillas: carga los datos de ejemplo en la base de DESARROLLO (la de `npm run tauri dev`).
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
-//   npm run semillas                    12 animales de ejemplo con reproducción, leche y pesos
+//   npm run semillas                    12 animales de ejemplo con reproducción, leche, pesos y salud
 //   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
 //   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
@@ -12,6 +12,7 @@ import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarAnimales } from "../src/datos/repositorios/animales";
 import { listarLactancias } from "../src/datos/repositorios/leche";
 import { listarPartosProximos } from "../src/datos/repositorios/reproduccion";
+import { listarAlertasRetiro } from "../src/datos/repositorios/salud";
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import { formatearPorcentaje } from "../src/textos/es";
 import { asegurarFinca, cargarDatosDeEjemplo } from "./datos-de-ejemplo";
@@ -68,6 +69,8 @@ async function principal() {
       console.log(`Lactancias en curso: ${lactancias.map((l) => `${l.hembra} (${l.pesajes} pesajes)`).join(", ")}.`);
       const proximos = await listarPartosProximos(conexion, hoy);
       console.log(`Partos próximos: ${proximos.map((s) => `${s.hembra} (${s.fechaProbableParto})`).join(", ") || "ninguno"}.`);
+      const retiros = await listarAlertasRetiro(conexion, hoy);
+      console.log(`Retiros vigentes: ${retiros.map((r) => `${r.animal} (${r.tipo} hasta ${r.hasta})`).join(", ") || "ninguno"}.`);
     }
 
     if (process.argv.includes("--rendimiento")) {

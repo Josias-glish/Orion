@@ -168,7 +168,7 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    npm test
    ```
 
-   Debe ver al final una línea como `Tests  190 passed (190)`: todas aprobadas, ninguna `failed`. (Tarda unos
+   Debe ver al final una línea como `Tests  256 passed (256)`: todas aprobadas, ninguna `failed`. (Tarda unos
    segundos más que antes: una de las pruebas carga 500 animales para medir el rendimiento.)
 
 5. Abra el programa en modo desarrollo:
@@ -180,12 +180,13 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    La **primera vez tarda entre 5 y 15 minutos**: Rust compila cientos de piezas y verá muchas líneas `Compiling …`.
    Las siguientes veces tarda segundos. Cuando termine verá `Running target/debug/registro-caprino` y se abrirá
    una ventana titulada **Registro Caprino** con la barra lateral verde (Inicio, Animales, Reproducción, Leche,
-   Pesos y Ajustes).
+   Pesos, Salud, Documentos y Ajustes).
 
 6. Para cerrar el modo desarrollo, cierre la ventana o pulse `Ctrl + C` en la terminal.
 
 7. (Opcional) Cargue los datos de ejemplo en la base de desarrollo: 12 cabras ficticias en tres generaciones, más
-   4 crías de partos recientes, con servicios, lactancias en curso, pesajes de leche y de peso, y metas por edad.
+   4 crías de partos recientes, con servicios, lactancias en curso, pesajes de leche y de peso, metas por edad,
+   vacunas, una desparasitación y un tratamiento con retiro vigente.
    Abra antes el programa al menos una vez con `npm run tauri dev` y ciérrelo. Después:
 
    ```bash
@@ -193,7 +194,8 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    ```
 
    Debe ver «Se crearon 16 animales de ejemplo», la consanguinidad de Estrella (25 %), Faro (12,5 %) y Gema (0 %),
-   «Lactancias en curso: Dalia (80 pesajes), Bella (190 pesajes), Abril (400 pesajes)» y «Partos próximos: Estrella (…)».
+   «Lactancias en curso: Dalia (80 pesajes), Bella (190 pesajes), Abril (400 pesajes)», «Partos próximos: Estrella (…)»
+   y «Retiros vigentes: Bella (leche hasta …), Bella (carne hasta …)».
    Para medir el rendimiento con 500 animales más (CA-09): `npm run semillas -- --rendimiento`. Al final debe decir
    «CA-09 cumple: menos de un segundo.». Para volver a empezar, borre el archivo de la base de desarrollo (la ruta la
    muestra `npm run semillas -- --donde`).

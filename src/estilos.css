@@ -993,3 +993,20 @@ button.nodo:hover {
 .alerta-ficha {
   margin: 0 0 var(--espacio);
 }
+
+/* Grupo de opciones (radio) dentro de una rejilla de campos: sin el marco del fieldset y en una fila. */
+fieldset.opciones {
+  border: none;
+  padding: 0;
+  margin: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.5rem;
+}
+
+fieldset.opciones legend {
+  padding: 0;
+  margin-bottom: 0.25rem;
+  width: 100%;
+}

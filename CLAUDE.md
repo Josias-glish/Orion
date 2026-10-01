@@ -36,31 +36,43 @@ Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13):
 | Revisar tipos de TypeScript | `npm run tipos` |
 | Cargar los datos de ejemplo en la base de desarrollo (abrir antes `npm run tauri dev` una vez) | `npm run semillas` |
 | Además, 500 animales de prueba y la medición de CA-09 | `npm run semillas -- --rendimiento` |
+| Generar ejemplos del certificado interno y del expediente (PDF y CSV) sin abrir el programa | `npm run documentos-de-ejemplo` |
+| Pruebas de la parte en Rust (documentos y respaldo .zip) | `cd src-tauri && cargo test` |
 | Construir el instalador en el propio equipo | `npm run tauri build` |
 | Publicar instaladores (borrador de release) desde GitHub Actions | subir la versión en `src-tauri/tauri.conf.json` y `package.json`, luego `git tag v0.1.0` y `git push origin v0.1.0` |
 | Prueba de extremo a extremo en Linux (ver `docs/PRUEBA_TECNICA.md`) | `xvfb-run -a node pruebas-e2e/etapa2.mjs <binario> <carpeta>` |
 | Lo mismo para la Etapa 3, sin red (Flujos 1 y 2, R11, CA-09) | ver el encabezado de `pruebas-e2e/etapa3.mjs` |
+| Lo mismo para la Etapa 4, sin red (Flujos 3 y 5, R12, CA-11) | ver el encabezado de `pruebas-e2e/etapa4.mjs` |
 
 ## Mapa del código
 
 - `src/dominio/`: reglas puras, sin React ni base de datos. `genealogia.ts` (R1), `identificadores.ts` (R2),
   `composicion.ts` (R3), `consanguinidad.ts` (R6), `permisos.ts` (R14), `pin.ts`, `usuarios.ts`, `fechas.ts`, `tipos.ts`,
-  `reproduccion.ts` (R4, R5, R9), `leche.ts` (R8: la fórmula vive solo en `calcularProyeccion`), `pesos.ts` (R10, metas).
+  `reproduccion.ts` (R4, R5, R9), `leche.ts` (R8: la fórmula vive solo en `calcularProyeccion`), `pesos.ts` (R10, metas),
+  `salud.ts` (R7, calendario, validaciones), `expediente.ts` (R13: campos, faltantes y avisos).
 - `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
   y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
   anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
-  `repositorios/` (finca, usuarios, catálogos, lotes, animales, genealogía, historial, reproducción, leche, pesos),
-  `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
+  `repositorios/` (finca, usuarios, catálogos, lotes, animales, genealogía, historial, reproducción, leche, pesos,
+  salud, documentos), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
+  respaldo), `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
 - `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
   huella y su registro en `src-tauri/src/lib.rs`; las pruebas fallan si falta algo.
-- `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `reproduccion/`, `leche/`, `pesos/`, `ajustes/`), `src/componentes/`
+- `src/documentos/`: PDF y CSV. `certificado.ts` (R12), `expediente.ts` (R13), `comun.ts` (formato y estilos),
+  `pdf-navegador.ts` (pdfmake en la ventana, con las fuentes incluidas) y `pdf-node.ts` (solo pruebas y scripts).
+- `src-tauri/src/archivos.rs`: escribir documentos en `<datos>/documentos/`, copias donde elija el usuario y el
+  `.zip` del respaldo (`datos.json` + `fotos/` + `documentos/`), con sus pruebas en Rust.
+- `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `reproduccion/`, `leche/`, `pesos/`, `salud/`,
+  `documentos/`, `ajustes/`), `src/componentes/`
   (contextos de conexión, sesión y navegación; campos reutilizables), `src/textos/es.ts` (todos los textos y los
   mensajes de cada motivo de rechazo), `src/estilos.css`.
-- `scripts/`: `semillas.ts`, `datos-de-ejemplo.ts`, `reproduccion-de-ejemplo.ts` y `datos-de-rendimiento.ts` (CA-09)
-  (fuera de `src`, nunca entran al instalador).
+- `scripts/`: `semillas.ts`, `datos-de-ejemplo.ts`, `reproduccion-de-ejemplo.ts`, `salud-de-ejemplo.ts`,
+  `datos-de-rendimiento.ts` (CA-09) y `documentos-de-ejemplo.ts` (fuera de `src`, nunca entran al instalador).
 - `pruebas-e2e/`: pruebas con el programa real en Linux (`tauri-driver`); `cargar-datos.ts` carga los datos de ejemplo
-  en la base que se le indique (solo para estas pruebas).
-- Etapa 4: el aviso de leche retenida se conecta en `AvisoRetiro` (`src/pantallas/leche/Leche.tsx`), que hoy no muestra nada.
+  en la base que se le indique; `dialogo.py` responde los diálogos «Guardar» y «Abrir» de GTK con el teclado.
+- `docs/ejemplos/`: PDF y CSV de ejemplo generados por el programa real (para revisarlos a ojo).
+- Una tabla nueva debe agregarse a `TABLAS_RESPALDO` (`src/datos/respaldo.ts`); una prueba falla si se olvida, y
+  `VERSION_ESQUEMA` debe subir con cada migración.
 - Parámetros SQL con `?` (valen en sqlx y en node:sqlite). Nunca enviar `BEGIN`/`COMMIT` por el plugin (ver D-004).
 - Los errores esperados se lanzan como `ErrorDeRegistro([...motivos])`; la interfaz los muestra con `ListaMotivos`.
 
@@ -70,7 +82,7 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 
 - **D-001** · 2026-10-01 · Etapa 0 · Vigente. La especificación se guarda sin cambios en `docs/ESPECIFICACION.md`.
 - **D-002** · 2026-10-01 · Etapa 0 · Vigente. Estilos con CSS propio y variables CSS, sin Tailwind. Motivo: lo mantendrán dos personas que están aprendiendo; CSS simple no añade otra herramienta ni otro vocabulario.
-- **D-003** · 2026-10-01 · Etapa 0 · Vigente. PDF con `pdfmake` (MIT, versión 0.3.11, publicada en junio de 2026), no con `pdf-lib`. Motivo: `pdf-lib` no publica versiones desde noviembre de 2021 (1.17.1); `pdfmake` está mantenida, funciona sin red y describe tablas y columnas de forma declarativa, que es lo que necesitan el certificado y el expediente. Se verificará en la etapa de documentos.
+- **D-003** · 2026-10-01 · Etapa 0 · Vigente. PDF con `pdfmake` (MIT, versión 0.3.11, publicada en junio de 2026), no con `pdf-lib`. Motivo: `pdf-lib` no publica versiones desde noviembre de 2021 (1.17.1); `pdfmake` está mantenida, funciona sin red y describe tablas y columnas de forma declarativa, que es lo que necesitan el certificado y el expediente. Verificado en la Etapa 4: genera los PDF dentro de la ventana (WebKitGTK, con la CSP estricta) y en Node con las mismas definiciones.
 - **D-004** · 2026-10-01 · Etapa 0 · **Propuesta**. Transacciones: el plugin SQL usa un *pool* de conexiones y no garantiza que `BEGIN` y `COMMIT` enviados por separado caigan en la misma conexión (issue abierto `tauri-apps/plugins-workspace#886`). Confirmado en la Etapa 1: 19 de 20 rondas fallaron (`pruebas-e2e/transacciones.mjs`). Se propone un comando Rust pequeño que ejecute un lote de sentencias dentro de una transacción usando el mismo pool del plugin. Espera aprobación; mientras tanto no se envía `BEGIN` por el plugin.
 - **D-005** · 2026-10-01 · Etapa 0 · Vigente. Cada etapa agrega su propia migración numerada en `src/datos/migraciones/`; Rust las incluye con `include_str!` y las pruebas con SQLite en memoria leen los mismos archivos.
 - **D-006** · 2026-10-01 · Etapa 0 · Vigente. Versiones de referencia verificadas el 2026-10-01: Node.js 24 LTS; Rust 1.90 o superior (mínimo que exige el plugin SQL); `@tauri-apps/cli` 2.12; `@tauri-apps/plugin-sql` 2.5; `tauri-action@v1`.
@@ -101,3 +113,7 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-031** · 2026-10-01 · Etapa 3 · Vigente. Curva de lactancia en SVG propio (sin librería de gráficos): una serie, línea de 2 px en `#2f7d4a` (validado con el script de la guía de visualización: banda de luminosidad, croma y contraste sobre blanco), relleno al 10 %, cruz con el valor del día más cercano y la tabla de pesajes como vista accesible.
 - **D-032** · 2026-10-01 · Etapa 3 · Vigente. CA-09 se mide en tres lugares: Vitest en memoria (`scripts/datos-de-rendimiento.test.ts`), `npm run semillas -- --rendimiento` sobre el archivo real de desarrollo, y `pruebas-e2e/etapa3.mjs` en el programa real (Enter → «Guardado»). Los 500 animales: 20 machos, 250 hembras y 230 crías, con 230 lactancias abiertas y unos 46 000 pesajes.
 - **D-033** · 2026-10-01 · Etapa 3 · Vigente. «Sin red» se prueba en Linux corriendo el programa y `tauri-driver` dentro de un espacio de red vacío (`unshare -n`, solo la interfaz `lo`).
+- **D-034** · 2026-10-01 · Etapa 4 · Vigente. Los documentos se definen como objetos de pdfmake con funciones puras (`src/documentos/`), así se prueban sin generar el PDF (texto de R12, sin QR, campos de R13). Se generan en la ventana (`pdf-navegador.ts`, fuentes Roboto incluidas: unos 850 kB más en el instalador) y en Node para pruebas y ejemplos (`pdf-node.ts`, sin acceso a red ni a otros archivos).
+- **D-035** · 2026-10-01 · Etapa 4 · Vigente. Cada documento emitido se guarda en `<datos>/documentos/<número>.pdf` (y `.csv`) y se anota en `certificado`; además el usuario puede guardar una copia donde quiera con el diálogo «Guardar». Los archivos los escribe Rust (`archivos.rs`) con nombres validados y escritura atómica (archivo temporal y renombrar), sin el plugin `fs`.
+- **D-036** · 2026-10-01 · Etapa 4 · Vigente. Respaldo: `.zip` armado en Rust (crate `zip` 8.6, MIT, solo con deflate en Rust puro) con `datos.json` + `fotos/` + `documentos/`. Los datos se leen por partes en orden de id; la restauración valida tablas y columnas contra `pragma_table_info` antes de escribir (los nombres van en el SQL), inserta los animales padres antes que sus crías (R1 en la base) y actualiza los catálogos precargados. Mientras D-004 no se apruebe, la restauración en el programa no es atómica: si fallara a mitad, la instalación quedaría a medias (por eso valida todo antes y solo se hace en una instalación vacía).
+- **D-037** · 2026-10-01 · Etapa 4 · Vigente. Las pruebas de extremo a extremo responden los diálogos reales de GTK con `pruebas-e2e/dialogo.py` (libX11 + libxdo por ctypes). No se puede interceptar el `invoke` de Tauri desde la página (está protegido con `defineProperty`), y no se agregan puertas traseras de prueba al programa.

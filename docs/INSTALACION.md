@@ -138,9 +138,43 @@ Los datos se guardan **solo en el computador**, en un archivo de base de datos:
 El archivo principal se llama `registro-caprino.db` (a su lado pueden aparecer `-wal` y `-shm`, que son parte de la misma base).
 La ruta exacta también se ve dentro del programa, en **Ajustes**.
 
+En la misma carpeta están `fotos/` (las fotos de los animales) y `documentos/` (cada certificado interno y cada
+expediente que emite el programa, en PDF y CSV).
+
 ---
 
-## 5. Desinstalar
+## 5. Copia de respaldo
+
+### Crear una copia
+
+1. Entre como **propietario** (el operario no puede crear la copia completa).
+2. Vaya a **Documentos → Copia de respaldo** y pulse **Crear copia de respaldo…**.
+3. Elija dónde guardarla. Lo mejor es una memoria USB o un disco externo, **fuera del computador**.
+
+Se crea un archivo como `respaldo-registro-caprino-2026-10-01.zip` con todos los datos de la finca: animales,
+genealogía, reproducción, leche, pesos, salud, usuarios (con el PIN cifrado), historial de cambios, fotos y
+documentos emitidos. Haga una copia cada semana y guarde varias.
+
+### Restaurar una copia en otro computador (o después de reinstalar)
+
+1. Instale Registro Caprino y ábralo. Aparece la pantalla de bienvenida (todavía sin finca).
+2. Abajo, en «¿Ya usaba Registro Caprino en otro computador?», pulse **Elegir copia de respaldo…** y elija el `.zip`.
+3. Cuando termine verá «Se restauró la copia de …» y la lista de usuarios. Entre como siempre.
+
+### Restaurar una copia en este mismo computador
+
+Para no borrar ni mezclar datos sin querer, el programa **solo restaura en una instalación vacía**
+(SUPOSICION S-44). Si necesita volver a una copia en el mismo computador:
+
+1. Cierre Registro Caprino.
+2. Abra la carpeta de datos (tabla de arriba) y cambie el nombre de `registro-caprino.db` a, por ejemplo,
+   `registro-caprino-antes-2026-10-01.db`. Haga lo mismo con `registro-caprino.db-wal` y `registro-caprino.db-shm`
+   si existen. **No los borre**: así sus datos actuales quedan guardados por si los necesita.
+3. Abra Registro Caprino: verá la pantalla de bienvenida y podrá restaurar la copia como en el apartado anterior.
+
+---
+
+## 6. Desinstalar
 
 - **Windows**: Configuración → Aplicaciones → Aplicaciones instaladas → Registro Caprino → **Desinstalar**.
   El desinstalador ofrece la casilla «Eliminar los datos de aplicación»: **déjela sin marcar** si quiere conservar sus registros.

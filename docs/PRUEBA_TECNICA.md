@@ -135,3 +135,26 @@ Resultado en el contenedor Linux de desarrollo (WebKitGTK, 2026-10-01), tres eje
 Tiempos de CA-09 (de Enter a «Guardado» en pantalla): 68 a 253 ms con los datos de ejemplo; 146 a 352 ms con 500
 animales y 233 cabras en el ordeño (abrir la lista: 414 a 459 ms).
 
+### Etapa 4: Flujos 3 y 5, certificado interno y CA-11, sin red
+
+`pruebas-e2e/etapa4.mjs` comprueba con el programa real: las alertas de retiro en el Inicio, el ordeño y la ficha;
+que la leche retenida se pesa igual; el Flujo 3 (tratamiento a un animal con los campos del ICA y desparasitación a
+un lote); el Flujo 5 (campos que faltan, PDF y CSV guardados con el diálogo «Guardar»); el certificado interno
+(texto de R12, sin imágenes ni código QR, sin la sigla CRG); el registro de cada documento; la copia de respaldo; y
+CA-11: aparta la base y la carpeta de documentos (como un computador nuevo), restaura la copia desde la primera
+pantalla, entra, vuelve a crear una copia y compara las dos tabla por tabla.
+
+Los diálogos «Guardar» y «Abrir» son los reales de GTK: los responde `pruebas-e2e/dialogo.py` con el teclado.
+Además de lo de la Etapa 3 hace falta `poppler-utils` (`pdftotext`, `pdfimages`):
+
+```bash
+sudo apt install poppler-utils
+npx tauri build --debug --no-bundle
+rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
+sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa4.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
+```
+
+Resultado en el contenedor Linux de desarrollo (WebKitGTK, 2026-10-01), dos ejecuciones seguidas: **27 de 27**.
+En la misma corrida, sin regresiones: Etapa 2, 25 de 25; Etapa 3, 24 de 24. La copia de los datos de ejemplo pesa
+unos 280 kB y la restauración reproduce las 17 tablas fila por fila (3505 filas de historial).
+

@@ -3,10 +3,10 @@
 Programa de escritorio para Windows y Mac con el que un criador de cabras lecheras en Colombia lleva, sin internet,
 la genealogía, la reproducción, la leche, los pesajes y la salud de cada animal, y exporta el expediente que pide ANCO.
 
-Estado: **Etapa 3** (reproducción, leche y pesajes): además de la finca, los usuarios, los animales, el pedigrí y la
-consanguinidad, ya registra servicios, diagnósticos, partos con la ficha de cada cría, el ordeño en lote, las
-lactancias con su curva y proyección, y los pesos con ganancia diaria y metas por edad. Salud y documentos llegan
-en las etapas siguientes.
+Estado: **Etapa 4** (salud y documentos): además de la finca, los usuarios, los animales, el pedigrí, la
+reproducción, la leche y los pesos, ya registra vacunas, desparasitaciones y tratamientos con los campos del ICA,
+avisa los retiros de leche y carne (en el Inicio, el ordeño y la ficha), emite el certificado interno y el
+expediente para ANCO (PDF y CSV) y crea y restaura copias de respaldo.
 
 ## Documentos
 
@@ -15,6 +15,7 @@ en las etapas siguientes.
 - [Instalar el programa](docs/INSTALACION.md): descargar el instalador y las advertencias de Windows y Mac.
 - [Prueba técnica de la Etapa 1](docs/PRUEBA_TECNICA.md): qué funcionó, qué falló y la recomendación.
 - [Suposiciones](docs/SUPOSICIONES.md): lo que la especificación no define todavía.
+- [Ejemplos de documentos](docs/ejemplos/): certificado interno y expediente para ANCO generados por el programa.
 
 ## Comandos
 
@@ -24,6 +25,7 @@ npm run tauri dev     # abrir el programa en modo desarrollo
 npm test              # pruebas automáticas
 npm run semillas      # datos de ejemplo en la base de desarrollo
 npm run semillas -- --rendimiento   # además, 500 animales de prueba (CA-09)
+npm run documentos-de-ejemplo       # PDF y CSV de ejemplo en documentos-de-ejemplo/
 npm run tauri build   # construir el instalador en este equipo
 ```
 

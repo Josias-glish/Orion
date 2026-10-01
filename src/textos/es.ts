@@ -746,7 +746,7 @@ export const textos = {
     filtro: "Copia de respaldo",
     restaurarTitulo: "Restaurar una copia",
     restaurarExplicacion:
-      "Para no borrar ni mezclar datos, una copia solo se restaura en un programa recién instalado, antes de crear la finca (en la primera pantalla). Si necesita volver a una copia en este computador, siga los pasos de docs/INSTALACION.md, sección «Restaurar una copia».",
+      "Para no borrar ni mezclar datos, una copia solo se restaura en un programa recién instalado, antes de crear la finca (en la primera pantalla). Si necesita volver a una copia en este computador, siga los pasos de la guía de instalación (docs/INSTALACION.md), apartado «Restaurar una copia en este mismo computador».",
     restaurarAsistente: "¿Ya usaba Registro Caprino en otro computador? Restaure su copia de respaldo",
     restaurarBoton: "Elegir copia de respaldo…",
     restaurando: "Restaurando… no cierre el programa.",
