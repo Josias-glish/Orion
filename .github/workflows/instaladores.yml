@@ -4,6 +4,8 @@
 # Cuándo corre:
 #   * Al subir una etiqueta v* (por ejemplo v0.1.0): pruebas, instaladores y borrador de release.
 #   * A mano, desde la pestaña Actions («Run workflow»): igual que con una etiqueta.
+#   * A mano con «publicar» marcado: no construye nada; publica el borrador de release de la versión
+#     actual (después de revisar que tenga los instaladores). Al publicarlo, GitHub crea la etiqueta.
 #   * En cada pull request: pruebas e instaladores, sin release. Los instaladores quedan como
 #     «artifacts» del flujo para descargarlos y probarlos.
 name: Instaladores
@@ -12,6 +14,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar el borrador del release de la versión actual (no construye)"
+        type: boolean
+        default: false
   pull_request:
     paths-ignore:
       - "docs/**"
@@ -23,10 +30,13 @@ concurrency:
 
 jobs:
   pruebas:
+    # Con etiquetas y pull requests «inputs.publicar» llega vacío: corre siempre.
+    if: ${{ !inputs.publicar }}
     uses: ./.github/workflows/pruebas.yml
 
   construir:
     name: Construir (${{ matrix.nombre }})
+    if: ${{ !inputs.publicar }}
     needs: pruebas
     permissions:
       contents: write # necesario para crear el borrador de release
@@ -102,3 +112,41 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           uploadWorkflowArtifacts: true
+
+  publicar:
+    name: Publicar el borrador del release
+    if: ${{ inputs.publicar }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # necesario para publicar el release; GitHub crea la etiqueta al publicarlo
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Revisar el borrador y publicarlo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          etiqueta="v${version}"
+          if ! gh release view "$etiqueta" --json isDraft > /dev/null; then
+            echo "::error::No hay un release ${etiqueta}. Primero construya los instaladores («Run workflow» sin marcar «publicar»)."
+            exit 1
+          fi
+          if [ "$(gh release view "$etiqueta" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "El release ${etiqueta} ya estaba publicado: no hay nada que hacer."
+            exit 0
+          fi
+          archivos=$(gh release view "$etiqueta" --json assets --jq '.assets[].name')
+          echo "Archivos del borrador:"
+          echo "$archivos"
+          for final in "_x64-setup.exe" ".msi" "_universal.dmg"; do
+            if ! grep -qF -- "$final" <<< "$archivos"; then
+              echo "::error::Al borrador ${etiqueta} le falta el instalador que termina en ${final}."
+              exit 1
+            fi
+          done
+          echo "La etiqueta ${etiqueta} se creará sobre: $(gh release view "$etiqueta" --json targetCommitish --jq .targetCommitish)"
+          gh release edit "$etiqueta" --draft=false --latest
+          echo "Publicado: $(gh release view "$etiqueta" --json url --jq .url)"
