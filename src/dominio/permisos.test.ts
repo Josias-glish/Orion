@@ -13,6 +13,8 @@ const TODAS: Accion[] = [
   "registrar_parto",
   "registrar_peso",
   "registrar_tratamiento",
+  "registrar_servicio",
+  "editar_metas_peso",
 ];
 
 describe("R14: permisos por rol", () => {
@@ -35,5 +37,13 @@ describe("R14: permisos por rol", () => {
   it("SUPOSICION: el operario tampoco crea ni edita fichas de animales", () => {
     expect(puede("operario", "crear_animal")).toBe(false);
     expect(puede("operario", "editar_animal")).toBe(false);
+  });
+});
+
+describe("R14: reproducción, leche y pesos (Etapa 3)", () => {
+  it("SUPOSICION: los servicios, diagnósticos y metas de peso los registra solo el propietario", () => {
+    expect(puede("operario", "registrar_servicio")).toBe(false);
+    expect(puede("operario", "editar_metas_peso")).toBe(false);
+    expect(puede("propietario", "registrar_servicio")).toBe(true);
   });
 });

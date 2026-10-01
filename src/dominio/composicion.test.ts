@@ -1,6 +1,6 @@
 // R3 y CA-07: composición racial.
 import { describe, expect, it } from "vitest";
-import { sumaDeFracciones, validarComposicion } from "./composicion";
+import { composicionDeCria, sumaDeFracciones, validarComposicion } from "./composicion";
 
 describe("R3: las fracciones suman 100 %", () => {
   it("acepta una raza pura", () => {
@@ -67,5 +67,22 @@ describe("CA-07: rechaza composiciones que no suman 100 %", () => {
         { razaId: "saanen", fraccion: 0.5 },
       ]),
     ).toEqual([{ codigo: "raza_repetida" }]);
+  });
+});
+
+describe("composición de una cría (SUPOSICION: promedio de padre y madre)", () => {
+  it("promedia las razas de los dos padres", () => {
+    const cria = composicionDeCria([{ razaId: "saanen", fraccion: 1 }], [
+      { razaId: "saanen", fraccion: 0.5 },
+      { razaId: "alpina", fraccion: 0.5 },
+    ]);
+    expect(cria).toEqual([
+      { razaId: "saanen", fraccion: 0.75 },
+      { razaId: "alpina", fraccion: 0.25 },
+    ]);
+  });
+
+  it("si falta la composición de uno de los padres, queda vacía", () => {
+    expect(composicionDeCria([], [{ razaId: "saanen", fraccion: 1 }])).toEqual([]);
   });
 });

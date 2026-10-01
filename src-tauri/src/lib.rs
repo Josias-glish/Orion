@@ -30,6 +30,12 @@ fn migraciones() -> Vec<Migration> {
             sql: include_str!("../../src/datos/migraciones/0002_nucleo_y_genealogia.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "reproduccion_leche_pesos",
+            sql: include_str!("../../src/datos/migraciones/0003_reproduccion_leche_pesos.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

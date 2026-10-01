@@ -41,3 +41,17 @@ export function edadEnMeses(nacimiento: string, hoy: string): number {
   const [a2, m2, d2] = hoy.split("-").map(Number);
   return (a2 - a1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
 }
+
+/** Suma (o resta, si es negativo) días a una fecha «AAAA-MM-DD». */
+export function sumarDias(fecha: string, dias: number): string {
+  void fecha;
+  void dias;
+  throw new Error("sumarDias: no implementado");
+}
+
+/** Días de `desde` a `hasta` (positivo si `hasta` es posterior). */
+export function diasEntre(desde: string, hasta: string): number {
+  void desde;
+  void hasta;
+  throw new Error("diasEntre: no implementado");
+}

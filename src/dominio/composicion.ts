@@ -35,3 +35,16 @@ export function validarComposicion(fracciones: readonly FraccionRacial[]): Error
   }
   return errores;
 }
+
+/**
+ * SUPOSICION: composición racial de una cría = promedio de la del padre y la de la madre.
+ * Si falta alguna de las dos, queda vacía para que el propietario la complete.
+ */
+export function composicionDeCria(
+  padre: readonly FraccionRacial[],
+  madre: readonly FraccionRacial[],
+): FraccionRacial[] {
+  void padre;
+  void madre;
+  throw new Error("composicionDeCria: no implementado");
+}

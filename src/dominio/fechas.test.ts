@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { edadEnMeses, esFechaValida, fechaLocal, formatearFecha, formatearMarcaDeTiempo, marcaDeTiempo } from "./fechas";
+import {
+  diasEntre,
+  edadEnMeses,
+  esFechaValida,
+  fechaLocal,
+  formatearFecha,
+  formatearMarcaDeTiempo,
+  marcaDeTiempo,
+  sumarDias,
+} from "./fechas";
 
 describe("fechas", () => {
   it("la marca de tiempo tiene el formato que exige la base", () => {
@@ -32,5 +41,18 @@ describe("validación de fechas", () => {
   it("calcula la edad en meses cumplidos", () => {
     expect(edadEnMeses("2024-03-15", "2026-03-14")).toBe(23);
     expect(edadEnMeses("2024-03-15", "2026-03-15")).toBe(24);
+  });
+});
+
+describe("aritmética de fechas", () => {
+  it("suma y resta días cruzando meses, años y bisiestos", () => {
+    expect(sumarDias("2026-01-31", 1)).toBe("2026-02-01");
+    expect(sumarDias("2028-02-28", 1)).toBe("2028-02-29");
+    expect(sumarDias("2026-01-01", -1)).toBe("2025-12-31");
+  });
+
+  it("cuenta los días entre dos fechas", () => {
+    expect(diasEntre("2026-01-01", "2026-03-01")).toBe(59);
+    expect(diasEntre("2026-03-01", "2026-01-01")).toBe(-59);
   });
 });

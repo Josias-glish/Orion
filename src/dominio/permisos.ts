@@ -10,7 +10,9 @@ export type Accion =
   | "registrar_leche"
   | "registrar_parto"
   | "registrar_peso"
-  | "registrar_tratamiento";
+  | "registrar_tratamiento"
+  | "registrar_servicio"
+  | "editar_metas_peso";
 
 /**
  * R14. El operario puede ver las fichas y registrar leche, partos, pesos y tratamientos.
