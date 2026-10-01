@@ -1,0 +1,36 @@
+# Pruebas automáticas en Windows, macOS y Linux.
+# Corre en cada envío a cualquier rama, y el flujo de instaladores lo llama antes de construir.
+name: Pruebas
+
+on:
+  push:
+    branches: ["**"]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Pruebas (${{ matrix.sistema }})
+    strategy:
+      fail-fast: false
+      matrix:
+        sistema: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.sistema }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Revisar tipos de TypeScript
+        run: npm run tipos
+
+      - name: Pruebas automáticas (Vitest)
+        run: npm test

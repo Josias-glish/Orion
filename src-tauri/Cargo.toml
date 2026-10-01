@@ -1,0 +1,30 @@
+[package]
+name = "registro-caprino"
+version = "0.1.0"
+description = "Registro Caprino: genealogía, reproducción, leche, pesos y salud de cabras lecheras"
+edition = "2021"
+# El plugin SQL exige Rust 1.90 o superior.
+rust-version = "1.90"
+
+[lib]
+# El sufijo `_lib` evita un choque de nombres entre la librería y el ejecutable en Windows
+# (https://github.com/rust-lang/cargo/issues/8519).
+name = "registro_caprino_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Guía de optimización: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
