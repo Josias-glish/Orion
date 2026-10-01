@@ -6,3 +6,6 @@
 *.png binary
 *.ico binary
 *.icns binary
+
+# Ejemplos generados por el programa: se guardan tal cual (el CSV usa saltos de línea de Windows a propósito).
+docs/ejemplos/** -text
