@@ -1,12 +1,14 @@
 // Datos ficticios de ejemplo (sección 12): solo para desarrollo, nunca en el instalador.
-// Etapa 2: la parte de genealogía. Las lactancias y los tratamientos se agregan en sus etapas.
-import { marcaDeTiempo } from "../src/dominio/fechas";
+// Etapa 2: genealogía. Etapa 3: servicios, partos, lactancias con pesajes, pesos corporales y metas.
+// Los tratamientos llegan en la etapa 4.
+import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import type { FormaConcepcion, Sexo } from "../src/dominio/tipos";
 import { completarAsistente, consultarArranque } from "../src/datos/arranque";
 import type { Conexion, ContextoCambio } from "../src/datos/conexion";
-import { animalVacio, guardarAnimal, listarAnimales } from "../src/datos/repositorios/animales";
+import { animalVacio, guardarAnimal, listarAnimales, obtenerAnimal } from "../src/datos/repositorios/animales";
 import { listarCatalogo } from "../src/datos/repositorios/catalogos";
 import { crearLote, listarLotes } from "../src/datos/repositorios/lotes";
+import { cargarReproduccionDeEjemplo } from "./reproduccion-de-ejemplo";
 
 export const MARCA_EJEMPLO = "Dato de ejemplo (npm run semillas)";
 
@@ -32,6 +34,7 @@ interface Ficha {
  *  - Bruno y Bella son hermanos completos (Zeus × Abril); su hija Estrella tiene 25 % de consanguinidad.
  *  - Cacique (Zeus × Brisa) y Dalia (Zeus × Canela) son medios hermanos; su hijo Faro tiene 12,5 %.
  *  - Gema (Duque × Bella) no es consanguínea; su padre está marcado «sin verificar».
+ * Los partos recientes de la etapa 3 agregan cuatro crías (EJ-13 a EJ-16): ver reproduccion-de-ejemplo.ts.
  */
 export const FICHAS: Ficha[] = [
   { arete: "EJ-01", nombre: "Zeus", sexo: "macho", nacimiento: "2017-03-12", razas: { Saanen: 1 }, libro: "Fundadores", lote: "Machos", color: "Blanco", otros: [{ tipo: "registro_asociacion", valor: "EJEMPLO-0001" }] },
@@ -45,45 +48,28 @@ export const FICHAS: Ficha[] = [
   { arete: "EJ-09", nombre: "Dalia", sexo: "hembra", nacimiento: "2019-06-18", razas: { Saanen: 0.5, Alpina: 0.5 }, libro: "Mestizo", lote: "Ordeño", padre: "EJ-01", madre: "EJ-04", forma: "inseminacion_artificial", color: "Crema con manchas" },
   { arete: "EJ-10", nombre: "Estrella", sexo: "hembra", nacimiento: "2021-02-22", razas: { Saanen: 1 }, libro: "Pureza por pedigrí", lote: "Levante", padre: "EJ-06", madre: "EJ-07", forma: "monta_natural", color: "Blanca con estrella en la frente" },
   { arete: "EJ-11", nombre: "Faro", sexo: "macho", nacimiento: "2021-04-03", razas: { Saanen: 0.5, Alpina: 0.5 }, libro: "Mestizo", lote: "Levante", padre: "EJ-08", madre: "EJ-09", forma: "monta_natural", color: "Café claro" },
-  { arete: "EJ-12", nombre: "Gema", sexo: "hembra", nacimiento: "2021-05-14", razas: { Toggenburg: 0.5, Saanen: 0.5 }, libro: "Mestizo", lote: "Levante", padre: "EJ-05", madre: "EJ-07", padreSinVerificar: true, forma: "monta_natural", color: "Gris claro" },
+  { arete: "EJ-12", nombre: "Gema", sexo: "hembra", nacimiento: "2022-03-10", razas: { Toggenburg: 0.5, Saanen: 0.5 }, libro: "Mestizo", lote: "Levante", padre: "EJ-05", madre: "EJ-07", padreSinVerificar: true, forma: "monta_natural", color: "Gris claro" },
 ];
 
 const LOTES = ["Ordeño", "Machos", "Levante"];
 
 export interface ResultadoSemillas {
+  /** Animales creados, contando las crías de los partos de ejemplo. */
   creados: number;
   yaCargados: boolean;
   creoFinca: boolean;
 }
 
-/** Carga los datos de ejemplo. Si ya están (arete EJ-01 vigente), no hace nada. */
-export async function cargarDatosDeEjemplo(conexion: Conexion): Promise<ResultadoSemillas> {
+/**
+ * Carga los datos de ejemplo. Si ya están (arete EJ-01 vigente), no hace nada.
+ * Las fechas de la reproducción y la leche se cuentan hacia atrás desde `hoy`, para que siempre haya
+ * lactancias en curso y un parto próximo.
+ */
+export async function cargarDatosDeEjemplo(conexion: Conexion, hoy = fechaLocal()): Promise<ResultadoSemillas> {
   if ((await listarAnimales(conexion, { texto: "EJ-01", incluirSoloGenealogia: true })).length > 0) {
     return { creados: 0, yaCargados: true, creoFinca: false };
   }
-
-  let arranque = await consultarArranque(conexion);
-  const creoFinca = arranque.necesitaAsistente;
-  if (creoFinca) {
-    await completarAsistente(
-      conexion,
-      arranque.finca
-        ? null
-        : {
-            nombre: "Aprisco de ejemplo",
-            criadero: "Criadero de ejemplo",
-            municipio: null,
-            registroSanitarioPredio: null,
-            diasGestacion: 150,
-            diasLactancia: 305,
-          },
-      { nombre: "Propietario de ejemplo", contacto: null },
-      null,
-    );
-    arranque = await consultarArranque(conexion);
-  }
-  const propietario = arranque.usuarios.find((u) => u.rol === "propietario")!;
-  const contexto = (): ContextoCambio => ({ usuarioId: propietario.id, rol: "propietario", marcaTiempo: marcaDeTiempo() });
+  const { contexto, creoFinca } = await asegurarFinca(conexion);
 
   const razas = new Map((await listarCatalogo(conexion, "raza")).map((r) => [r.nombre, r.id]));
   const libros = new Map((await listarCatalogo(conexion, "libro")).map((l) => [l.nombre, l.id]));
@@ -119,5 +105,39 @@ export async function cargarDatosDeEjemplo(conexion: Conexion): Promise<Resultad
     );
     ids.set(f.arete, id);
   }
-  return { creados: FICHAS.length, yaCargados: false, creoFinca };
+
+  const crias = await cargarReproduccionDeEjemplo(conexion, ids, contexto, hoy);
+  // Las crías nacen sin libro (R5); se rotulan como ejemplo y van al lote de levante.
+  for (const id of crias) {
+    const cria = (await obtenerAnimal(conexion, id))!;
+    await guardarAnimal(conexion, { ...cria, observaciones: MARCA_EJEMPLO, loteId: lotes.get("Levante")! }, contexto(), id);
+  }
+  return { creados: FICHAS.length + crias.length, yaCargados: false, creoFinca };
+}
+
+/** Crea la finca y el propietario de ejemplo si el asistente no se ha completado. */
+export async function asegurarFinca(conexion: Conexion): Promise<{ contexto: () => ContextoCambio; creoFinca: boolean }> {
+  let arranque = await consultarArranque(conexion);
+  const creoFinca = arranque.necesitaAsistente;
+  if (creoFinca) {
+    await completarAsistente(
+      conexion,
+      arranque.finca
+        ? null
+        : {
+            nombre: "Aprisco de ejemplo",
+            criadero: "Criadero de ejemplo",
+            municipio: null,
+            registroSanitarioPredio: null,
+            diasGestacion: 150,
+            diasLactancia: 305,
+          },
+      { nombre: "Propietario de ejemplo", contacto: null },
+      null,
+    );
+    arranque = await consultarArranque(conexion);
+  }
+  const propietario = arranque.usuarios.find((u) => u.rol === "propietario")!;
+  const contexto = (): ContextoCambio => ({ usuarioId: propietario.id, rol: "propietario", marcaTiempo: marcaDeTiempo() });
+  return { contexto, creoFinca };
 }

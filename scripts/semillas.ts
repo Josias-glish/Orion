@@ -1,5 +1,8 @@
 // npm run semillas: carga los datos de ejemplo en la base de DESARROLLO (la de `npm run tauri dev`).
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
+//   npm run semillas                    12 animales de ejemplo con reproducción, leche y pesos
+//   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
+//   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -7,8 +10,12 @@ import { abrirConexionMemoria, archivosDeMigracion } from "../src/datos/conexion
 import { URL_BASE_DATOS_DESARROLLO } from "../src/datos/bases";
 import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarAnimales } from "../src/datos/repositorios/animales";
+import { listarLactancias } from "../src/datos/repositorios/leche";
+import { listarPartosProximos } from "../src/datos/repositorios/reproduccion";
+import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import { formatearPorcentaje } from "../src/textos/es";
-import { cargarDatosDeEjemplo } from "./datos-de-ejemplo";
+import { asegurarFinca, cargarDatosDeEjemplo } from "./datos-de-ejemplo";
+import { cargarDatosDeRendimiento, medirOrdeno } from "./datos-de-rendimiento";
 
 /** Carpeta de configuración del programa, igual que la que usa Tauri (app_config_dir). */
 function carpetaDeDatos(): string {
@@ -45,17 +52,40 @@ async function principal() {
       process.exit(1);
     }
 
-    const resultado = await cargarDatosDeEjemplo(conexion);
+    const hoy = fechaLocal();
+    const resultado = await cargarDatosDeEjemplo(conexion, hoy);
     if (resultado.yaCargados) {
       console.log("Los datos de ejemplo ya estaban cargados. No se cambió nada.");
-      return;
+    } else {
+      if (resultado.creoFinca) console.log("Se creó la finca «Aprisco de ejemplo» y el usuario «Propietario de ejemplo» (sin PIN).");
+      console.log(`Se crearon ${resultado.creados} animales de ejemplo. Consanguinidad calculada:`);
+      for (const arete of ["EJ-10", "EJ-11", "EJ-12"]) {
+        const [animal] = await listarAnimales(conexion, { texto: arete });
+        const { coeficiente } = await calcularConsanguinidad(conexion, animal.id);
+        console.log(`  ${animal.nombre} (${arete}): ${formatearPorcentaje(coeficiente * 100)}`);
+      }
+      const lactancias = await listarLactancias(conexion);
+      console.log(`Lactancias en curso: ${lactancias.map((l) => `${l.hembra} (${l.pesajes} pesajes)`).join(", ")}.`);
+      const proximos = await listarPartosProximos(conexion, hoy);
+      console.log(`Partos próximos: ${proximos.map((s) => `${s.hembra} (${s.fechaProbableParto})`).join(", ") || "ninguno"}.`);
     }
-    if (resultado.creoFinca) console.log("Se creó la finca «Aprisco de ejemplo» y el usuario «Propietario de ejemplo» (sin PIN).");
-    console.log(`Se crearon ${resultado.creados} animales de ejemplo. Consanguinidad calculada:`);
-    for (const arete of ["EJ-10", "EJ-11", "EJ-12"]) {
-      const [animal] = await listarAnimales(conexion, { texto: arete });
-      const { coeficiente } = await calcularConsanguinidad(conexion, animal.id);
-      console.log(`  ${animal.nombre} (${arete}): ${formatearPorcentaje(coeficiente * 100)}`);
+
+    if (process.argv.includes("--rendimiento")) {
+      console.log("Cargando 500 animales de prueba de rendimiento (CA-09)…");
+      const inicio = performance.now();
+      const r = await cargarDatosDeRendimiento(conexion, hoy);
+      if (r.yaCargados) console.log("Los animales de prueba de rendimiento ya estaban cargados.");
+      else {
+        console.log(
+          `Se crearon ${r.animales} animales, ${r.lactancias} lactancias y ${r.pesajesLeche} pesajes de leche ` +
+            `en ${((performance.now() - inicio) / 1000).toFixed(1)} s.`,
+        );
+      }
+      const { contexto } = await asegurarFinca(conexion);
+      const m = await medirOrdeno(conexion, hoy, { ...contexto(), marcaTiempo: marcaDeTiempo() });
+      const ms = (v: number) => `${v.toFixed(1)} ms`;
+      console.log(`CA-09 en esta base: lista del ordeño ${ms(m.listarMs)}, guardar un pesaje ${ms(m.guardarNuevoMs)}, corregirlo ${ms(m.corregirMs)}.`);
+      console.log(m.guardarNuevoMs < 1000 && m.corregirMs < 1000 ? "CA-09 cumple: menos de un segundo." : "CA-09 NO cumple.");
     }
     console.log("Abra el programa con «npm run tauri dev» para verlos.");
   } finally {

@@ -7,5 +7,7 @@ export default defineConfig({
     environment: "node",
     // Las máquinas de GitHub Actions varían en velocidad; el hash del PIN es lento a propósito.
     testTimeout: 30_000,
+    // La carga de los 500 animales de CA-09 tarda unos segundos (más en Windows).
+    hookTimeout: 60_000,
   },
 });
