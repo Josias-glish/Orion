@@ -248,8 +248,9 @@ function aFila(datos: DatosAnimal): Record<string, ValorSql> {
     forma_concepcion: datos.formaConcepcion,
     padre_id: datos.padreId,
     madre_id: datos.madreId,
-    padre_sin_verificar: datos.padreId && datos.padreSinVerificar ? 1 : 0,
-    madre_sin_verificar: datos.madreId && datos.madreSinVerificar ? 1 : 0,
+    // R5: el padre puede quedar vacío y aun así marcado «sin verificar».
+    padre_sin_verificar: datos.padreSinVerificar ? 1 : 0,
+    madre_sin_verificar: datos.madreSinVerificar ? 1 : 0,
     observaciones: texto(datos.observaciones),
   };
 }
@@ -287,13 +288,7 @@ async function validarAnimal(
   );
 
   // R2
-  const enUso = await conexion.consultar<IdentificadorEnUso>(
-    `SELECT i.tipo, i.valor, coalesce(a.nombre, i.valor) AS animal FROM identificador AS i
-     JOIN animal AS a ON a.id = i.animal_id
-     WHERE i.vigente = 1 AND i.eliminado_en IS NULL AND i.animal_id IS NOT ?`,
-    [animalId],
-  );
-  motivos.push(...validarIdentificadores(datos.identificadores, enUso));
+  motivos.push(...validarIdentificadores(datos.identificadores, await identificadoresEnUso(conexion, animalId)));
   if (datos.identificadores.some((i) => i.fecha !== null && !esFechaValida(i.fecha))) {
     motivos.push({ codigo: "fecha_invalida", campo: "identificador" });
   }
@@ -301,6 +296,26 @@ async function validarAnimal(
   // R3
   motivos.push(...validarComposicion(datos.composicion));
   return motivos;
+}
+
+/** Identificadores vigentes de los demás animales (para R2). */
+export function identificadoresEnUso(conexion: Conexion, excluirAnimalId: string | null): Promise<IdentificadorEnUso[]> {
+  return conexion.consultar<IdentificadorEnUso>(
+    `SELECT i.tipo, i.valor, coalesce(a.nombre, i.valor) AS animal FROM identificador AS i
+     JOIN animal AS a ON a.id = i.animal_id
+     WHERE i.vigente = 1 AND i.eliminado_en IS NULL AND i.animal_id IS NOT ?`,
+    [excluirAnimalId],
+  );
+}
+
+/** Agrega a un lote de cambios un animal nuevo con sus identificadores y su composición, sin validar. */
+export function prepararAnimalNuevo(cambios: Cambios, datos: DatosAnimal): string {
+  const id = cambios.insertar("animal", aFila(datos));
+  prepararIdentificadores(cambios, id, [], datos.identificadores);
+  for (const f of datos.composicion) {
+    cambios.insertar("composicion_racial", { animal_id: id, raza_id: f.razaId, fraccion: f.fraccion });
+  }
+  return id;
 }
 
 /**
@@ -326,12 +341,16 @@ export async function guardarAnimal(
   rechazarSi(await validarAnimal(conexion, datos, id ?? null, fechaLocal()));
 
   const cambios = new Cambios(contexto);
-  const animalId = actual ? actual.id : cambios.insertar("animal", aFila(datos));
-  if (actual) cambios.actualizar("animal", actual.id, aFila(actual), aFila(datos));
-  prepararIdentificadores(cambios, animalId, actual?.identificadores ?? [], datos.identificadores);
-  await prepararComposicion(conexion, cambios, animalId, datos.composicion);
+  if (!actual) {
+    const nuevoId = prepararAnimalNuevo(cambios, datos);
+    await cambios.aplicar(conexion);
+    return nuevoId;
+  }
+  cambios.actualizar("animal", actual.id, aFila(actual), aFila(datos));
+  prepararIdentificadores(cambios, actual.id, actual.identificadores, datos.identificadores);
+  await prepararComposicion(conexion, cambios, actual.id, datos.composicion);
   await cambios.aplicar(conexion);
-  return animalId;
+  return actual.id;
 }
 
 function filaIdentificador(i: IdentificadorEditable): Record<string, ValorSql> {

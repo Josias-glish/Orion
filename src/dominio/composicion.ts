@@ -44,7 +44,8 @@ export function composicionDeCria(
   padre: readonly FraccionRacial[],
   madre: readonly FraccionRacial[],
 ): FraccionRacial[] {
-  void padre;
-  void madre;
-  throw new Error("composicionDeCria: no implementado");
+  if (padre.length === 0 || madre.length === 0) return [];
+  const suma = new Map<string, number>();
+  for (const f of [...padre, ...madre]) suma.set(f.razaId, (suma.get(f.razaId) ?? 0) + f.fraccion / 2);
+  return [...suma.entries()].map(([razaId, fraccion]) => ({ razaId, fraccion }));
 }

@@ -12,7 +12,13 @@ export type Tabla =
   | "lote"
   | "animal"
   | "identificador"
-  | "composicion_racial";
+  | "composicion_racial"
+  | "evento_reproductivo"
+  | "parto"
+  | "lactancia"
+  | "pesaje_leche"
+  | "pesaje_corporal"
+  | "meta_peso";
 
 /** Campos que no se anotan uno por uno: el id va en registro_id y las fechas comunes se deducen. */
 const CAMPOS_NO_ANOTADOS = new Set(["id", "creado_en", "modificado_en"]);

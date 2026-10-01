@@ -44,14 +44,15 @@ export function edadEnMeses(nacimiento: string, hoy: string): number {
 
 /** Suma (o resta, si es negativo) días a una fecha «AAAA-MM-DD». */
 export function sumarDias(fecha: string, dias: number): string {
-  void fecha;
-  void dias;
-  throw new Error("sumarDias: no implementado");
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(anio, mes - 1, dia + dias)).toISOString().slice(0, 10);
 }
 
 /** Días de `desde` a `hasta` (positivo si `hasta` es posterior). */
 export function diasEntre(desde: string, hasta: string): number {
-  void desde;
-  void hasta;
-  throw new Error("diasEntre: no implementado");
+  const utc = (f: string) => {
+    const [anio, mes, dia] = f.split("-").map(Number);
+    return Date.UTC(anio, mes - 1, dia);
+  };
+  return Math.round((utc(hasta) - utc(desde)) / 86_400_000);
 }

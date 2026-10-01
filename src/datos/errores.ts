@@ -18,7 +18,21 @@ export type Motivo =
   | { codigo: "pin_invalido" }
   | { codigo: "ultimo_propietario" }
   | { codigo: "no_puede_retirarse_a_si_mismo" }
-  | { codigo: "lote_con_animales"; cantidad: number };
+  | { codigo: "lote_con_animales"; cantidad: number }
+  | { codigo: "animal_no_disponible"; otro: string }
+  | { codigo: "debe_ser_hembra"; otro: string }
+  | { codigo: "debe_ser_macho"; otro: string }
+  | { codigo: "monta_sin_macho" }
+  | { codigo: "inseminacion_sin_dato" }
+  | { codigo: "fecha_anterior_al_nacimiento"; otro: string }
+  | { codigo: "diagnostico_antes_del_servicio" }
+  | { codigo: "resultado_invalido" }
+  | { codigo: "sin_crias" }
+  | { codigo: "kilos_invalidos" }
+  | { codigo: "fuera_de_la_lactancia" }
+  | { codigo: "lactancia_secada" }
+  | { codigo: "pesajes_despues_del_secado" }
+  | { codigo: "meta_invalida" };
 
 /** Error esperado: el cambio no cumple una regla. Lleva todos los motivos para mostrarlos juntos. */
 export class ErrorDeRegistro extends Error {

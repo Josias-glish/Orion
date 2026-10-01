@@ -131,6 +131,34 @@ function motivo(m: Motivo): string {
       return "No puede retirar su propio usuario mientras lo está usando.";
     case "lote_con_animales":
       return `El lote tiene ${m.cantidad} animales. Páselos a otro lote antes de retirarlo.`;
+    case "animal_no_disponible":
+      return `${nombreDe(m.otro)} no está disponible: está vendido o muerto, o no pertenece al hato.`;
+    case "debe_ser_hembra":
+      return `${nombreDe(m.otro)} no es una hembra.`;
+    case "debe_ser_macho":
+      return `${nombreDe(m.otro)} no es un macho.`;
+    case "monta_sin_macho":
+      return "Para una monta, elija el macho.";
+    case "inseminacion_sin_dato":
+      return "Para una inseminación, elija el macho o escriba el código de la pajilla.";
+    case "fecha_anterior_al_nacimiento":
+      return `La fecha no puede ser anterior al nacimiento de ${nombreDe(m.otro)}.`;
+    case "diagnostico_antes_del_servicio":
+      return "La fecha del diagnóstico no puede ser anterior a la del servicio.";
+    case "resultado_invalido":
+      return "Elija el resultado del diagnóstico: preñada, vacía o aborto.";
+    case "sin_crias":
+      return "Indique al menos una cría.";
+    case "kilos_invalidos":
+      return "Escriba los kilos con un número mayor que cero (o cero en la leche), por ejemplo 2,5.";
+    case "fuera_de_la_lactancia":
+      return "La fecha está fuera de esa lactancia.";
+    case "lactancia_secada":
+      return "Esa lactancia ya está secada.";
+    case "pesajes_despues_del_secado":
+      return "Hay pesajes de leche después de esa fecha de secado.";
+    case "meta_invalida":
+      return "La meta necesita una edad en meses (0 o más) y un peso mayor que cero.";
   }
 }
 

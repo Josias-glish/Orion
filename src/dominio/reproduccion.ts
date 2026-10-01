@@ -1,3 +1,4 @@
+import { diasEntre, sumarDias } from "./fechas";
 import type { FormaConcepcion } from "./tipos";
 
 export type TipoServicio = "monta" | "inseminacion";
@@ -13,9 +14,7 @@ export interface ServicioResumido {
 
 /** R4. Fecha probable de parto: fecha del servicio más los días de gestación de la finca. */
 export function fechaProbableParto(fechaServicio: string, diasGestacion: number): string {
-  void fechaServicio;
-  void diasGestacion;
-  throw new Error("fechaProbableParto: no implementado");
+  return sumarDias(fechaServicio, diasGestacion);
 }
 
 export interface PadreDelParto {
@@ -29,20 +28,26 @@ export interface PadreDelParto {
 
 /** R5. Padre de las crías: el macho del último servicio de la hembra con resultado «preñada» anterior al parto. */
 export function padreDelParto(servicios: readonly ServicioResumido[], fechaParto: string): PadreDelParto {
-  void servicios;
-  void fechaParto;
-  throw new Error("padreDelParto: no implementado");
+  const ultimo = servicios
+    .filter((s) => s.resultado === "prenada" && s.fecha < fechaParto)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+  if (!ultimo) return { servicioId: null, padreId: null, padreSinVerificar: true, formaConcepcion: null };
+  return {
+    servicioId: ultimo.id,
+    padreId: ultimo.machoId,
+    padreSinVerificar: ultimo.machoId === null,
+    formaConcepcion: ultimo.tipo === "monta" ? "monta_natural" : "inseminacion_artificial",
+  };
 }
 
 /** R9. Días entre partos consecutivos de la misma hembra, en orden. */
 export function intervalosEntrePartos(fechasDePartos: readonly string[]): number[] {
-  void fechasDePartos;
-  throw new Error("intervalosEntrePartos: no implementado");
+  const ordenadas = [...fechasDePartos].sort();
+  return ordenadas.slice(1).map((fecha, i) => diasEntre(ordenadas[i], fecha));
 }
 
 export function promedio(valores: readonly number[]): number | null {
-  void valores;
-  throw new Error("promedio: no implementado");
+  return valores.length === 0 ? null : valores.reduce((a, b) => a + b, 0) / valores.length;
 }
 
 /** Lo que se anota de cada cría al registrar el parto (Flujo 1). */
@@ -75,9 +80,15 @@ export function planificarCrias(
   padre: PadreDelParto,
   crias: readonly CriaAnotada[],
 ): CriaPlanificada[] {
-  void madreId;
-  void fechaParto;
-  void padre;
-  void crias;
-  throw new Error("planificarCrias: no implementado");
+  return crias.map((cria) => ({
+    ...cria,
+    fechaNacimiento: fechaParto,
+    madreId,
+    padreId: padre.padreId,
+    padreSinVerificar: padre.padreSinVerificar,
+    madreSinVerificar: false,
+    estado: cria.nacioMuerta ? "muerto" : "activo",
+    formaConcepcion: padre.formaConcepcion,
+    libroId: null,
+  }));
 }
