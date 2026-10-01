@@ -3,9 +3,11 @@ import { useCarga } from "../componentes/useCarga";
 import { contarAnimales } from "../datos/repositorios/animales";
 import { listarOrdeno } from "../datos/repositorios/leche";
 import { listarPartosProximos } from "../datos/repositorios/reproduccion";
+import { listarAlertasRetiro, listarProximasAplicaciones } from "../datos/repositorios/salud";
 import { fechaLocal } from "../dominio/fechas";
 import { textos } from "../textos/es";
 import { TablaPartosProximos } from "./reproduccion/Reproduccion";
+import { TablaProximas, TablaRetiros } from "./salud/Salud";
 
 export function Inicio() {
   const conexion = useConexion();
@@ -18,6 +20,8 @@ export function Inicio() {
   const { datos: proximos } = useCarga(() => listarPartosProximos(conexion, hoy), [conexion, hoy]);
   // R11: listarOrdeno ya deja fuera a las vendidas y muertas.
   const { datos: enLactancia } = useCarga(() => listarOrdeno(conexion, hoy, "manana"), [conexion, hoy]);
+  const { datos: retiros } = useCarga(() => listarAlertasRetiro(conexion, hoy), [conexion, hoy]);
+  const { datos: vacunas } = useCarga(() => listarProximasAplicaciones(conexion, hoy), [conexion, hoy]);
   const t = textos.inicio;
 
   return (
@@ -70,6 +74,15 @@ export function Inicio() {
           </ol>
         </div>
       )}
+      <h2>{t.retirosTitulo}</h2>
+      {retiros === null ? (
+        <p>{textos.comun.cargando}</p>
+      ) : retiros.length === 0 ? (
+        <p className="nota">{t.retirosVacio}</p>
+      ) : (
+        <TablaRetiros alertas={retiros} />
+      )}
+
       <h2>{t.partosProximosTitulo}</h2>
       {proximos === null ? (
         <p>{textos.comun.cargando}</p>
@@ -107,7 +120,15 @@ export function Inicio() {
           </button>
         </>
       )}
-      <p className="nota">{t.proximamente}</p>
+
+      <h2>{t.vacunasTitulo}</h2>
+      {vacunas === null ? (
+        <p>{textos.comun.cargando}</p>
+      ) : vacunas.length === 0 ? (
+        <p className="nota">{t.vacunasVacio}</p>
+      ) : (
+        <TablaProximas proximas={vacunas} alAbrir={(id) => navegar({ pantalla: "animal", id, pestana: "salud" })} />
+      )}
     </section>
   );
 }

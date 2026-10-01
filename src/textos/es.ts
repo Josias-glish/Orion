@@ -2,7 +2,9 @@
 import type { Motivo } from "../datos/errores";
 import { generacion, linea, sexoEsperado, type Camino } from "../dominio/genealogia";
 import type { Jornada } from "../dominio/leche";
+import type { CampoExpediente } from "../dominio/expediente";
 import type { TipoPesaje } from "../dominio/pesos";
+import type { TipoRetiro, TipoSalud } from "../dominio/salud";
 import type { ResultadoServicio, TipoServicio } from "../dominio/reproduccion";
 import type { EstadoAnimal, FormaConcepcion, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
 
@@ -37,6 +39,13 @@ const resultadoServicio: Record<ResultadoServicio, string> = {
 };
 const jornada: Record<Jornada, string> = { manana: "Mañana", tarde: "Tarde" };
 const tipoPesaje: Record<TipoPesaje, string> = { nacimiento: "Nacimiento", destete: "Destete", control: "Control" };
+const tipoSalud: Record<TipoSalud, string> = {
+  vacuna: "Vacuna",
+  desparasitacion: "Desparasitación",
+  tratamiento: "Tratamiento",
+  condicion_corporal: "Condición corporal",
+};
+const tipoRetiro: Record<TipoRetiro, string> = { leche: "Leche", carne: "Carne" };
 
 /** 2.5 → «2,5»; con `unidad`, «2,5 kg». */
 export function formatearKilos(kilos: number, decimales = 1, unidad = true): string {
@@ -92,6 +101,20 @@ const campos: Record<string, string> = {
   jornada: "jornada",
   kilos: "kilos",
   edad_meses: "edad en meses",
+  producto: "producto",
+  numero_registro_ica: "número de registro ICA",
+  lote_producto: "lote del producto",
+  dosis: "dosis",
+  via: "vía",
+  fecha_fin: "fecha de fin",
+  retiro_leche_dias: "días de retiro de leche",
+  retiro_carne_dias: "días de retiro de carne",
+  aplicador: "aplicador",
+  veterinario: "veterinario",
+  condicion_corporal: "condición corporal",
+  proxima_fecha: "próxima fecha",
+  numero: "número",
+  archivo: "archivo",
 };
 
 const nombreDe = (otro: string) => `«${otro}»`;
@@ -195,6 +218,24 @@ function motivo(m: Motivo): string {
       return "Hay pesajes de leche después de esa fecha de secado.";
     case "meta_invalida":
       return "La meta necesita una edad en meses (0 o más) y un peso mayor que cero.";
+    case "fin_antes_del_inicio":
+      return "La fecha de fin no puede ser anterior a la fecha de aplicación.";
+    case "proxima_antes_del_inicio":
+      return "La próxima fecha debe ser posterior a la fecha de aplicación.";
+    case "retiro_invalido":
+      return "Los días de retiro deben ser un número entero: 0 o más.";
+    case "condicion_invalida":
+      return "La condición corporal va de 1 a 5, en pasos de medio punto (por ejemplo 2,5).";
+    case "tipo_salud_invalido":
+      return "Elija el tipo: vacuna, desparasitación, tratamiento o condición corporal.";
+    case "lote_sin_animales":
+      return `El lote «${m.lote}» no tiene animales activos.`;
+    case "base_no_vacia":
+      return "Solo se puede restaurar en un programa recién instalado, sin finca ni animales. Así nunca se borran ni se mezclan datos.";
+    case "respaldo_mas_nuevo":
+      return "Esta copia la hizo una versión más nueva del programa. Actualice Registro Caprino y vuelva a intentarlo.";
+    case "respaldo_danado":
+      return "El archivo no es una copia de respaldo de Registro Caprino o está dañado.";
   }
 }
 
@@ -211,6 +252,8 @@ export const textos = {
     reproduccion: "Reproducción",
     leche: "Leche",
     pesos: "Pesos",
+    salud: "Salud",
+    documentos: "Documentos",
     ajustes: "Ajustes",
     cambiarUsuario: "Cambiar de usuario",
   },
@@ -228,6 +271,8 @@ export const textos = {
     resultadoServicio,
     jornada,
     tipoPesaje,
+    tipoSalud,
+    tipoRetiro,
     kilos: formatearKilos,
     dias,
     si: "Sí",
@@ -328,7 +373,11 @@ export const textos = {
     lactanciaTitulo: "Hembras en lactancia",
     lactanciaVacio: "No hay hembras en lactancia.",
     abrirOrdeno: "Abrir el ordeño",
-    proximamente: "En la etapa 4 verá aquí también las alertas de retiro y las vacunas por vencer.",
+    retirosTitulo: "Alertas de retiro vigentes",
+    retirosVacio: "No hay retiros de leche ni de carne vigentes.",
+    vacunasTitulo: "Vacunas y desparasitaciones por vencer",
+    vacunasVacio: "No hay vacunas ni desparasitaciones pendientes en los próximos 30 días.",
+    verSalud: "Ir a Salud",
   },
 
   reproduccion: {
@@ -399,6 +448,7 @@ export const textos = {
     guardar: "Guardar parto",
     guardado: (n: number) => `Parto guardado: se ${n === 1 ? "creó 1 ficha" : `crearon ${n} fichas`} y se abrió la lactancia.`,
     verCria: "Ver ficha",
+    emitirCertificado: "Emitir certificado interno",
     otraVez: "Registrar otro parto",
     elegirHembra: "Elija la madre…",
   },
@@ -424,8 +474,6 @@ export const textos = {
     guardando: "Guardando…",
     progreso: (anotadas: number, total: number) => `${anotadas} de ${total} anotadas`,
     total: (kilos: string) => `Total de la jornada: ${kilos}`,
-    // Etapa 4 (RF-24): aquí se mostrará el aviso de leche retenida por un tratamiento.
-    retiroPendiente: "La columna «Retiro» mostrará desde la etapa 4 si la leche de una cabra está retenida por un tratamiento.",
     soloAbiertas: "Mostrar solo las lactancias en curso",
     lactanciasVacio: "No hay lactancias registradas.",
     lactanciasColumnas: {
@@ -529,8 +577,193 @@ export const textos = {
     },
   },
 
+  salud: {
+    titulo: "Salud",
+    secciones: { registrar: "Registrar", calendario: "Próximas fechas", retiros: "Retiros vigentes", historial: "Historial" },
+    destino: "Aplicar a",
+    destinoAnimal: "Un animal",
+    destinoLote: "Un lote",
+    animal: "Animal",
+    lote: "Lote",
+    elegirLote: "Elija un lote…",
+    loteAyuda: (n: number) =>
+      `Se anotará en cada uno de los ${n} animales activos del lote. Los que entren después al lote no quedan con este retiro.`,
+    tipo: "Tipo",
+    producto: "Producto (nombre comercial)",
+    numeroRegistroIca: "Número de registro ICA del producto",
+    loteProducto: "Lote del producto",
+    dosis: "Dosis",
+    via: "Vía de aplicación",
+    viaAyuda: "Por ejemplo: intramuscular, subcutánea, oral, intramamaria.",
+    fechaInicio: "Fecha de aplicación (o de inicio)",
+    fechaFin: "Fecha de fin (si dura varios días)",
+    retiroLeche: "Retiro de leche (días)",
+    retiroCarne: "Retiro de carne (días)",
+    retiroAyuda: "Lo indica la etiqueta del producto. Deje vacío o 0 si no tiene retiro.",
+    aplicador: "Quién lo aplicó",
+    veterinario: "Veterinario que lo formuló",
+    proximaFecha: "Próxima aplicación",
+    proximaAyuda: "Para el calendario de vacunas y desparasitaciones.",
+    condicionCorporal: "Condición corporal (1 a 5)",
+    condicionAyuda: "1 = muy flaca, 3 = ideal, 5 = muy gorda. Admite medios puntos (2,5).",
+    observaciones: "Observaciones (opcional)",
+    camposIca: "Datos del Registro de Tratamientos del ICA",
+    camposIcaAyuda:
+      "El ICA (Res. 20148 de 2016) pide producto, registro ICA, lote, dosis, vía, animal, fechas, retiro y veterinario. Si aplica a su aprisco está por confirmar; el programa los guarda todos.",
+    guardar: "Guardar",
+    guardado: (n: number) => (n === 1 ? "Guardado." : `Guardado en ${n} animales.`),
+    retiroHasta: (tipo: string, fecha: string) => `${tipo}: retiro hasta el ${fecha}`,
+    calendarioAyuda: "Vacunas y desparasitaciones con próxima fecha en los próximos 30 días, y las ya vencidas.",
+    calendarioVacio: "No hay vacunas ni desparasitaciones pendientes en los próximos 30 días.",
+    vencida: "Vencida",
+    retirosAyuda: "Animales tratados cuya leche o carne no se puede vender todavía (R7: hasta la fecha de fin inclusive).",
+    retirosVacio: "No hay retiros vigentes.",
+    historialVacio: "No hay eventos de salud registrados.",
+    columnas: {
+      fecha: "Fecha",
+      animal: "Animal",
+      lote: "Lote",
+      tipo: "Tipo",
+      producto: "Producto",
+      detalle: "Dosis y vía",
+      retiro: "Retiro",
+      hasta: "Hasta",
+      proxima: "Próxima fecha",
+      registroIca: "Registro ICA",
+      veterinario: "Veterinario",
+      condicion: "Condición",
+    },
+    retirar: "Retirar",
+    retirarConfirmar: "¿Retirar este registro? Úselo solo si se anotó por error.",
+    lecheRetenida: (fecha: string) => `Leche retenida hasta el ${fecha}`,
+    lecheRetenidaAyuda: (productos: string) => `Tratamiento: ${productos}. Pese la leche, pero no la venda.`,
+    alertaFicha: "Retiro vigente",
+    fichaVacio: "Sin eventos de salud.",
+    registrarEnFicha: "Registrar evento de salud",
+  },
+
+  documentos: {
+    titulo: "Documentos",
+    secciones: { certificado: "Certificado interno", expediente: "Expediente para ANCO", emitidos: "Emitidos", respaldo: "Copia de respaldo" },
+    animal: "Animal",
+    elegirAnimal: "Elija el animal",
+    certificadoAyuda:
+      "Registro interno del criadero con los datos del animal y su ascendencia hasta abuelos. No reemplaza el certificado de ANCO.",
+    expedienteAyuda:
+      "Reúne los datos que ANCO suele pedir para registrar un animal, en PDF y CSV (hoja de cálculo). Revise los campos que faltan antes de entregarlo.",
+    generarCertificado: "Generar certificado (PDF)",
+    generarExpediente: "Generar expediente (PDF y CSV)",
+    generando: "Generando…",
+    faltanTitulo: "Campos que faltan",
+    faltanAyuda: "Puede generar el expediente igual; los campos vacíos quedan en blanco. Complételos en la ficha del animal.",
+    nadaFalta: "Están todos los campos de R13.",
+    avisoSinVerificar: (campo: string) => `${campo}: el vínculo está marcado «sin verificar».`,
+    guardadoEn: (ruta: string) => `Documento guardado en: ${ruta}`,
+    guardadoInterno: (numero: string) => `Documento ${numero} generado y registrado.`,
+    sinCopia: "No eligió dónde guardar una copia; el documento queda en la carpeta de datos del programa.",
+    emitidosVacio: "Todavía no se ha emitido ningún documento.",
+    emitidosColumnas: { fecha: "Fecha", numero: "Número", tipo: "Tipo", animal: "Animal", archivo: "Archivo" },
+    tipoDocumento: { propio: "Certificado interno", asociacion: "Expediente para ANCO" } as Record<"propio" | "asociacion", string>,
+    soloPropietario: "Solo el propietario puede emitir documentos.",
+    guardarCopia: (formato: string) => `Guardar una copia del ${formato}…`,
+    filtroPdf: "Documento PDF",
+    filtroCsv: "Hoja de cálculo CSV",
+  },
+
+  certificado: {
+    tituloDocumento: "Certificado interno del criadero",
+    aviso: "Registro interno del criadero. No es el certificado oficial de ANCO.",
+    numero: "Número",
+    fechaEmision: "Fecha de emisión",
+    emitidoPor: "Emitido por",
+    finca: "Finca",
+    criadero: "Criadero",
+    municipio: "Municipio",
+    datosTitulo: "Datos del animal",
+    ascendenciaTitulo: "Ascendencia",
+    padres: "Padres",
+    abuelos: "Abuelos",
+    registro: (valor: string) => `Registro de asociación: ${valor}`,
+    sinVerificar: "Sin verificar",
+    desconocido: "Desconocido",
+    identificadores: "Identificadores",
+    registroAsociacion: "Registro de asociación",
+    consanguinidad: "Consanguinidad (Wright)",
+    pagina: (actual: number, total: number) => `Página ${actual} de ${total}`,
+    generadoCon: "Generado con Registro Caprino",
+  },
+
+  expediente: {
+    tituloDocumento: "Expediente para ANCO",
+    provisional:
+      "Formato provisional preparado por el programa: no es un formato oficial de ANCO. Revise los datos antes de entregarlo.",
+    numero: "Número",
+    fechaEmision: "Fecha",
+    finca: "Finca",
+    campo: "Campo",
+    valor: "Valor",
+    faltanTitulo: "Campos que faltan",
+    avisosTitulo: "Avisos",
+    campos: {
+      nombre: "Nombre",
+      crg: "Número de registro de asociación (CRG)",
+      criador: "Criador",
+      propietario: "Propietario",
+      criadero: "Criadero",
+      sexo: "Sexo",
+      composicion: "Composición racial",
+      libro: "Libro genealógico",
+      formaConcepcion: "Forma de concepción",
+      marcas: "Marcas",
+      color: "Color y señas",
+      nacimiento: "Fecha de nacimiento",
+      padre: "Padre",
+      madre: "Madre",
+      abueloPaterno: "Abuelo paterno",
+      abuelaPaterna: "Abuela paterna",
+      abueloMaterno: "Abuelo materno",
+      abuelaMaterna: "Abuela materna",
+    } as Record<CampoExpediente, string>,
+    registroDe: {
+      padre: "Registro del padre",
+      madre: "Registro de la madre",
+      abueloPaterno: "Registro del abuelo paterno",
+      abuelaPaterna: "Registro de la abuela paterna",
+      abueloMaterno: "Registro del abuelo materno",
+      abuelaMaterna: "Registro de la abuela materna",
+    },
+    columnaFaltantes: "Campos que faltan",
+  },
+
+  respaldo: {
+    titulo: "Copia de respaldo",
+    explicacion:
+      "Guarda en un solo archivo .zip todos los datos de la finca: animales, genealogía, reproducción, leche, pesos, salud, usuarios, historial, fotos y documentos emitidos. Guárdelo fuera del computador (memoria USB o disco externo).",
+    exportar: "Crear copia de respaldo…",
+    exportando: "Creando la copia…",
+    exportado: (ruta: string, tamano: string) => `Copia guardada en ${ruta} (${tamano}).`,
+    nombreArchivo: (fecha: string) => `respaldo-registro-caprino-${fecha}.zip`,
+    filtro: "Copia de respaldo",
+    restaurarTitulo: "Restaurar una copia",
+    restaurarExplicacion:
+      "Para no borrar ni mezclar datos, una copia solo se restaura en un programa recién instalado, antes de crear la finca (en la primera pantalla). Si necesita volver a una copia en este computador, siga los pasos de docs/INSTALACION.md, sección «Restaurar una copia».",
+    restaurarAsistente: "¿Ya usaba Registro Caprino en otro computador? Restaure su copia de respaldo",
+    restaurarBoton: "Elegir copia de respaldo…",
+    restaurando: "Restaurando… no cierre el programa.",
+    restaurado: (finca: string, fecha: string) => `Se restauró la copia de «${finca}» hecha el ${fecha}.`,
+    soloPropietario: "Solo el propietario puede crear la copia completa (R14).",
+  },
+
   ficha: {
-    pestanas: { ficha: "Ficha", genealogia: "Genealogía", reproduccion: "Reproducción y leche", pesos: "Pesos", historial: "Historial" },
+    pestanas: {
+      ficha: "Ficha",
+      genealogia: "Genealogía",
+      reproduccion: "Reproducción y leche",
+      pesos: "Pesos",
+      salud: "Salud",
+      documentos: "Documentos",
+      historial: "Historial",
+    },
     reproduccionVacio: "Sin servicios ni partos registrados.",
     serviciosTitulo: "Servicios",
     partosTitulo: "Partos",
@@ -644,6 +877,8 @@ export const textos = {
       lactancia: "Lactancia",
       pesaje_leche: "Leche (corrección)",
       pesaje_corporal: "Peso",
+      evento_salud: "Salud",
+      certificado: "Documento",
     } as Record<string, string>,
     campo: (c: string) => campos[c] ?? c,
   },

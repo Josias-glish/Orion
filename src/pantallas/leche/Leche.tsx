@@ -5,6 +5,7 @@ import { mensajesDeError } from "../../componentes/mensajeDeError";
 import { Pestanas } from "../../componentes/Pestanas";
 import { useCarga } from "../../componentes/useCarga";
 import { guardarPesajeLeche, listarLactancias, listarOrdeno, type FilaOrdeno } from "../../datos/repositorios/leche";
+import { retirosDeLechePorAnimal } from "../../datos/repositorios/salud";
 import { fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { JORNADAS, leerKilos, type Jornada } from "../../dominio/leche";
 import { textos } from "../../textos/es";
@@ -47,6 +48,8 @@ function Ordeno() {
     async () => ({ clave: `${fecha}|${jornada}`, filas: await listarOrdeno(conexion, fecha, jornada) }),
     [conexion, fecha, jornada],
   );
+  // RF-24 y Flujo 2: leche retenida por un tratamiento en la fecha del ordeño (R7).
+  const { datos: retiros } = useCarga(() => retirosDeLechePorAnimal(conexion, fecha), [conexion, fecha]);
   // Mientras llega la lista de otra fecha o jornada no se muestra la anterior: así nada se anota en la jornada equivocada.
   const filas = cargadas?.clave === clave ? cargadas.filas : null;
   const [guardados, setGuardados] = useState<Record<string, number>>({});
@@ -153,7 +156,11 @@ function Ordeno() {
               {filas.map((f, i) => {
                 const estado = estados[f.lactanciaId];
                 return (
-                  <tr key={f.lactanciaId} data-cabra={f.nombre ?? f.identificador ?? ""} className={estado?.tipo === "error" ? "fila-error" : undefined}>
+                  <tr
+                    key={f.lactanciaId}
+                    data-cabra={f.nombre ?? f.identificador ?? ""}
+                    className={estado?.tipo === "error" ? "fila-error" : retiros?.has(f.hembraId) ? "fila-retiro" : undefined}
+                  >
                     <td>
                       <span className="destacado">{f.identificador ?? textos.comun.sinDato}</span> {f.nombre ?? ""}
                     </td>
@@ -185,14 +192,13 @@ function Ordeno() {
                       {estado?.tipo === "error" && <span className="texto-error">{estado.mensaje}</span>}
                     </td>
                     <td data-prueba="retiro">
-                      <AvisoRetiro hembraId={f.hembraId} fecha={fecha} />
+                      <AvisoRetiro retiro={retiros?.get(f.hembraId) ?? null} />
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <p className="nota">{t.retiroPendiente}</p>
         </>
       )}
     </div>
@@ -200,11 +206,17 @@ function Ordeno() {
 }
 
 /**
- * Lugar reservado para el aviso de leche retenida por un tratamiento (RF-24, R7). Se conecta en la etapa 4,
- * cuando existan los eventos de salud; hasta entonces no muestra nada.
+ * RF-24 en el ordeño: aviso de leche retenida por un tratamiento (R7). La leche se pesa igual (cuenta en la
+ * lactancia), pero no se vende: el aviso no impide guardar.
  */
-function AvisoRetiro(_: { hembraId: string; fecha: string }) {
-  return null;
+function AvisoRetiro({ retiro }: { retiro: { hasta: string; productos: string[] } | null }) {
+  if (!retiro) return null;
+  return (
+    <span className="retiro-ordeno" role="status" data-prueba="leche-retenida">
+      ⚠ {textos.salud.lecheRetenida(formatearFecha(retiro.hasta))}
+      <span className="nota">{textos.salud.lecheRetenidaAyuda(retiro.productos.join(", "))}</span>
+    </span>
+  );
 }
 
 function ListaLactancias() {

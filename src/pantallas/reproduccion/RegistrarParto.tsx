@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Aviso } from "../../componentes/Aviso";
 import { Campo, Casilla } from "../../componentes/Campo";
-import { useConexion, useContextoCambio, useNavegar } from "../../componentes/contextos";
+import { useConexion, useContextoCambio, useNavegar, usePermiso } from "../../componentes/contextos";
 import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { SelectorAnimal } from "../../componentes/SelectorAnimal";
 import { useCarga } from "../../componentes/useCarga";
@@ -37,6 +37,7 @@ export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null 
   const [error, setError] = useState<unknown>(null);
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoParto | null>(null);
+  const puedeEmitir = usePermiso("emitir_documento");
   const { datos: hembras } = useCarga(() => listarAnimales(conexion, { sexo: "hembra", estado: "activo" }), [conexion]);
   const { datos: padre } = useCarga(
     async () => (hembraId && esFechaValida(fecha) ? padrePropuesto(conexion, hembraId, fecha) : null),
@@ -85,6 +86,15 @@ export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null 
               <button type="button" className="enlace" onClick={() => navegar({ pantalla: "animal", id, pestana: "ficha" })}>
                 {crias[i].nombre.trim() || crias[i].arete.trim() || t.cria(i + 1)} — {t.verCria}
               </button>
+              {/* Flujo 1: opcionalmente se emite el certificado interno de la cría. */}
+              {puedeEmitir && !crias[i].nacioMuerta && (
+                <>
+                  {" · "}
+                  <button type="button" className="enlace" onClick={() => navegar({ pantalla: "documentos", seccion: "certificado", animalId: id })}>
+                    {t.emitirCertificado}
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>

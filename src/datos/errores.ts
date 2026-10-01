@@ -1,12 +1,14 @@
 import type { ErrorComposicion } from "../dominio/composicion";
 import type { ErrorGenealogia } from "../dominio/genealogia";
 import type { ErrorIdentificador } from "../dominio/identificadores";
+import type { ErrorSalud } from "../dominio/salud";
 
 /** Motivo por el que se rechaza un cambio. La interfaz muestra el texto según el código (src/textos/es.ts). */
 export type Motivo =
   | ErrorGenealogia
   | ErrorIdentificador
   | ErrorComposicion
+  | ErrorSalud
   | { codigo: "sin_permiso" }
   | { codigo: "no_encontrado" }
   | { codigo: "dato_obligatorio"; campo: string }
@@ -32,7 +34,11 @@ export type Motivo =
   | { codigo: "fuera_de_la_lactancia" }
   | { codigo: "lactancia_secada" }
   | { codigo: "pesajes_despues_del_secado" }
-  | { codigo: "meta_invalida" };
+  | { codigo: "meta_invalida" }
+  | { codigo: "lote_sin_animales"; lote: string }
+  | { codigo: "base_no_vacia" }
+  | { codigo: "respaldo_mas_nuevo" }
+  | { codigo: "respaldo_danado" };
 
 /** Error esperado: el cambio no cumple una regla. Lleva todos los motivos para mostrarlos juntos. */
 export class ErrorDeRegistro extends Error {

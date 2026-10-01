@@ -4,7 +4,8 @@ import { cargarDatosDeEjemplo } from "../../scripts/datos-de-ejemplo";
 import { OPERARIO, PROPIETARIO } from "./ayudas-pruebas";
 import { archivosDeMigracion, crearBaseDePrueba, type ConexionMemoria } from "./conexion-memoria";
 import { ErrorDeRegistro } from "./errores";
-import { listarAnimales } from "./repositorios/animales";
+import { eliminarAnimal, listarAnimales } from "./repositorios/animales";
+import { cambiarPin } from "./repositorios/usuarios";
 import { registrarEventoSalud } from "./repositorios/salud";
 import { exportarRespaldo, leerRespaldo, restaurarRespaldo, TABLAS_RESPALDO, VERSION_ESQUEMA, type Respaldo } from "./respaldo";
 
@@ -30,9 +31,12 @@ const codigos = async (promesa: Promise<unknown>) => {
   }
 };
 
-/** Datos de ejemplo (16 animales, servicios, partos, lactancias, pesajes…) más un tratamiento y un animal retirado. */
+/** Datos de ejemplo (16 animales, servicios, partos, lactancias, pesajes, salud…) más un PIN, un tratamiento y un animal retirado. */
 async function finca(db: ConexionMemoria) {
   await cargarDatosDeEjemplo(db, HOY);
+  const [{ id: usuario }] = await db.consultar<{ id: string }>("SELECT id FROM usuario LIMIT 1");
+  await cambiarPin(db, usuario, "4321", PROPIETARIO);
+  await eliminarAnimal(db, (await listarAnimales(db, { texto: "EJ-16" }))[0].id, PROPIETARIO);
   const [bella] = await listarAnimales(db, { texto: "EJ-07" });
   await registrarEventoSalud(
     db,
@@ -69,7 +73,9 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     expect(respaldo.tablas.animal.length).toBe(16);
     expect(respaldo.tablas.pesaje_leche.length).toBe(670);
     expect(respaldo.tablas.historial_cambios.length).toBeGreaterThan(3000);
-    expect(respaldo.tablas.evento_salud.length).toBe(1);
+    expect(respaldo.tablas.evento_salud.length).toBe(14); // 13 de las semillas + 1 de esta prueba
+    expect(respaldo.tablas.usuario[0].pin_hash).toMatch(/^pbkdf2-sha256\$/);
+    expect(respaldo.tablas.animal.filter((a) => a.eliminado_en !== null)).toHaveLength(1);
   });
 
   it("el respaldo dice qué es, de qué versión del esquema y cuándo se hizo", async () => {
@@ -84,6 +90,13 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
 });
 
 describe("RF-43: reglas del respaldo (SUPOSICION)", () => {
+  it("incluye todas las tablas de la base (una tabla nueva sin respaldo hace fallar esta prueba)", async () => {
+    const tablas = await origen.consultar<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx%' ORDER BY name",
+    );
+    expect(tablas.map((t) => t.name)).toEqual([...TABLAS_RESPALDO].sort());
+  });
+
   it("VERSION_ESQUEMA coincide con el número de migraciones", () => {
     expect(VERSION_ESQUEMA).toBe(archivosDeMigracion().length);
   });

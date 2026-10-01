@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useConexion, useContextoCambio, useNavegar, usePermiso, type PestanaAnimal } from "../../componentes/contextos";
+import { listarAlertasRetiro } from "../../datos/repositorios/salud";
+import { ListaEmitidos } from "../documentos/Documentos";
 import { TablaPesajesAnimal } from "../pesos/Pesos";
+import { TablaEventos } from "../salud/Salud";
 import { ReproduccionAnimal } from "./ReproduccionAnimal";
+import { Aviso } from "../../componentes/Aviso";
 import { FotoAnimal } from "../../componentes/FotoAnimal";
 import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { Pestanas } from "../../componentes/Pestanas";
@@ -20,6 +24,9 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
   const conexion = useConexion();
   const navegar = useNavegar();
   const { datos: animal, error } = useCarga(() => obtenerAnimal(conexion, id), [conexion, id]);
+  const hoy = fechaLocal();
+  // RF-24: alertas de retiro vigentes de este animal, visibles en todas las pestañas de la ficha.
+  const { datos: alertas } = useCarga(async () => (await listarAlertasRetiro(conexion, hoy)).filter((a) => a.animalId === id), [conexion, hoy, id]);
   const t = textos.ficha;
 
   if (error) return <ListaMotivos error={error} />;
@@ -41,12 +48,28 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
         <span className={`insignia insignia--${animal.estado}`}>{textos.comun.estado[animal.estado]}</span>
         {!animal.enHato && <span className="insignia">{textos.animales.soloGenealogia}</span>}
       </div>
+      {alertas && alertas.length > 0 && (
+        <div className="alerta-ficha" data-prueba="alerta-retiro-ficha">
+          <Aviso tipo="error">
+            <p className="destacado">⚠ {textos.salud.alertaFicha}</p>
+            <ul>
+              {alertas.map((a) => (
+                <li key={`${a.eventoId}-${a.tipo}`}>
+                  {textos.salud.retiroHasta(textos.comun.tipoRetiro[a.tipo], formatearFecha(a.hasta))} ({a.producto})
+                </li>
+              ))}
+            </ul>
+          </Aviso>
+        </div>
+      )}
       <Pestanas
         opciones={[
           { valor: "ficha", texto: t.pestanas.ficha },
           { valor: "genealogia", texto: t.pestanas.genealogia },
           ...(animal.sexo === "hembra" ? [{ valor: "reproduccion" as const, texto: t.pestanas.reproduccion }] : []),
           { valor: "pesos", texto: t.pestanas.pesos },
+          { valor: "salud", texto: t.pestanas.salud },
+          { valor: "documentos", texto: t.pestanas.documentos },
           { valor: "historial", texto: t.pestanas.historial },
         ]}
         actual={pestana}
@@ -56,6 +79,8 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
       {pestana === "genealogia" && <Genealogia animalId={id} />}
       {pestana === "reproduccion" && animal.sexo === "hembra" && <ReproduccionAnimal animal={animal} />}
       {pestana === "pesos" && <PesosAnimal animalId={id} />}
+      {pestana === "salud" && <SaludAnimal animalId={id} disponible={animal.estado === "activo" && animal.enHato} />}
+      {pestana === "documentos" && <DocumentosAnimal animalId={id} />}
       {pestana === "historial" && <HistorialAnimal animalId={id} />}
     </section>
   );
@@ -74,6 +99,44 @@ function PesosAnimal({ animalId }: { animalId: string }) {
         </div>
       )}
       <TablaPesajesAnimal animalId={animalId} />
+    </div>
+  );
+}
+
+function SaludAnimal({ animalId, disponible }: { animalId: string; disponible: boolean }) {
+  const navegar = useNavegar();
+  const puedeRegistrar = usePermiso("registrar_tratamiento");
+  return (
+    <div>
+      {puedeRegistrar && disponible && (
+        <div className="acciones">
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "salud", seccion: "registrar", animalId })} data-prueba="registrar-salud">
+            {textos.salud.registrarEnFicha}
+          </button>
+        </div>
+      )}
+      <TablaEventos filtro={{ animalId }} />
+    </div>
+  );
+}
+
+function DocumentosAnimal({ animalId }: { animalId: string }) {
+  const navegar = useNavegar();
+  const puedeEmitir = usePermiso("emitir_documento");
+  const d = textos.documentos;
+  return (
+    <div>
+      {puedeEmitir && (
+        <div className="acciones">
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "documentos", seccion: "certificado", animalId })} data-prueba="ir-certificado">
+            {d.secciones.certificado}
+          </button>
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "documentos", seccion: "expediente", animalId })} data-prueba="ir-expediente">
+            {d.secciones.expediente}
+          </button>
+        </div>
+      )}
+      <ListaEmitidos animalId={animalId} />
     </div>
   );
 }

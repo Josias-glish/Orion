@@ -4,6 +4,9 @@ import { CamposUsuario, pinDelFormulario, usuarioVacio } from "../componentes/Ca
 import { useConexion } from "../componentes/contextos";
 import { ListaMotivos } from "../componentes/ListaMotivos";
 import { completarAsistente } from "../datos/arranque";
+import { elegirRespaldo, extraerArchivosRespaldo } from "../datos/archivos";
+import { leerRespaldo, restaurarRespaldo } from "../datos/respaldo";
+import { formatearMarcaDeTiempo } from "../dominio/fechas";
 import { ErrorDeRegistro } from "../datos/errores";
 import { validarFinca, type Finca } from "../datos/repositorios/finca";
 import type { Usuario } from "../datos/repositorios/usuarios";
@@ -13,10 +16,12 @@ interface Props {
   /** Si la finca ya existe (por ejemplo, el asistente se interrumpió), solo se pide el propietario. */
   fincaExistente: Finca | null;
   alTerminar: (usuario: Usuario) => void;
+  /** Después de restaurar una copia de respaldo: el programa vuelve a leer la finca y los usuarios. */
+  alRestaurar: (mensaje: string) => void;
 }
 
 /** Primer arranque: finca y usuario propietario (RF-06). */
-export function Asistente({ fincaExistente, alTerminar }: Props) {
+export function Asistente({ fincaExistente, alTerminar, alRestaurar }: Props) {
   const conexion = useConexion();
   const pasos = fincaExistente ? 1 : 2;
   const [paso, setPaso] = useState(fincaExistente ? 2 : 1);
@@ -25,6 +30,23 @@ export function Asistente({ fincaExistente, alTerminar }: Props) {
   const [error, setError] = useState<unknown>(null);
   const [ocupado, setOcupado] = useState(false);
   const t = textos.asistente;
+
+  /** RF-43 (SUPOSICION): restaurar solo aquí, con la base vacía. Primero los datos y después fotos y documentos. */
+  async function restaurar() {
+    setError(null);
+    try {
+      const elegido = await elegirRespaldo(textos.respaldo.filtro);
+      if (!elegido) return;
+      setOcupado(true);
+      const respaldo = leerRespaldo(elegido.datos);
+      await restaurarRespaldo(conexion, respaldo);
+      await extraerArchivosRespaldo(elegido.ruta);
+      alRestaurar(textos.respaldo.restaurado(respaldo.finca ?? "", formatearMarcaDeTiempo(respaldo.creadoEn)));
+    } catch (e) {
+      setError(e);
+      setOcupado(false);
+    }
+  }
 
   function siguiente() {
     const motivos = validarFinca(finca);
@@ -80,6 +102,14 @@ export function Asistente({ fincaExistente, alTerminar }: Props) {
                 {textos.comun.siguiente}
               </button>
             </div>
+            {!fincaExistente && (
+              <div className="tarjeta tarjeta--suave">
+                <p className="destacado">{textos.respaldo.restaurarAsistente}</p>
+                <button type="button" className="boton boton--secundario" disabled={ocupado} onClick={restaurar} data-prueba="restaurar-respaldo">
+                  {ocupado ? textos.respaldo.restaurando : textos.respaldo.restaurarBoton}
+                </button>
+              </div>
+            )}
           </form>
         ) : (
           <form

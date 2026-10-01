@@ -18,7 +18,9 @@ export type Tabla =
   | "lactancia"
   | "pesaje_leche"
   | "pesaje_corporal"
-  | "meta_peso";
+  | "meta_peso"
+  | "evento_salud"
+  | "certificado";
 
 /** Campos que no se anotan uno por uno: el id va en registro_id y las fechas comunes se deducen. */
 const CAMPOS_NO_ANOTADOS = new Set(["id", "creado_en", "modificado_en"]);

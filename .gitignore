@@ -25,3 +25,6 @@ dist-ssr
 
 # TypeScript
 *.tsbuildinfo
+
+# Documentos de ejemplo generados con npm run documentos-de-ejemplo
+documentos-de-ejemplo/

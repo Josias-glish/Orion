@@ -1,6 +1,6 @@
 // Datos ficticios de ejemplo (sección 12): solo para desarrollo, nunca en el instalador.
 // Etapa 2: genealogía. Etapa 3: servicios, partos, lactancias con pesajes, pesos corporales y metas.
-// Los tratamientos llegan en la etapa 4.
+// Etapa 4: tratamiento con retiro vigente, vacunas, desparasitación y condición corporal.
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import type { FormaConcepcion, Sexo } from "../src/dominio/tipos";
 import { completarAsistente, consultarArranque } from "../src/datos/arranque";
@@ -9,6 +9,7 @@ import { animalVacio, guardarAnimal, listarAnimales, obtenerAnimal } from "../sr
 import { listarCatalogo } from "../src/datos/repositorios/catalogos";
 import { crearLote, listarLotes } from "../src/datos/repositorios/lotes";
 import { cargarReproduccionDeEjemplo } from "./reproduccion-de-ejemplo";
+import { cargarSaludDeEjemplo } from "./salud-de-ejemplo";
 
 export const MARCA_EJEMPLO = "Dato de ejemplo (npm run semillas)";
 
@@ -112,6 +113,7 @@ export async function cargarDatosDeEjemplo(conexion: Conexion, hoy = fechaLocal(
     const cria = (await obtenerAnimal(conexion, id))!;
     await guardarAnimal(conexion, { ...cria, observaciones: MARCA_EJEMPLO, loteId: lotes.get("Levante")! }, contexto(), id);
   }
+  await cargarSaludDeEjemplo(conexion, ids, contexto, hoy);
   return { creados: FICHAS.length + crias.length, yaCargados: false, creoFinca };
 }
 

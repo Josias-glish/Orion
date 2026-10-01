@@ -18,7 +18,9 @@ import { ElegirUsuario } from "./pantallas/ElegirUsuario";
 import { Inicio } from "./pantallas/Inicio";
 import { DetalleLactancia } from "./pantallas/leche/DetalleLactancia";
 import { Leche } from "./pantallas/leche/Leche";
+import { Documentos } from "./pantallas/documentos/Documentos";
 import { Pesos } from "./pantallas/pesos/Pesos";
+import { Salud } from "./pantallas/salud/Salud";
 import { RegistrarParto } from "./pantallas/reproduccion/RegistrarParto";
 import { Reproduccion } from "./pantallas/reproduccion/Reproduccion";
 import { textos } from "./textos/es";
@@ -53,6 +55,10 @@ function PantallaActual({ ruta }: { ruta: Ruta }) {
       return <DetalleLactancia key={ruta.id} id={ruta.id} />;
     case "pesos":
       return <Pesos key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
+    case "salud":
+      return <Salud key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
+    case "documentos":
+      return <Documentos key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
     case "ajustes":
       return <Ajustes seccion={ruta.seccion} />;
   }
@@ -66,6 +72,7 @@ export default function App() {
   const [finca, setFinca] = useState<Finca | null>(null);
   const [ruta, setRuta] = useState<Ruta>({ pantalla: "inicio" });
   const [version, setVersion] = useState<string | null>(null);
+  const [avisoArranque, setAvisoArranque] = useState<string | null>(null);
 
   const cargarArranque = useCallback(async (c: Conexion) => {
     const estado = await consultarArranque(c);
@@ -127,6 +134,10 @@ export default function App() {
             await cargarArranque(conexion);
             setUsuario(creado);
           }}
+          alRestaurar={async (mensaje) => {
+            setAvisoArranque(mensaje);
+            await cargarArranque(conexion);
+          }}
         />
       </ConexionContexto.Provider>
     );
@@ -135,6 +146,11 @@ export default function App() {
   if (!sesion) {
     return (
       <ConexionContexto.Provider value={conexion}>
+        {avisoArranque && (
+          <div className="centrado-aviso" data-prueba="aviso-restaurado">
+            <Aviso tipo="exito">{avisoArranque}</Aviso>
+          </div>
+        )}
         <ElegirUsuario usuarios={arranque.usuarios} alEntrar={setUsuario} />
       </ConexionContexto.Provider>
     );

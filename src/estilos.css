@@ -947,3 +947,49 @@ button.nodo:hover {
 .curva__clave--promedio {
   background: repeating-linear-gradient(90deg, var(--color-texto-suave) 0 5px, transparent 5px 9px);
 }
+
+/* ---------- Etapa 4: salud y documentos ---------- */
+
+.tarjeta--suave {
+  margin-top: calc(var(--espacio) * 2);
+  background: var(--color-fondo);
+}
+
+.centrado-aviso {
+  max-width: 720px;
+  margin: var(--espacio) auto 0;
+  padding: 0 var(--espacio);
+}
+
+.insignia--retiro-leche,
+.insignia--retiro-carne {
+  background: var(--color-error-fondo);
+  color: var(--color-error-borde);
+}
+
+/* Aviso de leche retenida en el ordeño (Flujo 2): se ve de lejos, sin depender solo del color. */
+.retiro-ordeno {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 0.2rem 0.5rem;
+  border: 2px solid var(--color-error-borde);
+  border-radius: var(--radio);
+  background: var(--color-error-fondo);
+  font-weight: 700;
+  color: var(--color-error-borde);
+  font-size: 0.9rem;
+}
+
+.retiro-ordeno .nota {
+  font-weight: 400;
+  color: var(--color-texto);
+  font-size: 0.8rem;
+}
+
+.ordeno tr.fila-retiro td {
+  background: #fff4f2;
+}
+
+.alerta-ficha {
+  margin: 0 0 var(--espacio);
+}

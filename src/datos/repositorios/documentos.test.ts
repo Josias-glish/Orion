@@ -49,7 +49,9 @@ describe("CA-05 con la base: expediente de Estrella (EJ-10)", () => {
   });
 
   it("un fundador sin padres tiene la ascendencia como faltante; un «sin verificar» da aviso", async () => {
+    // Zeus es fundador: tampoco tiene anotada la forma de concepción.
     expect(armarExpediente(await datosExpediente(db, await id("EJ-01"))).faltantes).toEqual([
+      "formaConcepcion",
       "padre",
       "madre",
       "abueloPaterno",

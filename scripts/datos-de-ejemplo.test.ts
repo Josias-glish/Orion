@@ -5,6 +5,7 @@ import { listarAnimales, obtenerAnimal } from "../src/datos/repositorios/animale
 import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarLactancias, listarOrdeno } from "../src/datos/repositorios/leche";
 import { listarMetas, pesajesDeAnimal } from "../src/datos/repositorios/pesos";
+import { listarAlertasRetiro, listarProximasAplicaciones } from "../src/datos/repositorios/salud";
 import { historialReproductivo, listarPartosProximos, listarServicios, resumenIntervalos } from "../src/datos/repositorios/reproduccion";
 import { cargarDatosDeEjemplo, MARCA_EJEMPLO } from "./datos-de-ejemplo";
 
@@ -81,5 +82,16 @@ describe("datos de ejemplo (sección 12)", () => {
     expect(rayo.map((p) => p.tipo)).toEqual(["nacimiento", "control", "destete", "control", "control"]);
     expect(rayo.slice(1).every((p) => p.gananciaDiaria! > 0 && p.meta !== null)).toBe(true);
     expect(await listarMetas(db)).toHaveLength(8);
+  });
+
+  it("trae un tratamiento con retiro vigente, una vacuna próxima y una desparasitación vencida (sección 12, etapa 4)", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    expect((await listarAlertasRetiro(db, HOY)).map((a) => [a.animal, a.tipo, a.hasta])).toEqual([
+      ["Bella", "leche", sumarDias(HOY, 4)],
+      ["Bella", "carne", sumarDias(HOY, 6)],
+    ]);
+    const proximas = await listarProximasAplicaciones(db, HOY);
+    expect(proximas.filter((p) => p.vencida).map((p) => p.animal)).toEqual(["Bruno", "Cacique", "Duque", "Zeus"]);
+    expect(proximas.filter((p) => !p.vencida).map((p) => p.animal)).toEqual(["Abril", "Bella", "Brisa", "Canela", "Dalia"]);
   });
 });

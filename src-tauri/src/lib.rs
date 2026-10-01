@@ -1,4 +1,6 @@
-use std::path::Path;
+mod archivos;
+
+use std::path::{Path, PathBuf};
 
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -75,6 +77,41 @@ fn copiar_foto(app: tauri::AppHandle, origen: String, nombre: String) -> Result<
     Ok(format!("fotos/{archivo}"))
 }
 
+fn carpeta_datos(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path().app_config_dir().map_err(|e| e.to_string())
+}
+
+/// RF-14 y RF-15: guarda un documento emitido (PDF o CSV) en la carpeta «documentos» de los datos del programa.
+/// Devuelve la ruta relativa que se anota en `certificado.archivo`.
+#[tauri::command]
+fn guardar_documento(app: tauri::AppHandle, nombre: String, contenido: Vec<u8>) -> Result<String, String> {
+    archivos::guardar_documento(&carpeta_datos(&app)?, &nombre, &contenido)
+}
+
+/// Escribe una copia de un documento donde la eligió el usuario con el diálogo «Guardar» (solo PDF, CSV o ZIP).
+#[tauri::command]
+fn guardar_copia(destino: String, contenido: Vec<u8>) -> Result<(), String> {
+    archivos::guardar_copia(Path::new(&destino), &contenido)
+}
+
+/// RF-43: crea la copia de respaldo (.zip con datos.json, fotos y documentos). Devuelve su tamaño en bytes.
+#[tauri::command]
+fn crear_respaldo(app: tauri::AppHandle, destino: String, datos: String) -> Result<u64, String> {
+    archivos::crear_respaldo(&carpeta_datos(&app)?, Path::new(&destino), &datos)
+}
+
+/// Lee datos.json de una copia de respaldo, sin escribir nada.
+#[tauri::command]
+fn leer_respaldo(origen: String) -> Result<String, String> {
+    archivos::leer_respaldo(Path::new(&origen))
+}
+
+/// Después de restaurar los datos, copia las fotos y los documentos del respaldo a la carpeta de datos.
+#[tauri::command]
+fn extraer_archivos_respaldo(app: tauri::AppHandle, origen: String) -> Result<usize, String> {
+    archivos::extraer_archivos(&carpeta_datos(&app)?, Path::new(&origen))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut sql = tauri_plugin_sql::Builder::default();
@@ -85,7 +122,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(sql.build())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![copiar_foto])
+        .invoke_handler(tauri::generate_handler![
+            copiar_foto,
+            guardar_documento,
+            guardar_copia,
+            crear_respaldo,
+            leer_respaldo,
+            extraer_archivos_respaldo
+        ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar Registro Caprino");
 }

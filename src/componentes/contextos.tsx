@@ -40,11 +40,13 @@ export function usePermiso(accion: Accion): boolean {
   return puede(useSesion().usuario.rol, accion);
 }
 
-export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "pesos" | "historial";
+export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "pesos" | "salud" | "documentos" | "historial";
 export type SeccionAjustes = "finca" | "usuarios" | "razas" | "libros" | "lotes" | "datos";
 export type SeccionReproduccion = "servicios" | "proximos" | "intervalos";
 export type SeccionLeche = "ordeno" | "lactancias";
 export type SeccionPesos = "registrar" | "metas";
+export type SeccionSalud = "registrar" | "calendario" | "retiros" | "historial";
+export type SeccionDocumentos = "certificado" | "expediente" | "emitidos" | "respaldo";
 
 /** Pantallas del programa. */
 export type Ruta =
@@ -58,6 +60,8 @@ export type Ruta =
   | { pantalla: "leche"; seccion: SeccionLeche }
   | { pantalla: "lactancia"; id: string }
   | { pantalla: "pesos"; seccion: SeccionPesos; animalId?: string }
+  | { pantalla: "salud"; seccion: SeccionSalud; animalId?: string }
+  | { pantalla: "documentos"; seccion: SeccionDocumentos; animalId?: string }
   | { pantalla: "ajustes"; seccion: SeccionAjustes };
 
 export const NavegacionContexto = createContext<(ruta: Ruta) => void>(() => {});
