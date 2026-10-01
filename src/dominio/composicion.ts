@@ -13,8 +13,7 @@ export type ErrorComposicion =
 export const TOLERANCIA_COMPOSICION = 0.0001;
 
 export function sumaDeFracciones(fracciones: readonly FraccionRacial[]): number {
-  void fracciones;
-  throw new Error("sumaDeFracciones: no implementado");
+  return fracciones.reduce((suma, f) => suma + f.fraccion, 0);
 }
 
 /**
@@ -22,6 +21,17 @@ export function sumaDeFracciones(fracciones: readonly FraccionRacial[]): number 
  * SUPOSICION: una composición vacía es válida (raza aún no registrada).
  */
 export function validarComposicion(fracciones: readonly FraccionRacial[]): ErrorComposicion[] {
-  void fracciones;
-  throw new Error("validarComposicion: no implementado");
+  if (fracciones.length === 0) return [];
+  const errores: ErrorComposicion[] = [];
+  if (fracciones.some((f) => !Number.isFinite(f.fraccion) || f.fraccion <= 0 || f.fraccion > 1)) {
+    errores.push({ codigo: "fraccion_invalida" });
+  }
+  if (new Set(fracciones.map((f) => f.razaId)).size !== fracciones.length) {
+    errores.push({ codigo: "raza_repetida" });
+  }
+  const suma = sumaDeFracciones(fracciones);
+  if (errores.length === 0 && Math.abs(suma - 1) > TOLERANCIA_COMPOSICION) {
+    errores.push({ codigo: "suma_distinta_de_100", sumaPorcentaje: Math.round(suma * 10000) / 100 });
+  }
+  return errores;
 }

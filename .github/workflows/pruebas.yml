@@ -34,3 +34,6 @@ jobs:
 
       - name: Pruebas automáticas (Vitest)
         run: npm test
+
+      - name: Comprobar que el script de datos de ejemplo carga
+        run: npm run semillas -- --donde

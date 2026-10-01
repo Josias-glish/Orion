@@ -35,7 +35,8 @@ El desarrollo ocurre en un contenedor Linux en la nube, sin Windows ni Mac. Por 
    `tauri-driver` (la herramienta oficial de Tauri para WebDriver), sin intervención humana: abre la ventana,
    pulsa los botones de las pruebas a), b) y c), cierra el programa, lo vuelve a abrir y compara los datos (prueba d).
    Se ejecutó en los dos modos: programa construido (`registro-caprino.db`) y modo desarrollo (`registro-caprino-desarrollo.db`).
-   Resultado en ambos: **8 de 8 comprobaciones correctas**. El script está en `pruebas-e2e/prueba-tecnica.mjs`.
+   Resultado en ambos: **8 de 8 comprobaciones correctas**. El script de esa pantalla temporal se retiró en la Etapa 2,
+   junto con la pantalla; puede verse en el commit `004f5b4` (`pruebas-e2e/prueba-tecnica.mjs`).
 3. **GitHub Actions.** Ejecuta `npm test` en Linux, Windows y macOS, y construye los instaladores en Windows y macOS.
 
 Lo que **no** se pudo comprobar desde aquí y debes probar tú: que la ventana abra en tu Windows o Mac con
@@ -84,7 +85,17 @@ Lo que **no** se pudo comprobar desde aquí y debes probar tú: que la ventana a
 
 ## Instaladores (GitHub Actions)
 
-_Esta sección se completa con el resultado real del flujo «Instaladores» del pull request._
+El flujo «Instaladores» del pull request (ejecución 2, commit `68087a2`) terminó bien:
+
+| Sistema | Archivo | Tamaño | Tiempo de construcción |
+| --- | --- | --- | --- |
+| Windows | `Registro Caprino_0.1.0_x64-setup.exe` (NSIS, en español) | 2,2 MB | 5 min 33 s |
+| Windows | `Registro Caprino_0.1.0_x64_es-ES.msi` (WiX, en español) | 3,0 MB | (mismo trabajo) |
+| macOS | `.dmg` y `.app` universales (chip Apple e Intel) | 6,0 MB | 7 min 56 s |
+
+Antes de construir, las pruebas pasaron en Linux, Windows y macOS. Los instaladores quedan como *artifacts* del flujo
+(se descargan desde la pestaña Actions con sesión iniciada en GitHub). El borrador de release se crea solo con una
+etiqueta `v*` o al ejecutar el flujo a mano. **Falta tu prueba de instalación en un Windows y en un Mac (CA-12).**
 
 ## Recomendación
 
@@ -92,7 +103,7 @@ _Esta sección se completa con el resultado real del flujo «Instaladores» del 
 transacciones y empezar la Etapa 2 cuando confirmes que en tu computador funcionan `npm run tauri dev`,
 la pantalla de diagnóstico y el instalador.
 
-## Cómo repetir la prueba de extremo a extremo (Linux)
+## Cómo repetir las pruebas de extremo a extremo (Linux)
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev \
@@ -100,5 +111,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev
 cargo install tauri-driver --locked
 npx tauri build --debug --no-bundle
 rm -f ~/.config/co.registrocaprino.escritorio/registro-caprino.db*
-xvfb-run -a node pruebas-e2e/prueba-tecnica.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas
+xvfb-run -a node pruebas-e2e/etapa2.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas
 ```
+
+`pruebas-e2e/etapa2.mjs` es la prueba vigente (Flujo 0, desde la Etapa 2).

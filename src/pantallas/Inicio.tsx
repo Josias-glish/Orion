@@ -1,42 +1,61 @@
-import { useEffect, useState } from "react";
-import { useConexion } from "../componentes/ConexionContexto";
-import { consultarEstado, type EstadoBaseDatos } from "../datos/diagnostico";
+import { useConexion, useNavegar, usePermiso, useSesion } from "../componentes/contextos";
+import { useCarga } from "../componentes/useCarga";
+import { contarAnimales } from "../datos/repositorios/animales";
 import { textos } from "../textos/es";
 
 export function Inicio() {
   const conexion = useConexion();
-  const [estado, setEstado] = useState<EstadoBaseDatos | null>(null);
-
-  useEffect(() => {
-    consultarEstado(conexion).then(setEstado);
-  }, [conexion]);
-
+  const { usuario, finca } = useSesion();
+  const navegar = useNavegar();
+  const puedeCrear = usePermiso("crear_animal");
+  const { datos: conteo } = useCarga(() => contarAnimales(conexion), [conexion]);
   const t = textos.inicio;
+
   return (
     <section className="pantalla">
-      <h1>{t.titulo}</h1>
-      <p className="destacado">{t.bienvenida}</p>
-      <p>{t.descripcion}</p>
-      <p className="nota">{t.etapa}</p>
+      <h1>{finca.nombre}</h1>
+      <p className="destacado">{t.saludo(usuario.nombre)}</p>
 
       <h2>{t.resumenTitulo}</h2>
-      {estado ? (
+      {conteo ? (
         <dl className="cifras">
           <div>
-            <dt>{t.animales}</dt>
-            <dd data-prueba="total-animales">{estado.animales}</dd>
+            <dt>{t.activos}</dt>
+            <dd data-prueba="total-animales">{conteo.total}</dd>
           </div>
           <div>
-            <dt>{t.razas}</dt>
-            <dd>{estado.razas}</dd>
+            <dt>{t.hembras}</dt>
+            <dd>{conteo.hembras}</dd>
           </div>
           <div>
-            <dt>{t.libros}</dt>
-            <dd>{estado.libros}</dd>
+            <dt>{t.machos}</dt>
+            <dd>{conteo.machos}</dd>
           </div>
         </dl>
       ) : (
         <p>{textos.comun.cargando}</p>
+      )}
+
+      <div className="acciones">
+        <button type="button" className="boton boton--secundario" onClick={() => navegar({ pantalla: "animales" })}>
+          {t.verAnimales}
+        </button>
+        {puedeCrear && (
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "nuevoAnimal" })}>
+            {t.registrarAnimal}
+          </button>
+        )}
+      </div>
+
+      {puedeCrear && conteo?.total === 0 && (
+        <div className="tarjeta">
+          <h2>{t.primerosPasosTitulo}</h2>
+          <ol>
+            {t.primerosPasos.map((paso) => (
+              <li key={paso}>{paso}</li>
+            ))}
+          </ol>
+        </div>
       )}
       <p className="nota">{t.proximamente}</p>
     </section>

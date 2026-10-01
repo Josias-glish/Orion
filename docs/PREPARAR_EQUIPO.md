@@ -160,6 +160,7 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    ```
 
    Debe terminar con una línea `added … packages` (el número puede variar) y `found 0 vulnerabilities`.
+   Si aparece un aviso sobre `install-scripts` de `esbuild`, puede ignorarlo: no impide nada.
 
 4. Ejecute las pruebas automáticas:
 
@@ -167,7 +168,7 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    npm test
    ```
 
-   Debe ver al final `Tests  41 passed (41)` (el número crecerá en etapas siguientes).
+   Debe ver al final una línea como `Tests  134 passed (134)`: todas aprobadas, ninguna `failed`.
 
 5. Abra el programa en modo desarrollo:
 
@@ -180,6 +181,17 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    una ventana titulada **Registro Caprino** con la barra lateral verde (Inicio, Animales, Ajustes, Diagnóstico).
 
 6. Para cerrar el modo desarrollo, cierre la ventana o pulse `Ctrl + C` en la terminal.
+
+7. (Opcional) Cargue los datos de ejemplo en la base de desarrollo: 12 cabras ficticias en tres generaciones.
+   Abra antes el programa al menos una vez con `npm run tauri dev` y ciérrelo. Después:
+
+   ```bash
+   npm run semillas
+   ```
+
+   Debe ver «Se crearon 12 animales de ejemplo» y la consanguinidad de Estrella (25 %), Faro (12,5 %) y Gema (0 %).
+   Si todavía no había creado la finca, el script crea «Aprisco de ejemplo» y el usuario «Propietario de ejemplo» (sin PIN).
+   Los datos de ejemplo nunca van a la base del programa instalado.
 
 Para traer los cambios de una etapa nueva: `git pull` y, si cambió `package.json`, `npm install`.
 

@@ -1,5 +1,12 @@
+import type { Rol } from "../dominio/tipos";
+
 /** Valor que se envía a SQLite como parámetro. Los sí/no se guardan como 0 o 1. */
 export type ValorSql = string | number | null;
+
+export interface Sentencia {
+  sql: string;
+  parametros: readonly ValorSql[];
+}
 
 /**
  * Acceso mínimo a la base de datos. Los repositorios solo conocen esta interfaz:
@@ -11,21 +18,16 @@ export interface Conexion {
   ejecutar(sql: string, parametros?: readonly ValorSql[]): Promise<void>;
   /** Ejecuta una consulta y devuelve sus filas como objetos. */
   consultar<T>(sql: string, parametros?: readonly ValorSql[]): Promise<T[]>;
+  /**
+   * Ejecuta varias sentencias que forman un solo cambio (por ejemplo, un animal con sus identificadores
+   * y su historial). En memoria van en una transacción. En el programa, ver la decisión D-004.
+   */
+  ejecutarLote(sentencias: readonly Sentencia[]): Promise<void>;
 }
 
-/** Quién hace un cambio y cuándo; se guarda en historial_cambios. */
+/** Quién hace un cambio y cuándo; se guarda en historial_cambios y decide los permisos (R14). */
 export interface ContextoCambio {
   usuarioId: string | null;
+  rol: Rol;
   marcaTiempo: string;
-}
-
-/** Error esperado de una regla del programa; la interfaz muestra el texto según el código. */
-export class ErrorDeRegistro extends Error {
-  constructor(
-    readonly codigo: "identificador_duplicado" | "animal_no_existe",
-    readonly detalle?: string,
-  ) {
-    super(detalle ? `${codigo}: ${detalle}` : codigo);
-    this.name = "ErrorDeRegistro";
-  }
 }

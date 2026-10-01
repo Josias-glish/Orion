@@ -1,3 +1,4 @@
 {
-  "0001_esquema_inicial.sql": "d94d3ba0fcaff0442ad7f0c1b8c5c69d7e2f34e5b3eb72f3f168e00b92b4c282"
+  "0001_esquema_inicial.sql": "d94d3ba0fcaff0442ad7f0c1b8c5c69d7e2f34e5b3eb72f3f168e00b92b4c282",
+  "0002_nucleo_y_genealogia.sql": "e77600296351940a76f8ff31fa88ae5e4a2463006f78d8b846cec4999cf97814"
 }

@@ -1,21 +1,64 @@
-import { compararCaminos, MAX_GENERACIONES_POR_DEFECTO, type Camino } from "../../dominio/genealogia";
-import { nuevoId } from "../../dominio/identidad";
-import { ErrorDeRegistro, type Conexion, type ContextoCambio, type ValorSql } from "../conexion";
-import { cambiosDeCreacion, registrarCambios } from "../historial";
+import { validarComposicion, type FraccionRacial } from "../../dominio/composicion";
+import { esFechaValida, fechaLocal } from "../../dominio/fechas";
+import { validarGenealogia } from "../../dominio/genealogia";
+import {
+  normalizarValor,
+  validarIdentificadores,
+  type IdentificadorEditable,
+  type IdentificadorEnUso,
+} from "../../dominio/identificadores";
+import type { EstadoAnimal, FormaConcepcion, Sexo, TipoIdentificador } from "../../dominio/tipos";
+import { Cambios, exigirPermiso } from "../cambios";
+import type { Conexion, ContextoCambio, ValorSql } from "../conexion";
+import { ErrorDeRegistro, rechazarSi, type Motivo } from "../errores";
+import { consultarDescendientes, consultarHijos, obtenerGenealogico } from "./genealogia";
 
-export type Sexo = "hembra" | "macho";
-export type EstadoAnimal = "activo" | "vendido" | "muerto";
-export type TipoIdentificador = "tatuaje" | "microchip" | "arete" | "registro_asociacion";
+export type { EstadoAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
 
-export interface NuevoAnimal {
+/** Datos que el formulario de un animal envía para crearlo o modificarlo. */
+export interface DatosAnimal {
   nombre: string | null;
   sexo: Sexo;
   fechaNacimiento: string | null;
-  padreId?: string | null;
-  madreId?: string | null;
-  observaciones?: string | null;
-  /** Identificador principal con el que se registra el animal (opcional). */
-  identificador?: { tipo: TipoIdentificador; valor: string } | null;
+  colorSenas: string | null;
+  estado: EstadoAnimal;
+  /** SUPOSICION: false = registrado solo para la genealogía (nunca estuvo en la finca). */
+  enHato: boolean;
+  /** Ruta relativa a la carpeta de datos, por ejemplo «fotos/…jpg». */
+  foto: string | null;
+  libroId: string | null;
+  loteId: string | null;
+  formaConcepcion: FormaConcepcion | null;
+  padreId: string | null;
+  madreId: string | null;
+  padreSinVerificar: boolean;
+  madreSinVerificar: boolean;
+  observaciones: string | null;
+  identificadores: IdentificadorEditable[];
+  composicion: FraccionRacial[];
+}
+
+export interface Pariente {
+  id: string;
+  nombre: string | null;
+  identificador: string | null;
+}
+
+export interface FraccionConNombre extends FraccionRacial {
+  raza: string;
+}
+
+/** Ficha completa de un animal. */
+export interface Animal extends DatosAnimal {
+  id: string;
+  identificadores: (IdentificadorEditable & { id: string })[];
+  composicion: FraccionConNombre[];
+  padre: Pariente | null;
+  madre: Pariente | null;
+  libro: string | null;
+  lote: string | null;
+  creadoEn: string;
+  modificadoEn: string;
 }
 
 export interface AnimalResumen {
@@ -24,180 +67,341 @@ export interface AnimalResumen {
   sexo: Sexo;
   fechaNacimiento: string | null;
   estado: EstadoAnimal;
+  enHato: boolean;
+  loteId: string | null;
+  lote: string | null;
   tipoIdentificador: TipoIdentificador | null;
   identificador: string | null;
   observaciones: string | null;
   creadoEn: string;
 }
 
-export interface Ancestro {
-  id: string;
-  camino: Camino;
-  generacion: number;
-  nombre: string | null;
-  sexo: Sexo;
-  fechaNacimiento: string | null;
-  tipoIdentificador: TipoIdentificador | null;
-  identificador: string | null;
+/** RF-07: filtros de la lista de animales. Los campos vacíos no filtran. */
+export interface FiltroAnimales {
+  /** Busca en el nombre y en cualquier identificador (vigente o antiguo). */
+  texto?: string;
+  sexo?: Sexo | null;
+  estado?: EstadoAnimal | null;
+  loteId?: string | null;
+  /** Por defecto solo se listan los animales del hato. */
+  incluirSoloGenealogia?: boolean;
 }
 
-/** ¿Hay otro identificador vigente con el mismo tipo y valor? (R2) */
-export async function existeIdentificadorVigente(
-  conexion: Conexion,
-  tipo: TipoIdentificador,
-  valor: string,
-): Promise<boolean> {
-  const filas = await conexion.consultar<{ n: number }>(
-    `SELECT count(*) AS n FROM identificador
-     WHERE tipo = ? AND valor = ? COLLATE NOCASE AND vigente = 1 AND eliminado_en IS NULL`,
-    [tipo, valor.trim()],
-  );
-  return filas[0].n > 0;
-}
-
-/**
- * Registra un animal y, si viene, su identificador principal. Anota todo en el historial.
- * Las reglas de genealogía (R1) se validan en la Etapa 3; aquí solo actúan las restricciones de la base.
- * Devuelve el id del animal nuevo.
- */
-export async function crearAnimal(conexion: Conexion, datos: NuevoAnimal, contexto: ContextoCambio): Promise<string> {
-  const identificador = datos.identificador
-    ? { tipo: datos.identificador.tipo, valor: datos.identificador.valor.trim() }
-    : null;
-
-  // Se revisa antes de escribir para no dejar un animal a medias si el identificador está repetido.
-  if (identificador && (await existeIdentificadorVigente(conexion, identificador.tipo, identificador.valor))) {
-    throw new ErrorDeRegistro("identificador_duplicado", `${identificador.tipo} ${identificador.valor}`);
-  }
-
-  const animalId = nuevoId();
-  const animal: Record<string, ValorSql> = {
-    id: animalId,
-    nombre: datos.nombre?.trim() || null,
-    sexo: datos.sexo,
-    fecha_nacimiento: datos.fechaNacimiento,
-    padre_id: datos.padreId ?? null,
-    madre_id: datos.madreId ?? null,
-    observaciones: datos.observaciones ?? null,
-    creado_en: contexto.marcaTiempo,
-    modificado_en: contexto.marcaTiempo,
+/** Datos vacíos para el formulario de un animal nuevo. */
+export function animalVacio(): DatosAnimal {
+  return {
+    nombre: null,
+    sexo: "hembra",
+    fechaNacimiento: null,
+    colorSenas: null,
+    estado: "activo",
+    enHato: true,
+    foto: null,
+    libroId: null,
+    loteId: null,
+    formaConcepcion: null,
+    padreId: null,
+    madreId: null,
+    padreSinVerificar: false,
+    madreSinVerificar: false,
+    observaciones: null,
+    identificadores: [],
+    composicion: [],
   };
-  await insertar(conexion, "animal", animal);
-  await registrarCambios(conexion, "animal", animalId, cambiosDeCreacion(animal), contexto);
-
-  if (identificador) {
-    const fila: Record<string, ValorSql> = {
-      id: nuevoId(),
-      animal_id: animalId,
-      tipo: identificador.tipo,
-      valor: identificador.valor,
-      vigente: 1,
-      principal: 1,
-      creado_en: contexto.marcaTiempo,
-      modificado_en: contexto.marcaTiempo,
-    };
-    await insertar(conexion, "identificador", fila);
-    await registrarCambios(conexion, "identificador", String(fila.id), cambiosDeCreacion(fila), contexto);
-  }
-
-  return animalId;
 }
 
-/** Animales no eliminados, con su identificador principal, del más reciente al más antiguo. */
-export async function listarAnimales(conexion: Conexion): Promise<AnimalResumen[]> {
-  return conexion.consultar<AnimalResumen>(
-    `SELECT a.id, a.nombre, a.sexo, a.fecha_nacimiento AS fechaNacimiento, a.estado,
+const escaparLike = (texto: string) => texto.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+export async function listarAnimales(conexion: Conexion, filtro: FiltroAnimales = {}): Promise<AnimalResumen[]> {
+  const texto = filtro.texto?.trim() ? `%${escaparLike(filtro.texto.trim())}%` : null;
+  const filas = await conexion.consultar<Omit<AnimalResumen, "enHato"> & { enHato: number }>(
+    `SELECT a.id, a.nombre, a.sexo, a.fecha_nacimiento AS fechaNacimiento, a.estado, a.en_hato AS enHato,
+            a.lote_id AS loteId, l.nombre AS lote,
             i.tipo AS tipoIdentificador, i.valor AS identificador,
             a.observaciones, a.creado_en AS creadoEn
      FROM animal AS a
-     LEFT JOIN identificador AS i
-       ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
+     LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
+     LEFT JOIN lote AS l ON l.id = a.lote_id
      WHERE a.eliminado_en IS NULL
-     ORDER BY a.creado_en DESC, a.nombre`,
+       AND (? IS NULL OR a.sexo = ?)
+       AND (? IS NULL OR a.estado = ?)
+       AND (? IS NULL OR a.lote_id = ?)
+       AND (? = 1 OR a.en_hato = 1)
+       AND (? IS NULL
+            OR a.nombre LIKE ? ESCAPE '\\'
+            OR EXISTS (SELECT 1 FROM identificador AS x
+                       WHERE x.animal_id = a.id AND x.eliminado_en IS NULL AND x.valor LIKE ? ESCAPE '\\'))
+     ORDER BY a.nombre COLLATE NOCASE, i.valor COLLATE NOCASE`,
+    [
+      filtro.sexo ?? null,
+      filtro.sexo ?? null,
+      filtro.estado ?? null,
+      filtro.estado ?? null,
+      filtro.loteId ?? null,
+      filtro.loteId ?? null,
+      filtro.incluirSoloGenealogia ? 1 : 0,
+      texto,
+      texto,
+      texto,
+    ],
   );
+  return filas.map((f) => ({ ...f, enHato: f.enHato === 1 }));
 }
 
-export async function contarAnimales(conexion: Conexion): Promise<number> {
-  const filas = await conexion.consultar<{ n: number }>(
-    "SELECT count(*) AS n FROM animal WHERE eliminado_en IS NULL",
+/** Animales activos del hato, para el inicio. */
+export async function contarAnimales(conexion: Conexion): Promise<{ total: number; hembras: number; machos: number }> {
+  const [fila] = await conexion.consultar<{ total: number; hembras: number; machos: number }>(
+    `SELECT count(*) AS total,
+            coalesce(sum(sexo = 'hembra'), 0) AS hembras,
+            coalesce(sum(sexo = 'macho'), 0) AS machos
+     FROM animal WHERE eliminado_en IS NULL AND en_hato = 1 AND estado = 'activo'`,
   );
-  return filas[0].n;
+  return fila;
+}
+
+/** Candidatos a padre o madre en el formulario: todos los animales del sexo pedido, del hato o no. */
+export function listarPosiblesPadres(conexion: Conexion, sexo: Sexo): Promise<AnimalResumen[]> {
+  return listarAnimales(conexion, { sexo, incluirSoloGenealogia: true });
+}
+
+export async function obtenerAnimal(conexion: Conexion, id: string): Promise<Animal | null> {
+  const [fila] = await conexion.consultar<Record<string, ValorSql>>(
+    `SELECT a.*, l.nombre AS lote, b.nombre AS libro FROM animal AS a
+     LEFT JOIN lote AS l ON l.id = a.lote_id
+     LEFT JOIN libro AS b ON b.id = a.libro_id
+     WHERE a.id = ? AND a.eliminado_en IS NULL`,
+    [id],
+  );
+  if (!fila) return null;
+
+  const identificadores = await conexion.consultar<{
+    id: string;
+    tipo: TipoIdentificador;
+    valor: string;
+    fecha: string | null;
+    vigente: number;
+    principal: number;
+  }>(
+    `SELECT id, tipo, valor, fecha, vigente, principal FROM identificador
+     WHERE animal_id = ? AND eliminado_en IS NULL ORDER BY principal DESC, vigente DESC, creado_en`,
+    [id],
+  );
+  const composicion = await conexion.consultar<FraccionConNombre>(
+    `SELECT c.raza_id AS razaId, c.fraccion, r.nombre AS raza FROM composicion_racial AS c
+     JOIN raza AS r ON r.id = c.raza_id
+     WHERE c.animal_id = ? AND c.eliminado_en IS NULL ORDER BY c.fraccion DESC, r.nombre`,
+    [id],
+  );
+  const pariente = async (parienteId: ValorSql): Promise<Pariente | null> => {
+    if (typeof parienteId !== "string") return null;
+    const [p] = await conexion.consultar<Pariente>(
+      `SELECT a.id, a.nombre, i.valor AS identificador FROM animal AS a
+       LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
+       WHERE a.id = ?`,
+      [parienteId],
+    );
+    return p ?? null;
+  };
+
+  const texto = (v: ValorSql) => (v === null ? null : String(v));
+  return {
+    id,
+    nombre: texto(fila.nombre),
+    sexo: fila.sexo as Sexo,
+    fechaNacimiento: texto(fila.fecha_nacimiento),
+    colorSenas: texto(fila.color_senas),
+    estado: fila.estado as EstadoAnimal,
+    enHato: fila.en_hato === 1,
+    foto: texto(fila.foto),
+    libroId: texto(fila.libro_id),
+    loteId: texto(fila.lote_id),
+    formaConcepcion: texto(fila.forma_concepcion) as FormaConcepcion | null,
+    padreId: texto(fila.padre_id),
+    madreId: texto(fila.madre_id),
+    padreSinVerificar: fila.padre_sin_verificar === 1,
+    madreSinVerificar: fila.madre_sin_verificar === 1,
+    observaciones: texto(fila.observaciones),
+    identificadores: identificadores.map((i) => ({ ...i, vigente: i.vigente === 1, principal: i.principal === 1 })),
+    composicion,
+    padre: await pariente(fila.padre_id),
+    madre: await pariente(fila.madre_id),
+    libro: texto(fila.libro),
+    lote: texto(fila.lote),
+    creadoEn: String(fila.creado_en),
+    modificadoEn: String(fila.modificado_en),
+  };
+}
+
+/** Columnas de la tabla animal a partir de los datos del formulario. */
+function aFila(datos: DatosAnimal): Record<string, ValorSql> {
+  const texto = (v: string | null) => v?.trim() || null;
+  return {
+    nombre: texto(datos.nombre),
+    sexo: datos.sexo,
+    fecha_nacimiento: texto(datos.fechaNacimiento),
+    color_senas: texto(datos.colorSenas),
+    estado: datos.estado,
+    en_hato: datos.enHato ? 1 : 0,
+    foto: datos.foto,
+    libro_id: datos.libroId,
+    lote_id: datos.loteId,
+    forma_concepcion: datos.formaConcepcion,
+    padre_id: datos.padreId,
+    madre_id: datos.madreId,
+    padre_sin_verificar: datos.padreId && datos.padreSinVerificar ? 1 : 0,
+    madre_sin_verificar: datos.madreId && datos.madreSinVerificar ? 1 : 0,
+    observaciones: texto(datos.observaciones),
+  };
+}
+
+/** Todas las reglas que debe cumplir un animal antes de guardarse (R1, R2, R3 y datos básicos). */
+async function validarAnimal(
+  conexion: Conexion,
+  datos: DatosAnimal,
+  animalId: string | null,
+  hoy: string,
+): Promise<Motivo[]> {
+  const motivos: Motivo[] = [];
+
+  if (datos.fechaNacimiento !== null) {
+    if (!esFechaValida(datos.fechaNacimiento)) motivos.push({ codigo: "fecha_invalida", campo: "fechaNacimiento" });
+    else if (datos.fechaNacimiento > hoy) motivos.push({ codigo: "fecha_futura", campo: "fechaNacimiento" });
+  }
+  // SUPOSICION: un animal debe poder reconocerse por su nombre o por algún identificador.
+  if (!datos.nombre?.trim() && datos.identificadores.length === 0) motivos.push({ codigo: "sin_nombre_ni_identificador" });
+
+  // R1
+  const padre = datos.padreId ? await obtenerGenealogico(conexion, datos.padreId) : null;
+  const madre = datos.madreId ? await obtenerGenealogico(conexion, datos.madreId) : null;
+  if ((datos.padreId && !padre) || (datos.madreId && !madre)) motivos.push({ codigo: "no_encontrado" });
+  const hijos = animalId ? await consultarHijos(conexion, animalId) : { comoPadre: [], comoMadre: [] };
+  motivos.push(
+    ...validarGenealogia({
+      animal: { id: animalId ?? "", nombre: datos.nombre, sexo: datos.sexo, fechaNacimiento: datos.fechaNacimiento },
+      padre,
+      madre,
+      descendientes: animalId ? await consultarDescendientes(conexion, animalId) : new Set(),
+      hijosComoPadre: hijos.comoPadre,
+      hijosComoMadre: hijos.comoMadre,
+    }),
+  );
+
+  // R2
+  const enUso = await conexion.consultar<IdentificadorEnUso>(
+    `SELECT i.tipo, i.valor, coalesce(a.nombre, i.valor) AS animal FROM identificador AS i
+     JOIN animal AS a ON a.id = i.animal_id
+     WHERE i.vigente = 1 AND i.eliminado_en IS NULL AND i.animal_id IS NOT ?`,
+    [animalId],
+  );
+  motivos.push(...validarIdentificadores(datos.identificadores, enUso));
+  if (datos.identificadores.some((i) => i.fecha !== null && !esFechaValida(i.fecha))) {
+    motivos.push({ codigo: "fecha_invalida", campo: "identificador" });
+  }
+
+  // R3
+  motivos.push(...validarComposicion(datos.composicion));
+  return motivos;
 }
 
 /**
- * Ancestros de un animal hasta `maxGeneraciones`, con una consulta recursiva.
- * Cada fila trae su camino (P = padre, M = madre) para saber qué parentesco tiene.
- * SUPOSICION: los animales eliminados (borrado lógico) se tratan como desconocidos y cortan esa rama.
- * El límite de generaciones también evita un bucle infinito si hubiera un ciclo en los datos.
+ * Crea (sin `id`) o modifica un animal con sus identificadores y su composición racial.
+ * Valida todo antes de escribir y anota cada campo cambiado en el historial. Devuelve el id.
  */
-export async function consultarAncestros(
+export async function guardarAnimal(
   conexion: Conexion,
-  animalId: string,
-  maxGeneraciones: number = MAX_GENERACIONES_POR_DEFECTO,
-): Promise<Ancestro[]> {
-  const filas = await conexion.consultar<Ancestro>(
-    `WITH RECURSIVE
-       lados (lado) AS (VALUES ('P'), ('M')),
-       ancestros (id, camino) AS (
-         SELECT ?, ''
-         UNION ALL
-         SELECT CASE l.lado WHEN 'P' THEN h.padre_id ELSE h.madre_id END,
-                a.camino || l.lado
-         FROM ancestros AS a
-         JOIN animal AS h ON h.id = a.id AND h.eliminado_en IS NULL
-         CROSS JOIN lados AS l
-         WHERE length(a.camino) < ?
-           AND CASE l.lado WHEN 'P' THEN h.padre_id ELSE h.madre_id END IS NOT NULL
-       )
-     SELECT x.id, an.camino, length(an.camino) AS generacion, x.nombre, x.sexo,
-            x.fecha_nacimiento AS fechaNacimiento,
-            i.tipo AS tipoIdentificador, i.valor AS identificador
-     FROM ancestros AS an
-     JOIN animal AS x ON x.id = an.id AND x.eliminado_en IS NULL
-     LEFT JOIN identificador AS i
-       ON i.animal_id = x.id AND i.principal = 1 AND i.eliminado_en IS NULL
-     WHERE an.camino <> ''`,
-    [animalId, maxGeneraciones],
-  );
-  return filas.sort((a, b) => compararCaminos(a.camino, b.camino));
+  datos: DatosAnimal,
+  contexto: ContextoCambio,
+  id?: string,
+): Promise<string> {
+  exigirPermiso(contexto, id ? "editar_animal" : "crear_animal");
+  const actual = id ? await obtenerAnimal(conexion, id) : null;
+  if (id && !actual) throw new ErrorDeRegistro([{ codigo: "no_encontrado" }]);
+  const tocaGenealogia =
+    !actual ||
+    actual.padreId !== datos.padreId ||
+    actual.madreId !== datos.madreId ||
+    actual.padreSinVerificar !== datos.padreSinVerificar ||
+    actual.madreSinVerificar !== datos.madreSinVerificar;
+  if (tocaGenealogia && (datos.padreId || datos.madreId || actual)) exigirPermiso(contexto, "editar_genealogia");
+  rechazarSi(await validarAnimal(conexion, datos, id ?? null, fechaLocal()));
+
+  const cambios = new Cambios(contexto);
+  const animalId = actual ? actual.id : cambios.insertar("animal", aFila(datos));
+  if (actual) cambios.actualizar("animal", actual.id, aFila(actual), aFila(datos));
+  prepararIdentificadores(cambios, animalId, actual?.identificadores ?? [], datos.identificadores);
+  await prepararComposicion(conexion, cambios, animalId, datos.composicion);
+  await cambios.aplicar(conexion);
+  return animalId;
 }
 
-/** Borrado lógico de un animal y de sus identificadores, con su historial. */
-export async function eliminarAnimal(conexion: Conexion, animalId: string, contexto: ContextoCambio): Promise<void> {
-  const identificadores = await conexion.consultar<{ id: string }>(
-    "SELECT id FROM identificador WHERE animal_id = ? AND eliminado_en IS NULL",
+function filaIdentificador(i: IdentificadorEditable): Record<string, ValorSql> {
+  return {
+    tipo: i.tipo,
+    valor: normalizarValor(i.valor),
+    fecha: i.fecha,
+    vigente: i.vigente ? 1 : 0,
+    principal: i.principal ? 1 : 0,
+  };
+}
+
+/**
+ * Compara los identificadores guardados con los del formulario. El orden importa por los índices únicos:
+ * primero se retiran los que ya no están, después se modifican (primero los que dejan de ser principales)
+ * y al final se crean los nuevos.
+ */
+function prepararIdentificadores(
+  cambios: Cambios,
+  animalId: string,
+  antes: readonly (IdentificadorEditable & { id: string })[],
+  despues: readonly IdentificadorEditable[],
+): void {
+  const idsNuevos = new Set(despues.map((i) => i.id).filter(Boolean));
+  for (const viejo of antes) if (!idsNuevos.has(viejo.id)) cambios.eliminar("identificador", viejo.id);
+
+  const modificados = despues
+    .filter((i) => i.id && antes.some((a) => a.id === i.id))
+    .sort((a, b) => Number(a.principal) - Number(b.principal) || Number(a.vigente) - Number(b.vigente));
+  for (const i of modificados) {
+    const viejo = antes.find((a) => a.id === i.id)!;
+    cambios.actualizar("identificador", i.id!, filaIdentificador(viejo), filaIdentificador(i));
+  }
+  for (const i of despues.filter((i) => !i.id)) {
+    cambios.insertar("identificador", { animal_id: animalId, ...filaIdentificador(i) });
+  }
+}
+
+/** Compara la composición guardada con la del formulario, raza por raza. */
+async function prepararComposicion(
+  conexion: Conexion,
+  cambios: Cambios,
+  animalId: string,
+  despues: readonly FraccionRacial[],
+): Promise<void> {
+  const antes = await conexion.consultar<{ id: string; razaId: string; fraccion: number }>(
+    "SELECT id, raza_id AS razaId, fraccion FROM composicion_racial WHERE animal_id = ? AND eliminado_en IS NULL",
     [animalId],
   );
-  for (const { id } of identificadores) {
-    await marcarEliminado(conexion, "identificador", id, contexto);
+  for (const viejo of antes) {
+    const nuevo = despues.find((f) => f.razaId === viejo.razaId);
+    if (!nuevo) cambios.eliminar("composicion_racial", viejo.id);
+    else cambios.actualizar("composicion_racial", viejo.id, { fraccion: viejo.fraccion }, { fraccion: nuevo.fraccion });
   }
-  await marcarEliminado(conexion, "animal", animalId, contexto);
+  for (const f of despues.filter((f) => !antes.some((a) => a.razaId === f.razaId))) {
+    cambios.insertar("composicion_racial", { animal_id: animalId, raza_id: f.razaId, fraccion: f.fraccion });
+  }
 }
 
-async function marcarEliminado(
-  conexion: Conexion,
-  tabla: "animal" | "identificador",
-  id: string,
-  contexto: ContextoCambio,
-): Promise<void> {
-  await conexion.ejecutar(
-    `UPDATE ${tabla} SET eliminado_en = ?, modificado_en = ? WHERE id = ? AND eliminado_en IS NULL`,
-    [contexto.marcaTiempo, contexto.marcaTiempo, id],
-  );
-  await registrarCambios(
-    conexion,
-    tabla,
-    id,
-    [{ campo: "eliminado_en", anterior: null, nuevo: contexto.marcaTiempo }],
-    contexto,
-  );
-}
-
-/** INSERT a partir de un objeto columna → valor. Los nombres de columna vienen del código, nunca del usuario. */
-async function insertar(conexion: Conexion, tabla: string, valores: Record<string, ValorSql>): Promise<void> {
-  const columnas = Object.keys(valores);
-  await conexion.ejecutar(
-    `INSERT INTO ${tabla} (${columnas.join(", ")}) VALUES (${columnas.map(() => "?").join(", ")})`,
-    Object.values(valores),
-  );
+/** Borrado lógico de un animal registrado por error, con sus identificadores y su composición. */
+export async function eliminarAnimal(conexion: Conexion, animalId: string, contexto: ContextoCambio): Promise<void> {
+  exigirPermiso(contexto, "editar_animal");
+  const cambios = new Cambios(contexto);
+  for (const tabla of ["identificador", "composicion_racial"] as const) {
+    const filas = await conexion.consultar<{ id: string }>(
+      `SELECT id FROM ${tabla} WHERE animal_id = ? AND eliminado_en IS NULL`,
+      [animalId],
+    );
+    for (const { id } of filas) cambios.eliminar(tabla, id);
+  }
+  cambios.eliminar("animal", animalId);
+  await cambios.aplicar(conexion);
 }

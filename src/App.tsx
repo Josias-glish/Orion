@@ -1,57 +1,152 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Aviso } from "./componentes/Aviso";
-import { BarraLateral, type Pantalla } from "./componentes/BarraLateral";
-import { ConexionContexto } from "./componentes/ConexionContexto";
+import { BarraLateral } from "./componentes/BarraLateral";
+import { ConexionContexto, NavegacionContexto, SesionContexto, type Ruta, type Sesion } from "./componentes/contextos";
+import { consultarArranque, type EstadoArranque } from "./datos/arranque";
 import type { Conexion } from "./datos/conexion";
 import { abrirConexionTauri } from "./datos/conexion-tauri";
-import { Ajustes } from "./pantallas/Ajustes";
-import { Animales } from "./pantallas/Animales";
-import { Diagnostico } from "./pantallas/Diagnostico";
+import { obtenerFinca, type Finca } from "./datos/repositorios/finca";
+import type { Usuario } from "./datos/repositorios/usuarios";
+import { puede, type Accion } from "./dominio/permisos";
+import { Ajustes } from "./pantallas/ajustes/Ajustes";
+import { FichaAnimal } from "./pantallas/animales/FichaAnimal";
+import { FormularioAnimal } from "./pantallas/animales/FormularioAnimal";
+import { ListaAnimales } from "./pantallas/animales/ListaAnimales";
+import { Asistente } from "./pantallas/Asistente";
+import { ElegirUsuario } from "./pantallas/ElegirUsuario";
 import { Inicio } from "./pantallas/Inicio";
 import { textos } from "./textos/es";
 
-const PANTALLAS: Record<Pantalla, () => React.JSX.Element> = {
-  inicio: Inicio,
-  animales: Animales,
-  ajustes: Ajustes,
-  diagnostico: Diagnostico,
+/** Permiso que exige cada pantalla (R14). */
+const PERMISO_DE: Partial<Record<Ruta["pantalla"], Accion>> = {
+  nuevoAnimal: "crear_animal",
+  editarAnimal: "editar_animal",
+  ajustes: "ver_ajustes",
 };
+
+function PantallaActual({ ruta }: { ruta: Ruta }) {
+  switch (ruta.pantalla) {
+    case "inicio":
+      return <Inicio />;
+    case "animales":
+      return <ListaAnimales />;
+    case "animal":
+      return <FichaAnimal key={ruta.id} id={ruta.id} pestana={ruta.pestana} />;
+    case "nuevoAnimal":
+      return <FormularioAnimal key="nuevo" />;
+    case "editarAnimal":
+      return <FormularioAnimal key={ruta.id} id={ruta.id} />;
+    case "ajustes":
+      return <Ajustes seccion={ruta.seccion} />;
+  }
+}
 
 export default function App() {
   const [conexion, setConexion] = useState<Conexion | null>(null);
   const [errorAlAbrir, setErrorAlAbrir] = useState<string | null>(null);
-  const [pantalla, setPantalla] = useState<Pantalla>("inicio");
+  const [arranque, setArranque] = useState<EstadoArranque | null>(null);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [finca, setFinca] = useState<Finca | null>(null);
+  const [ruta, setRuta] = useState<Ruta>({ pantalla: "inicio" });
   const [version, setVersion] = useState<string | null>(null);
+
+  const cargarArranque = useCallback(async (c: Conexion) => {
+    const estado = await consultarArranque(c);
+    setArranque(estado);
+    setFinca(estado.finca);
+    return estado;
+  }, []);
 
   useEffect(() => {
     abrirConexionTauri()
-      .then(setConexion)
+      .then(async (c) => {
+        setConexion(c);
+        await cargarArranque(c);
+      })
       .catch((error: unknown) => setErrorAlAbrir(String(error)));
-    getVersion().then(setVersion);
+    getVersion().then(setVersion, () => setVersion(null));
+  }, [cargarArranque]);
+
+  const navegar = useCallback((nueva: Ruta) => {
+    setRuta(nueva);
+    document.querySelector(".contenido")?.scrollTo(0, 0);
   }, []);
 
-  const PantallaActual = PANTALLAS[pantalla];
-  return (
-    <div className="marco">
-      <BarraLateral actual={pantalla} version={version} alElegir={setPantalla} />
-      <main className="contenido">
-        {errorAlAbrir ? (
-          <Aviso tipo="error">
-            <p>{textos.errores.abrirBase}</p>
-            <details>
-              <summary>{textos.errores.detalleTecnico}</summary>
-              <code>{errorAlAbrir}</code>
-            </details>
-          </Aviso>
-        ) : conexion ? (
-          <ConexionContexto.Provider value={conexion}>
-            <PantallaActual />
-          </ConexionContexto.Provider>
-        ) : (
-          <p>{textos.comun.cargando}</p>
-        )}
+  const sesion = useMemo<Sesion | null>(() => {
+    if (!conexion || !usuario || !finca) return null;
+    return {
+      usuario,
+      finca,
+      recargarFinca: async () => setFinca(await obtenerFinca(conexion)),
+      cerrarSesion: () => {
+        setUsuario(null);
+        setRuta({ pantalla: "inicio" });
+        cargarArranque(conexion);
+      },
+    };
+  }, [conexion, usuario, finca, cargarArranque]);
+
+  if (errorAlAbrir) {
+    return (
+      <main className="centrado">
+        <Aviso tipo="error">
+          <p>{textos.errores.abrirBase}</p>
+          <details>
+            <summary>{textos.errores.detalleTecnico}</summary>
+            <code>{errorAlAbrir}</code>
+          </details>
+        </Aviso>
       </main>
-    </div>
+    );
+  }
+  if (!conexion || !arranque) return <p className="centrado">{textos.comun.cargando}</p>;
+
+  if (arranque.necesitaAsistente) {
+    return (
+      <ConexionContexto.Provider value={conexion}>
+        <Asistente
+          fincaExistente={arranque.finca}
+          alTerminar={async (creado) => {
+            await cargarArranque(conexion);
+            setUsuario(creado);
+          }}
+        />
+      </ConexionContexto.Provider>
+    );
+  }
+
+  if (!sesion) {
+    return (
+      <ConexionContexto.Provider value={conexion}>
+        <ElegirUsuario usuarios={arranque.usuarios} alEntrar={setUsuario} />
+      </ConexionContexto.Provider>
+    );
+  }
+
+  const permiso = PERMISO_DE[ruta.pantalla];
+  return (
+    <ConexionContexto.Provider value={conexion}>
+      <SesionContexto.Provider value={sesion}>
+        <NavegacionContexto.Provider value={navegar}>
+          <div className="marco">
+            <BarraLateral
+              ruta={ruta}
+              usuario={sesion.usuario}
+              version={version}
+              alNavegar={navegar}
+              alCambiarUsuario={sesion.cerrarSesion}
+            />
+            <main className="contenido">
+              {permiso && !puede(sesion.usuario.rol, permiso) ? (
+                <Aviso tipo="error">{textos.errores.motivo({ codigo: "sin_permiso" })}</Aviso>
+              ) : (
+                <PantallaActual ruta={ruta} />
+              )}
+            </main>
+          </div>
+        </NavegacionContexto.Provider>
+      </SesionContexto.Provider>
+    </ConexionContexto.Provider>
   );
 }

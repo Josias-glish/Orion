@@ -13,13 +13,13 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:vigilar": "vitest",
-    "tipos": "tsc --noEmit"
+    "tipos": "tsc --noEmit",
+    "semillas": "tsx scripts/semillas.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-dialog": "^2.8.1",
-    "@tauri-apps/plugin-fs": "^2.6.0",
     "@tauri-apps/plugin-sql": "^2.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

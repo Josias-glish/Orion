@@ -1,9 +1,9 @@
-// Prueba técnica de la Etapa 1. Es temporal: se retira cuando existan las pantallas reales.
-import { nuevoId } from "../dominio/identidad";
+// Información técnica de la base y limpieza de los datos de la prueba técnica de la Etapa 1.
+import { Cambios, exigirPermiso } from "./cambios";
 import type { Conexion, ContextoCambio } from "./conexion";
-import { crearAnimal, eliminarAnimal, listarAnimales, type AnimalResumen, type NuevoAnimal } from "./repositorios/animales";
+import { listarAnimales, type AnimalResumen } from "./repositorios/animales";
 
-/** Texto que se guarda en «observaciones» para reconocer los animales creados por el diagnóstico. */
+/** Texto que la Etapa 1 guardó en «observaciones» de los animales de la prueba técnica. */
 export const MARCA_DIAGNOSTICO = "[diagnóstico]";
 
 export interface EstadoBaseDatos {
@@ -45,69 +45,24 @@ export async function consultarEstado(conexion: Conexion): Promise<EstadoBaseDat
 }
 
 export async function listarAnimalesDePrueba(conexion: Conexion): Promise<AnimalResumen[]> {
-  return (await listarAnimales(conexion)).filter((a) => a.observaciones === MARCA_DIAGNOSTICO);
-}
-
-/** Código de arete corto y casi seguro de no repetirse, para no chocar con R2. */
-function areteDePrueba(): string {
-  return `DIAG-${nuevoId().slice(0, 8).toUpperCase()}`;
-}
-
-/** Prueba (a): un animal con su identificador principal. Devuelve el id. */
-export async function crearAnimalDePrueba(conexion: Conexion, contexto: ContextoCambio): Promise<string> {
-  const numero = (await listarAnimalesDePrueba(conexion)).length + 1;
-  return crearAnimal(
-    conexion,
-    {
-      nombre: `Prueba ${numero}`,
-      sexo: "hembra",
-      fechaNacimiento: "2024-01-15",
-      observaciones: MARCA_DIAGNOSTICO,
-      identificador: { tipo: "arete", valor: areteDePrueba() },
-    },
-    contexto,
+  return (await listarAnimales(conexion, { incluirSoloGenealogia: true })).filter(
+    (a) => a.observaciones === MARCA_DIAGNOSTICO,
   );
 }
 
-/**
- * Prueba (b): tres generaciones (cuatro abuelos, padre, madre y una cría), cada uno con arete.
- * Devuelve el id de la cría para consultar sus ancestros.
- */
-export async function crearTresGeneraciones(conexion: Conexion, contexto: ContextoCambio): Promise<string> {
-  const serie = (await listarAnimalesDePrueba(conexion)).filter((a) => a.nombre?.startsWith("Cría ")).length + 1;
-  const crear = (datos: Omit<NuevoAnimal, "observaciones" | "identificador">) =>
-    crearAnimal(
-      conexion,
-      { ...datos, observaciones: MARCA_DIAGNOSTICO, identificador: { tipo: "arete", valor: areteDePrueba() } },
-      contexto,
-    );
-
-  const abueloPaterno = await crear({ nombre: `Abuelo paterno ${serie}`, sexo: "macho", fechaNacimiento: "2018-03-10" });
-  const abuelaPaterna = await crear({ nombre: `Abuela paterna ${serie}`, sexo: "hembra", fechaNacimiento: "2018-05-02" });
-  const abueloMaterno = await crear({ nombre: `Abuelo materno ${serie}`, sexo: "macho", fechaNacimiento: "2018-04-15" });
-  const abuelaMaterna = await crear({ nombre: `Abuela materna ${serie}`, sexo: "hembra", fechaNacimiento: "2018-06-20" });
-  const padre = await crear({
-    nombre: `Padre ${serie}`,
-    sexo: "macho",
-    fechaNacimiento: "2020-04-01",
-    padreId: abueloPaterno,
-    madreId: abuelaPaterna,
-  });
-  const madre = await crear({
-    nombre: `Madre ${serie}`,
-    sexo: "hembra",
-    fechaNacimiento: "2020-05-12",
-    padreId: abueloMaterno,
-    madreId: abuelaMaterna,
-  });
-  return crear({ nombre: `Cría ${serie}`, sexo: "hembra", fechaNacimiento: "2022-03-08", padreId: padre, madreId: madre });
-}
-
-/** Borrado lógico de los animales del diagnóstico. Devuelve cuántos se retiraron. */
+/** Borrado lógico de los animales de la prueba técnica y de sus identificadores. Devuelve cuántos se retiraron. */
 export async function retirarDatosDePrueba(conexion: Conexion, contexto: ContextoCambio): Promise<number> {
+  exigirPermiso(contexto, "ver_ajustes");
   const animales = await listarAnimalesDePrueba(conexion);
-  for (const animal of animales) {
-    await eliminarAnimal(conexion, animal.id, contexto);
-  }
+  if (animales.length === 0) return 0;
+  const cambios = new Cambios(contexto);
+  const marcas = animales.map(() => "?").join(", ");
+  const identificadores = await conexion.consultar<{ id: string }>(
+    `SELECT id FROM identificador WHERE animal_id IN (${marcas}) AND eliminado_en IS NULL`,
+    animales.map((a) => a.id),
+  );
+  for (const { id } of identificadores) cambios.eliminar("identificador", id);
+  for (const animal of animales) cambios.eliminar("animal", animal.id);
+  await cambios.aplicar(conexion);
   return animales.length;
 }

@@ -1,13 +1,11 @@
 import Database from "@tauri-apps/plugin-sql";
+import { URL_BASE_DATOS_DESARROLLO, URL_BASE_DATOS_INSTALADA } from "./bases";
 import type { Conexion } from "./conexion";
 
 /**
  * Base de datos que abre la interfaz. En desarrollo (`npm run tauri dev`) se usa una base
  * aparte para que las pruebas y los datos de ejemplo nunca toquen los datos reales.
- * Deben coincidir con BASES_DE_DATOS en src-tauri/src/lib.rs (lo comprueba una prueba).
  */
-export const URL_BASE_DATOS_INSTALADA = "sqlite:registro-caprino.db";
-export const URL_BASE_DATOS_DESARROLLO = "sqlite:registro-caprino-desarrollo.db";
 export const URL_BASE_DATOS = import.meta.env.DEV ? URL_BASE_DATOS_DESARROLLO : URL_BASE_DATOS_INSTALADA;
 
 let conexionAbierta: Promise<Conexion> | null = null;
@@ -25,6 +23,12 @@ export function abrirConexionTauri(): Promise<Conexion> {
       },
       consultar<T>(sql: string, parametros: readonly (string | number | null)[] = []) {
         return db.select<T[]>(sql, [...parametros]);
+      },
+      // D-004 (pendiente de aprobación): el plugin reparte las órdenes entre varias conexiones, así que no se
+      // puede enviar BEGIN/COMMIT. Mientras tanto, las sentencias van una tras otra y los repositorios validan
+      // todo antes de escribir para que no falle a mitad de camino.
+      async ejecutarLote(sentencias) {
+        for (const { sql, parametros } of sentencias) await db.execute(sql, [...parametros]);
       },
     }),
   );

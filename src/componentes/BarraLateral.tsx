@@ -1,41 +1,66 @@
+import type { Usuario } from "../datos/repositorios/usuarios";
+import { puede } from "../dominio/permisos";
 import { textos } from "../textos/es";
+import type { Ruta } from "./contextos";
 
-export type Pantalla = "inicio" | "animales" | "ajustes" | "diagnostico";
+type Seccion = "inicio" | "animales" | "ajustes";
 
-const OPCIONES: { pantalla: Pantalla; texto: string; temporal?: boolean }[] = [
-  { pantalla: "inicio", texto: textos.menu.inicio },
-  { pantalla: "animales", texto: textos.menu.animales },
-  { pantalla: "ajustes", texto: textos.menu.ajustes },
-  { pantalla: "diagnostico", texto: textos.menu.diagnostico, temporal: true },
-];
+const SECCION_DE: Record<Ruta["pantalla"], Seccion> = {
+  inicio: "inicio",
+  animales: "animales",
+  animal: "animales",
+  nuevoAnimal: "animales",
+  editarAnimal: "animales",
+  ajustes: "ajustes",
+};
+
+const DESTINO: Record<Seccion, Ruta> = {
+  inicio: { pantalla: "inicio" },
+  animales: { pantalla: "animales" },
+  ajustes: { pantalla: "ajustes", seccion: "finca" },
+};
 
 interface Props {
-  actual: Pantalla;
+  ruta: Ruta;
+  usuario: Usuario;
   version: string | null;
-  alElegir: (pantalla: Pantalla) => void;
+  alNavegar: (ruta: Ruta) => void;
+  alCambiarUsuario: () => void;
 }
 
-export function BarraLateral({ actual, version, alElegir }: Props) {
+export function BarraLateral({ ruta, usuario, version, alNavegar, alCambiarUsuario }: Props) {
+  const secciones: Seccion[] = ["inicio", "animales"];
+  // R14: el operario no ve Ajustes.
+  if (puede(usuario.rol, "ver_ajustes")) secciones.push("ajustes");
+  const actual = SECCION_DE[ruta.pantalla];
+
   return (
     <nav className="barra-lateral" aria-label={textos.menu.titulo}>
       <div className="barra-lateral__marca">{textos.app.nombre}</div>
       <ul className="barra-lateral__lista">
-        {OPCIONES.map((opcion) => (
-          <li key={opcion.pantalla}>
+        {secciones.map((s) => (
+          <li key={s}>
             <button
               type="button"
               className="barra-lateral__opcion"
-              aria-current={actual === opcion.pantalla ? "page" : undefined}
-              onClick={() => alElegir(opcion.pantalla)}
-              data-pantalla={opcion.pantalla}
+              aria-current={actual === s ? "page" : undefined}
+              onClick={() => alNavegar(DESTINO[s])}
+              data-pantalla={s}
             >
-              {opcion.texto}
-              {opcion.temporal && <span className="etiqueta">{textos.menu.temporal}</span>}
+              {textos.menu[s]}
             </button>
           </li>
         ))}
       </ul>
-      {version && <div className="barra-lateral__version">{textos.app.version(version)}</div>}
+      <div className="barra-lateral__pie">
+        <div className="barra-lateral__usuario" data-prueba="usuario-actual">
+          {textos.sesion.usuarioActual(usuario.nombre, usuario.rol)}
+        </div>
+        <button type="button" className="barra-lateral__cambiar" onClick={alCambiarUsuario} data-prueba="cambiar-usuario">
+          {textos.menu.cambiarUsuario}
+        </button>
+        {version && <div className="barra-lateral__version">{textos.app.version(version)}</div>}
+      </div>
     </nav>
   );
 }

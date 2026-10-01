@@ -25,3 +25,19 @@ export function formatearMarcaDeTiempo(marca: string): string {
   const minuto = String(momento.getMinutes()).padStart(2, "0");
   return `${formatearFecha(fechaLocal(momento))} ${hora}:${minuto}`;
 }
+
+/** ¿Es una fecha real con formato «AAAA-MM-DD»? (rechaza, por ejemplo, el 30 de febrero) */
+export function esFechaValida(fecha: string): boolean {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (!partes) return false;
+  const [anio, mes, dia] = partes.slice(1).map(Number);
+  const d = new Date(Date.UTC(anio, mes - 1, dia));
+  return d.getUTCFullYear() === anio && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia;
+}
+
+/** Edad en años y meses cumplidos entre dos fechas «AAAA-MM-DD». */
+export function edadEnMeses(nacimiento: string, hoy: string): number {
+  const [a1, m1, d1] = nacimiento.split("-").map(Number);
+  const [a2, m2, d2] = hoy.split("-").map(Number);
+  return (a2 - a1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+}

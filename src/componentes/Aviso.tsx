@@ -8,7 +8,7 @@ interface Props {
 /** Mensaje destacado. Los errores se anuncian a los lectores de pantalla de inmediato. */
 export function Aviso({ tipo, children }: Props) {
   return (
-    <div className={`aviso aviso--${tipo}`} role={tipo === "error" ? "alert" : "status"}>
+    <div className={`aviso aviso--${tipo}`} role={tipo === "error" ? "alert" : "status"} data-prueba={`aviso-${tipo}`}>
       {children}
     </div>
   );

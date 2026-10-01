@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fechaLocal, formatearFecha, formatearMarcaDeTiempo, marcaDeTiempo } from "./fechas";
+import { edadEnMeses, esFechaValida, fechaLocal, formatearFecha, formatearMarcaDeTiempo, marcaDeTiempo } from "./fechas";
 
 describe("fechas", () => {
   it("la marca de tiempo tiene el formato que exige la base", () => {
@@ -18,5 +18,19 @@ describe("fechas", () => {
   it("muestra la marca de tiempo en hora local", () => {
     const local = new Date(2026, 9, 1, 8, 5);
     expect(formatearMarcaDeTiempo(local.toISOString())).toBe("01/10/2026 08:05");
+  });
+});
+
+describe("validación de fechas", () => {
+  it("acepta fechas reales y rechaza las imposibles", () => {
+    expect(esFechaValida("2024-02-29")).toBe(true);
+    expect(esFechaValida("2023-02-29")).toBe(false);
+    expect(esFechaValida("2024-13-01")).toBe(false);
+    expect(esFechaValida("01/10/2026")).toBe(false);
+  });
+
+  it("calcula la edad en meses cumplidos", () => {
+    expect(edadEnMeses("2024-03-15", "2026-03-14")).toBe(23);
+    expect(edadEnMeses("2024-03-15", "2026-03-15")).toBe(24);
   });
 });

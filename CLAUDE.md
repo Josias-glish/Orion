@@ -34,18 +34,28 @@ Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13):
 | Abrir el programa en modo desarrollo (usa la base `registro-caprino-desarrollo.db`) | `npm run tauri dev` |
 | Ejecutar todas las pruebas automáticas (Vitest) | `npm test` |
 | Revisar tipos de TypeScript | `npm run tipos` |
-| Cargar los datos de ejemplo (solo desarrollo; llega en una etapa posterior) | `npm run semillas` |
+| Cargar los datos de ejemplo en la base de desarrollo (abrir antes `npm run tauri dev` una vez) | `npm run semillas` |
 | Construir el instalador en el propio equipo | `npm run tauri build` |
 | Publicar instaladores (borrador de release) desde GitHub Actions | subir la versión en `src-tauri/tauri.conf.json` y `package.json`, luego `git tag v0.1.0` y `git push origin v0.1.0` |
-| Prueba de extremo a extremo en Linux (ver `docs/PRUEBA_TECNICA.md`) | `xvfb-run -a node pruebas-e2e/prueba-tecnica.mjs <binario> <carpeta>` |
+| Prueba de extremo a extremo en Linux (ver `docs/PRUEBA_TECNICA.md`) | `xvfb-run -a node pruebas-e2e/etapa2.mjs <binario> <carpeta>` |
 
 ## Mapa del código
 
-- `src/dominio/`: funciones puras (genealogía, fechas, UUID). Sin React ni base de datos.
-- `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, solo pruebas), `historial.ts`, `repositorios/`, `migraciones/`.
-- `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su huella y su registro en `src-tauri/src/lib.rs`; las pruebas fallan si falta algo.
-- `src/pantallas/`, `src/componentes/`, `src/textos/es.ts` (todos los textos), `src/estilos.css`.
+- `src/dominio/`: reglas puras, sin React ni base de datos. `genealogia.ts` (R1), `identificadores.ts` (R2),
+  `composicion.ts` (R3), `consanguinidad.ts` (R6), `permisos.ts` (R14), `pin.ts`, `usuarios.ts`, `fechas.ts`, `tipos.ts`.
+- `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
+  y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
+  anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
+  `repositorios/` (finca, usuarios, catálogos, lotes, animales, genealogía, historial), `migraciones/`.
+- `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
+  huella y su registro en `src-tauri/src/lib.rs`; las pruebas fallan si falta algo.
+- `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `ajustes/`), `src/componentes/`
+  (contextos de conexión, sesión y navegación; campos reutilizables), `src/textos/es.ts` (todos los textos y los
+  mensajes de cada motivo de rechazo), `src/estilos.css`.
+- `scripts/`: `semillas.ts` y `datos-de-ejemplo.ts` (fuera de `src`, nunca entran al instalador).
+- `pruebas-e2e/`: pruebas con el programa real en Linux (`tauri-driver`).
 - Parámetros SQL con `?` (valen en sqlx y en node:sqlite). Nunca enviar `BEGIN`/`COMMIT` por el plugin (ver D-004).
+- Los errores esperados se lanzan como `ErrorDeRegistro([...motivos])`; la interfaz los muestra con `ListaMotivos`.
 
 ## Decisiones
 
@@ -69,3 +79,12 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-016** · 2026-10-01 · Etapa 1 · Vigente. `animal.lote_id` se agregará con `ALTER TABLE ... ADD COLUMN ... REFERENCES lote (id)` en la etapa que cree `lote`. `historial_cambios.usuario_id` no tiene clave foránea (auditoría).
 - **D-017** · 2026-10-01 · Etapa 1 · Vigente. GitHub Actions: `pruebas.yml` (Linux, Windows y macOS en cada envío) y `instaladores.yml` (llama a las pruebas; en PR sube los instaladores como artifacts; con etiqueta `v*` o a mano crea borrador de release y exige que la etiqueta coincida con la versión).
 - **D-018** · 2026-10-01 · Etapa 1 · Vigente. El ícono provisional es un monograma «RC» (`recursos/icono.png`); los tamaños se generan con `npx tauri icon recursos/icono.png`.
+- **D-019** · 2026-10-01 · Etapa 2 · Vigente. Escrituras con `Cambios` (`src/datos/cambios.ts`): junta los INSERT/UPDATE de una operación y su historial, y los aplica con `Conexion.ejecutarLote`. En memoria es una transacción real; en el programa son sentencias seguidas hasta que se apruebe D-004, por eso los repositorios validan todo antes de escribir.
+- **D-020** · 2026-10-01 · Etapa 2 · Vigente. R1 se valida en el dominio (mensajes claros, ciclos de cualquier profundidad con consulta recursiva de descendientes) y en la base con disparadores (sexo de padres, orden de nacimiento, sexo de quien ya es padre) como red de seguridad. SQLite no admite consultas recursivas dentro de disparadores.
+- **D-021** · 2026-10-01 · Etapa 2 · Vigente. Consanguinidad con el método tabular del coeficiente de parentesco (equivalente a los caminos de Wright), con memoria y orden por generaciones; probado con hermanos completos (25 %), medios hermanos (12,5 %), padre × hija (25 %), primos (6,25 %) y ancestro común consanguíneo.
+- **D-022** · 2026-10-01 · Etapa 2 · Vigente. PIN con `@noble/hashes` (PBKDF2-SHA256, JavaScript puro): funciona igual en Windows, macOS y en las pruebas, sin depender de `crypto.subtle` en la ventana.
+- **D-023** · 2026-10-01 · Etapa 2 · Vigente. Fotos: el diálogo del plugin `dialog` elige el archivo y el comando Rust `copiar_foto` lo copia a `<datos>/fotos/<uuid>.<ext>`; se muestran con el protocolo `asset` (alcance `$APPCONFIG/fotos/**`, CSP `img-src asset:`). Un comando propio (y no el plugin `fs`) permite probar la copia sin el diálogo nativo.
+- **D-024** · 2026-10-01 · Etapa 2 · Vigente. Campo `animal.en_hato` (SUPOSICION S-12) para ancestros que solo existen en la genealogía.
+- **D-025** · 2026-10-01 · Etapa 2 · Vigente. Navegación por `Ruta` en un contexto; las pantallas comprueban el permiso (R14) además de ocultar botones, y los repositorios lo vuelven a exigir con `exigirPermiso`.
+- **D-026** · 2026-10-01 · Etapa 2 · Vigente. `npm run semillas` usa `tsx` y escribe solo en la base de desarrollo; exige que la base ya tenga todas las migraciones del plugin (si no, sqlx no arrancaría). GitHub Actions comprueba que el script carga (`--donde`).
+- **D-027** · 2026-10-01 · Etapa 2 · Vigente. La pantalla temporal de diagnóstico de la Etapa 1 se retiró; su información técnica y la limpieza de los datos de prueba están en Ajustes → Base de datos.

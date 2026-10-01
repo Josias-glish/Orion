@@ -73,8 +73,45 @@ export interface EntradaGenealogia {
  * SUPOSICION: si falta alguna de las dos fechas de nacimiento, no se puede comparar y no se rechaza.
  */
 export function validarGenealogia(entrada: EntradaGenealogia): ErrorGenealogia[] {
-  void entrada;
-  throw new Error("validarGenealogia: no implementado");
+  const { animal, padre, madre, descendientes } = entrada;
+  const errores: ErrorGenealogia[] = [];
+  const nombre = (a: AnimalGenealogico) => a.nombre ?? a.id;
+  const nacioAntes = (a: string | null, b: string | null) => a === null || b === null || a < b;
+
+  if (padre) {
+    if (padre.id === animal.id) errores.push({ codigo: "padre_es_el_mismo_animal" });
+    else if (descendientes.has(padre.id)) errores.push({ codigo: "padre_es_descendiente", otro: nombre(padre) });
+    if (padre.id !== animal.id) {
+      if (padre.sexo !== "macho") errores.push({ codigo: "padre_no_es_macho", otro: nombre(padre) });
+      if (!nacioAntes(padre.fechaNacimiento, animal.fechaNacimiento)) {
+        errores.push({ codigo: "padre_nacio_despues", otro: nombre(padre) });
+      }
+    }
+  }
+
+  if (madre) {
+    if (madre.id === animal.id) errores.push({ codigo: "madre_es_el_mismo_animal" });
+    else if (descendientes.has(madre.id)) errores.push({ codigo: "madre_es_descendiente", otro: nombre(madre) });
+    if (madre.id !== animal.id) {
+      if (madre.sexo !== "hembra") errores.push({ codigo: "madre_no_es_hembra", otro: nombre(madre) });
+      if (!nacioAntes(madre.fechaNacimiento, animal.fechaNacimiento)) {
+        errores.push({ codigo: "madre_nacio_despues", otro: nombre(madre) });
+      }
+    }
+  }
+
+  // Si el animal ya es padre o madre de otros, su sexo y su fecha deben seguir siendo coherentes.
+  const hijoIncoherente =
+    (animal.sexo !== "macho" ? entrada.hijosComoPadre[0] : undefined) ??
+    (animal.sexo !== "hembra" ? entrada.hijosComoMadre[0] : undefined);
+  if (hijoIncoherente) errores.push({ codigo: "sexo_no_coincide_con_hijos", otro: nombre(hijoIncoherente) });
+
+  const hijoMayor = [...entrada.hijosComoPadre, ...entrada.hijosComoMadre].find(
+    (hijo) => !nacioAntes(animal.fechaNacimiento, hijo.fechaNacimiento),
+  );
+  if (hijoMayor) errores.push({ codigo: "hijo_nacio_antes", otro: nombre(hijoMayor) });
+
+  return errores;
 }
 
 /** Descendientes de un animal (de cualquier generación) a partir de la lista de padres de cada animal. */
@@ -82,7 +119,21 @@ export function descendientesDe(
   animalId: string,
   padres: ReadonlyMap<string, { padreId: string | null; madreId: string | null }>,
 ): Set<string> {
-  void animalId;
-  void padres;
-  throw new Error("descendientesDe: no implementado");
+  const hijosDe = new Map<string, string[]>();
+  for (const [id, { padreId, madreId }] of padres) {
+    for (const progenitor of [padreId, madreId]) {
+      if (progenitor) hijosDe.set(progenitor, [...(hijosDe.get(progenitor) ?? []), id]);
+    }
+  }
+  const encontrados = new Set<string>();
+  const pendientes = [animalId];
+  while (pendientes.length > 0) {
+    for (const hijo of hijosDe.get(pendientes.pop()!) ?? []) {
+      if (!encontrados.has(hijo)) {
+        encontrados.add(hijo);
+        pendientes.push(hijo);
+      }
+    }
+  }
+  return encontrados;
 }

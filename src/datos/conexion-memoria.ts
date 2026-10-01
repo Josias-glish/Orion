@@ -24,9 +24,9 @@ export interface ConexionMemoria extends Conexion {
   cerrar(): void;
 }
 
-/** SQLite en memoria con claves foráneas activas, igual que la conexión del plugin. */
-export function abrirConexionMemoria(): ConexionMemoria {
-  const db = new DatabaseSync(":memory:");
+/** SQLite con claves foráneas activas, igual que la conexión del plugin. Por defecto, en memoria. */
+export function abrirConexionMemoria(archivo = ":memory:"): ConexionMemoria {
+  const db = new DatabaseSync(archivo, { timeout: 5000 });
   db.exec("PRAGMA foreign_keys = ON;");
   return {
     async ejecutar(sql, parametros = []) {
@@ -34,6 +34,16 @@ export function abrirConexionMemoria(): ConexionMemoria {
     },
     async consultar<T>(sql: string, parametros: readonly (string | number | null)[] = []) {
       return db.prepare(sql).all(...parametros) as T[];
+    },
+    async ejecutarLote(sentencias) {
+      db.exec("BEGIN");
+      try {
+        for (const { sql, parametros } of sentencias) db.prepare(sql).run(...parametros);
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
     },
     ejecutarScript(sql) {
       db.exec(sql);

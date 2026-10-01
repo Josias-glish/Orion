@@ -2,8 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { nuevoId } from "../dominio/identidad";
-import { archivosDeMigracion, crearBaseDePrueba, leerMigracion, type ConexionMemoria } from "./conexion-memoria";
-import { URL_BASE_DATOS_DESARROLLO, URL_BASE_DATOS_INSTALADA } from "./conexion-tauri";
+import {
+  abrirConexionMemoria,
+  archivosDeMigracion,
+  crearBaseDePrueba,
+  leerMigracion,
+  type ConexionMemoria,
+} from "./conexion-memoria";
+import { URL_BASE_DATOS_DESARROLLO, URL_BASE_DATOS_INSTALADA } from "./bases";
 import huellas from "./migraciones/huellas.json";
 
 const leerRaiz = (ruta: string) => readFileSync(new URL(`../../${ruta}`, import.meta.url), "utf8");
@@ -69,8 +75,18 @@ describe("migración 0001: esquema inicial", () => {
     );
   }
 
-  it("crea las seis tablas con los campos comunes", async () => {
-    const tablas = ["finca", "raza", "libro", "animal", "identificador", "historial_cambios"];
+  it("crea las tablas con los campos comunes", async () => {
+    const tablas = [
+      "finca",
+      "raza",
+      "libro",
+      "animal",
+      "identificador",
+      "historial_cambios",
+      "usuario",
+      "lote",
+      "composicion_racial",
+    ];
     for (const tabla of tablas) {
       const columnas = (await db.consultar<{ name: string }>(`SELECT name FROM pragma_table_info('${tabla}')`)).map(
         (c) => c.name,
@@ -123,9 +139,10 @@ describe("migración 0001: esquema inicial", () => {
   });
 
   it("exige que padre y madre existan y no sean el mismo animal", async () => {
-    await expect(animal({ padre_id: nuevoId() })).rejects.toThrow(/FOREIGN KEY/);
+    // Desde la migración 0002, el disparador de R1 actúa antes que la clave foránea.
+    await expect(animal({ padre_id: nuevoId() })).rejects.toThrow(/FOREIGN KEY|R1/);
     const unico = await animal({ sexo: "macho" });
-    await expect(animal({ padre_id: unico, madre_id: unico })).rejects.toThrow(/CHECK/);
+    await expect(animal({ padre_id: unico, madre_id: unico })).rejects.toThrow(/CHECK|R1/);
     const id = nuevoId();
     await expect(animal({ id, padre_id: id })).rejects.toThrow();
   });
@@ -175,5 +192,120 @@ describe("migración 0001: esquema inicial", () => {
     const id = await animal({ padre_sin_verificar: 1.0 });
     const [fila] = await db.consultar<{ t: string }>("SELECT typeof(padre_sin_verificar) AS t FROM animal WHERE id = ?", [id]);
     expect(fila.t).toBe("integer");
+  });
+});
+
+describe("migración 0002: núcleo y genealogía", () => {
+  let db: ConexionMemoria;
+  beforeEach(() => {
+    db = crearBaseDePrueba();
+  });
+  afterEach(() => db.cerrar());
+
+  async function animal(datos: Record<string, string | number | null>): Promise<string> {
+    const fila = { id: nuevoId(), sexo: "hembra", creado_en: AHORA, modificado_en: AHORA, ...datos };
+    const columnas = Object.keys(fila);
+    await db.ejecutar(
+      `INSERT INTO animal (${columnas.join(", ")}) VALUES (${columnas.map(() => "?").join(", ")})`,
+      Object.values(fila),
+    );
+    return String(fila.id);
+  }
+
+  it("R1 en la base: el padre debe ser macho y la madre hembra", async () => {
+    const hembra = await animal({ sexo: "hembra" });
+    const macho = await animal({ sexo: "macho" });
+    await expect(animal({ padre_id: hembra })).rejects.toThrow(/el padre debe ser macho/);
+    await expect(animal({ madre_id: macho })).rejects.toThrow(/la madre debe ser hembra/);
+    const cria = await animal({ padre_id: macho, madre_id: hembra });
+    await expect(db.ejecutar("UPDATE animal SET padre_id = ? WHERE id = ?", [hembra, cria])).rejects.toThrow(/macho/);
+  });
+
+  it("R1 en la base: no cambia el sexo de quien ya es padre", async () => {
+    const macho = await animal({ sexo: "macho" });
+    await animal({ padre_id: macho });
+    await expect(db.ejecutar("UPDATE animal SET sexo = 'hembra' WHERE id = ?", [macho])).rejects.toThrow(/sexo/);
+  });
+
+  it("R1 en la base: la cría nace después de sus padres y antes no", async () => {
+    const madre = await animal({ fecha_nacimiento: "2020-01-01" });
+    await expect(animal({ madre_id: madre, fecha_nacimiento: "2019-12-31" })).rejects.toThrow(/después/);
+    const cria = await animal({ madre_id: madre, fecha_nacimiento: "2022-01-01" });
+    await expect(db.ejecutar("UPDATE animal SET fecha_nacimiento = '2023-01-01' WHERE id = ?", [madre])).rejects.toThrow(
+      /antes que sus hijos/,
+    );
+    // Fechas desconocidas: no se puede comparar y no se rechaza.
+    await db.ejecutar("UPDATE animal SET fecha_nacimiento = NULL WHERE id = ?", [cria]);
+  });
+
+  it("la composición no admite fracciones fuera de (0, 1] ni la misma raza dos veces", async () => {
+    const id = await animal({});
+    const [raza] = await db.consultar<{ id: string }>("SELECT id FROM raza LIMIT 1");
+    const insertar = (fraccion: number) =>
+      db.ejecutar(
+        "INSERT INTO composicion_racial (id, animal_id, raza_id, fraccion, creado_en, modificado_en) VALUES (?, ?, ?, ?, ?, ?)",
+        [nuevoId(), id, raza.id, fraccion, AHORA, AHORA],
+      );
+    await expect(insertar(0)).rejects.toThrow(/CHECK/);
+    await expect(insertar(1.5)).rejects.toThrow(/CHECK/);
+    await insertar(0.5);
+    await expect(insertar(0.5)).rejects.toThrow(/UNIQUE/);
+  });
+
+  it("no permite borrar usuarios, lotes ni composiciones", async () => {
+    const id = await animal({});
+    const [raza] = await db.consultar<{ id: string }>("SELECT id FROM raza LIMIT 1");
+    await db.ejecutar("INSERT INTO usuario (id, nombre, rol, creado_en, modificado_en) VALUES (?, 'Ana', 'propietario', ?, ?)", [
+      nuevoId(),
+      AHORA,
+      AHORA,
+    ]);
+    await db.ejecutar("INSERT INTO lote (id, nombre, creado_en, modificado_en) VALUES (?, 'Ordeño', ?, ?)", [nuevoId(), AHORA, AHORA]);
+    await db.ejecutar(
+      "INSERT INTO composicion_racial (id, animal_id, raza_id, fraccion, creado_en, modificado_en) VALUES (?, ?, ?, 1, ?, ?)",
+      [nuevoId(), id, raza.id, AHORA, AHORA],
+    );
+    for (const tabla of ["usuario", "lote", "composicion_racial"]) {
+      await expect(db.ejecutar(`DELETE FROM ${tabla}`)).rejects.toThrow(/borrado lógico/);
+    }
+  });
+
+  it("los animales existentes quedan en el hato y sin lote", async () => {
+    const id = await animal({});
+    const [fila] = await db.consultar<{ en_hato: number; lote_id: string | null }>(
+      "SELECT en_hato, lote_id FROM animal WHERE id = ?",
+      [id],
+    );
+    expect(fila).toEqual({ en_hato: 1, lote_id: null });
+  });
+});
+
+describe("actualizar una base de la Etapa 1", () => {
+  it("la migración 0002 se aplica sobre datos existentes sin perderlos", async () => {
+    const db = abrirConexionMemoria();
+    try {
+      db.ejecutarScript(leerMigracion("0001_esquema_inicial.sql"));
+      const padre = nuevoId();
+      const cria = nuevoId();
+      for (const [id, sexo, padreId] of [
+        [padre, "macho", null],
+        [cria, "hembra", padre],
+      ] as const) {
+        await db.ejecutar(
+          "INSERT INTO animal (id, nombre, sexo, padre_id, observaciones, creado_en, modificado_en) VALUES (?, ?, ?, ?, '[diagnóstico]', ?, ?)",
+          [id, `Animal ${sexo}`, sexo, padreId, AHORA, AHORA],
+        );
+      }
+      db.ejecutarScript(leerMigracion("0002_nucleo_y_genealogia.sql"));
+      const filas = await db.consultar<{ id: string; en_hato: number; padre_id: string | null }>(
+        "SELECT id, en_hato, padre_id FROM animal ORDER BY sexo",
+      );
+      expect(filas).toEqual([
+        { id: cria, en_hato: 1, padre_id: padre },
+        { id: padre, en_hato: 1, padre_id: null },
+      ]);
+    } finally {
+      db.cerrar();
+    }
   });
 });
