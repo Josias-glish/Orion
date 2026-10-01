@@ -309,3 +309,60 @@ describe("actualizar una base de la Etapa 1", () => {
     }
   });
 });
+
+describe("migración 0004: salud y documentos", () => {
+  let db: ConexionMemoria;
+  let animalId: string;
+  beforeEach(async () => {
+    db = crearBaseDePrueba();
+    animalId = nuevoId();
+    await db.ejecutar("INSERT INTO animal (id, nombre, sexo, creado_en, modificado_en) VALUES (?, 'Bella', 'hembra', ?, ?)", [animalId, AHORA, AHORA]);
+  });
+  afterEach(() => db.cerrar());
+
+  const evento = (datos: Record<string, string | number | null>) => {
+    const fila = { id: nuevoId(), animal_id: animalId, tipo: "tratamiento", producto: "X", fecha_inicio: "2026-09-10", creado_en: AHORA, modificado_en: AHORA, ...datos };
+    const columnas = Object.keys(fila);
+    return db.ejecutar(`INSERT INTO evento_salud (${columnas.join(", ")}) VALUES (${columnas.map(() => "?").join(", ")})`, Object.values(fila));
+  };
+
+  it("acepta un tratamiento con los campos del ICA", async () => {
+    await evento({ numero_registro_ica: "ICA-1", lote_producto: "L", dosis: "5 ml", via: "oral", retiro_leche_dias: 5, retiro_carne_dias: 28 });
+    const [{ n }] = await db.consultar<{ n: number }>("SELECT count(*) AS n FROM evento_salud");
+    expect(n).toBe(1);
+  });
+
+  it("exige animal, producto (salvo en condición corporal), fechas en orden y retiros no negativos", async () => {
+    await expect(evento({ animal_id: null })).rejects.toThrow(/NOT NULL/);
+    await expect(evento({ producto: null })).rejects.toThrow(/CHECK/);
+    await expect(evento({ fecha_fin: "2026-09-01" })).rejects.toThrow(/CHECK/);
+    await expect(evento({ proxima_fecha: "2026-09-10" })).rejects.toThrow(/CHECK/);
+    await expect(evento({ retiro_leche_dias: -1 })).rejects.toThrow(/CHECK/);
+    await expect(evento({ tipo: "otro" })).rejects.toThrow(/CHECK/);
+  });
+
+  it("la condición corporal va de 1 a 5 en medios puntos y solo en su tipo de evento", async () => {
+    await evento({ tipo: "condicion_corporal", producto: null, condicion_corporal: 2.5 });
+    await expect(evento({ tipo: "condicion_corporal", producto: null, condicion_corporal: 2.3 })).rejects.toThrow(/CHECK/);
+    await expect(evento({ tipo: "condicion_corporal", producto: null, condicion_corporal: 5.5 })).rejects.toThrow(/CHECK/);
+    await expect(evento({ tipo: "condicion_corporal", producto: null })).rejects.toThrow(/CHECK/);
+    await expect(evento({ condicion_corporal: 3 })).rejects.toThrow(/CHECK/);
+  });
+
+  it("los números de documento no se repiten y nada se borra físicamente", async () => {
+    const documento = (numero: string) =>
+      db.ejecutar("INSERT INTO certificado (id, animal_id, tipo, numero, fecha, creado_en, modificado_en) VALUES (?, ?, 'propio', ?, '2026-10-01', ?, ?)", [
+        nuevoId(),
+        animalId,
+        numero,
+        AHORA,
+        AHORA,
+      ]);
+    await documento("CI-2026-0001");
+    await expect(documento("CI-2026-0001")).rejects.toThrow(/UNIQUE/);
+    await evento({});
+    for (const tabla of ["evento_salud", "certificado"]) {
+      await expect(db.ejecutar(`DELETE FROM ${tabla}`)).rejects.toThrow(/borrado lógico/);
+    }
+  });
+});
