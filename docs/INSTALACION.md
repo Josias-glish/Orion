@@ -1,7 +1,8 @@
 # Cómo instalar Registro Caprino
 
-Guía para instalar el programa en un computador con **Windows 10 u 11** o con **Mac**.
-No necesita internet para usar el programa; solo para descargar el instalador.
+Guía para instalar **Registro Caprino 0.1.0** en un computador con **Windows 10 u 11** (64 bits) o con **Mac**
+(macOS 10.13 o posterior, con chip Apple o Intel). No necesita internet para usar el programa; solo para descargar
+el instalador.
 
 > **Aviso importante.** Esta versión no tiene «firma de código» (un certificado pagado que identifica al autor
 > ante Microsoft y Apple). Por eso Windows y macOS mostrarán advertencias de seguridad la primera vez.
@@ -11,7 +12,10 @@ No necesita internet para usar el programa; solo para descargar el instalador.
 - [2. Instalar en Windows](#2-instalar-en-windows)
 - [3. Instalar en Mac](#3-instalar-en-mac)
 - [4. Dónde quedan los datos](#4-dónde-quedan-los-datos)
-- [5. Desinstalar](#5-desinstalar)
+- [5. Copia de respaldo](#5-copia-de-respaldo)
+- [6. Desinstalar](#6-desinstalar)
+- [7. Actualizar a una versión nueva](#7-actualizar-a-una-versión-nueva)
+- [8. Si algo falla](#8-si-algo-falla)
 
 ---
 
@@ -19,8 +23,9 @@ No necesita internet para usar el programa; solo para descargar el instalador.
 
 ### Desde la página de versiones (Releases)
 
-1. Abra el repositorio en GitHub: <https://github.com/Josias-glish/Orion>.
-2. A la derecha, en **Releases**, entre a la versión más reciente (por ejemplo «Registro Caprino v0.1.0»).
+1. Abra la página de la versión 0.1.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0>
+   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.1.0»).
+2. Si el repositorio es privado, primero inicie sesión en GitHub con una cuenta que tenga acceso.
 3. Baje hasta **Assets** y descargue el archivo para su computador:
 
    | Computador | Archivo que debe descargar |
@@ -179,3 +184,23 @@ Para no borrar ni mezclar datos sin querer, el programa **solo restaura en una i
 - **Windows**: Configuración → Aplicaciones → Aplicaciones instaladas → Registro Caprino → **Desinstalar**.
   El desinstalador ofrece la casilla «Eliminar los datos de aplicación»: **déjela sin marcar** si quiere conservar sus registros.
 - **Mac**: arrastre Registro Caprino desde Aplicaciones a la Papelera. Los datos quedan en la carpeta indicada arriba.
+
+---
+
+## 7. Actualizar a una versión nueva
+
+1. Antes de actualizar, cree una **copia de respaldo** (sección 5).
+2. Descargue el instalador nuevo e instálelo encima del anterior, como la primera vez. No hace falta desinstalar.
+3. Al abrir, el programa actualiza la base de datos por su cuenta. Sus datos se conservan.
+
+---
+
+## 8. Si algo falla
+
+- **Windows dice que falta «WebView2»**: Windows 11 ya lo trae. En un Windows 10 muy desactualizado, el instalador lo
+  descarga (para eso, y solo durante la instalación, necesita internet). También puede instalarlo desde Windows Update.
+- **El programa muestra «No se pudo abrir la base de datos»**: abra «Detalle técnico», copie el texto y repórtelo
+  (ver abajo). No borre la carpeta de datos.
+- **Para reportar un error**: siga las indicaciones de la sección «Cómo reportar errores» del
+  [README](../README.md#cómo-reportar-errores).
+

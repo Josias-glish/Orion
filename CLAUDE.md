@@ -43,6 +43,7 @@ Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13):
 | Prueba de extremo a extremo en Linux (ver `docs/PRUEBA_TECNICA.md`) | `xvfb-run -a node pruebas-e2e/etapa2.mjs <binario> <carpeta>` |
 | Lo mismo para la Etapa 3, sin red (Flujos 1 y 2, R11, CA-09) | ver el encabezado de `pruebas-e2e/etapa3.mjs` |
 | Lo mismo para la Etapa 4, sin red (Flujos 3 y 5, R12, CA-11) | ver el encabezado de `pruebas-e2e/etapa4.mjs` |
+| CA-10: las tres pruebas del programa real seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
 ## Mapa del código
 
@@ -71,6 +72,9 @@ Otras reglas de trabajo (resumen de la especificación, secciones 1 y 13):
 - `pruebas-e2e/`: pruebas con el programa real en Linux (`tauri-driver`); `cargar-datos.ts` carga los datos de ejemplo
   en la base que se le indique; `dialogo.py` responde los diálogos «Guardar» y «Abrir» de GTK con el teclado.
 - `docs/ejemplos/`: PDF y CSV de ejemplo generados por el programa real (para revisarlos a ojo).
+- `src/seguridad.test.ts` y `src/aceptacion.test.ts` vigilan reglas de todo el proyecto: sin código ni dependencias
+  de red, permisos de Tauri exactos, PIN nunca en texto plano, cada CA con prueba, contraste de colores, textos sin
+  jerga y `docs/SUPOSICIONES.md` completo. Si una de ellas falla tras un cambio, revise el cambio antes que la prueba.
 - Una tabla nueva debe agregarse a `TABLAS_RESPALDO` (`src/datos/respaldo.ts`); una prueba falla si se olvida, y
   `VERSION_ESQUEMA` debe subir con cada migración.
 - Parámetros SQL con `?` (valen en sqlx y en node:sqlite). Nunca enviar `BEGIN`/`COMMIT` por el plugin (ver D-004).
@@ -117,3 +121,7 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-035** · 2026-10-01 · Etapa 4 · Vigente. Cada documento emitido se guarda en `<datos>/documentos/<número>.pdf` (y `.csv`) y se anota en `certificado`; además el usuario puede guardar una copia donde quiera con el diálogo «Guardar». Los archivos los escribe Rust (`archivos.rs`) con nombres validados y escritura atómica (archivo temporal y renombrar), sin el plugin `fs`.
 - **D-036** · 2026-10-01 · Etapa 4 · Vigente. Respaldo: `.zip` armado en Rust (crate `zip` 8.6, MIT, solo con deflate en Rust puro) con `datos.json` + `fotos/` + `documentos/`. Los datos se leen por partes en orden de id; la restauración valida tablas y columnas contra `pragma_table_info` antes de escribir (los nombres van en el SQL), inserta los animales padres antes que sus crías (R1 en la base) y actualiza los catálogos precargados. Mientras D-004 no se apruebe, la restauración en el programa no es atómica: si fallara a mitad, la instalación quedaría a medias (por eso valida todo antes y solo se hace en una instalación vacía).
 - **D-037** · 2026-10-01 · Etapa 4 · Vigente. Las pruebas de extremo a extremo responden los diálogos reales de GTK con `pruebas-e2e/dialogo.py` (libX11 + libxdo por ctypes). No se puede interceptar el `invoke` de Tauri desde la página (está protegido con `defineProperty`), y no se agregan puertas traseras de prueba al programa.
+- **D-038** · 2026-10-01 · Etapa 5 · Vigente. Permisos mínimos de Tauri (`src-tauri/capabilities/default.json`): solo leer la versión, dos funciones de rutas, cargar/consultar/ejecutar SQL y los diálogos de abrir y guardar. Se quitaron `core:default` (ventanas, menús, bandeja, eventos…), `sql:close` y los mensajes del plugin de diálogos. La prueba del programa real comprueba que lo quitado queda bloqueado. Un permiso nuevo exige actualizar `src/seguridad.test.ts`.
+- **D-039** · 2026-10-01 · Etapa 5 · Vigente. CA-10 se prueba de dos formas: revisión estática en Vitest (sin `fetch`, WebSocket ni URLs en el código del programa, CSP sin orígenes externos, lista cerrada de dependencias de npm y de Rust, plugin SQL solo con SQLite) y el programa real dentro de un espacio de red vacío (`pruebas-e2e/todas.sh`), con los flujos 0, 1, 2, 3 y 5.
+- **D-040** · 2026-10-01 · Etapa 5 · Vigente. Las pruebas de Rust (`cargo test`) corren en Windows y macOS dentro del flujo de instaladores, antes de construir (necesitan `dist/`, por eso se construye la interfaz primero). No se agregan al flujo de pruebas de cada envío porque compilar Tauri en tres sistemas tarda mucho más que Vitest.
+- **D-041** · 2026-10-01 · Etapa 5 · Vigente. Versión 0.1.0 publicada con la etiqueta `v0.1.0` desde la rama de trabajo (el pull request no se ha fusionado: fusionarlo lo decide el usuario). El release queda como borrador (D-017) hasta que el dueño del repositorio lo publique.

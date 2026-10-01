@@ -113,7 +113,7 @@ try {
   await abrirFicha(p, "Estrella");
   await p.clic('[data-pestana="genealogia"]');
   const consanguinidad = (await p.buscar('[data-prueba="consanguinidad"]')).texto;
-  comprobar("Consanguinidad de la hija de hermanos completos: 25 %", consanguinidad === "25 %", consanguinidad);
+  comprobar("CA-02 en pantalla: consanguinidad de la hija de hermanos completos = 25 %", consanguinidad === "25 %", consanguinidad);
   const arbol = await p.js(
     `return Object.fromEntries([...document.querySelectorAll('.nodo[data-camino]')].map(n => [n.dataset.camino || "animal", n.innerText.replace(/\\n/g, " | ")]))`,
   );
@@ -194,11 +194,11 @@ try {
   await p.buscar(".pantalla h1", { condicion: (t) => t === "Aprisco de prueba", tiempo: 20000 });
   comprobar("PIN correcto: entra al programa", true, `comprobación del PIN: ${Date.now() - inicio} ms`);
   const total = (await p.buscar('[data-prueba="total-animales"]')).texto;
-  comprobar("Persistencia: los 5 animales siguen tras cerrar y abrir", total === "5", `activos = ${total}`);
+  comprobar("CA-11: los 5 animales siguen tras cerrar y abrir el programa", total === "5", `activos = ${total}`);
   await abrirFicha(p, "Estrella");
   await p.clic('[data-pestana="genealogia"]');
   const despues = (await p.buscar('[data-prueba="consanguinidad"]')).texto;
-  comprobar("Persistencia: el pedigrí y la consanguinidad siguen iguales", despues === "25 %");
+  comprobar("CA-11: el pedigrí y la consanguinidad siguen iguales tras cerrar y abrir", despues === "25 %");
   await p.cerrar();
 } catch (error) {
   comprobar("Ejecución sin errores", false, String(error));

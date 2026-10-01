@@ -58,6 +58,23 @@ try {
   p = await abrirPrograma(APLICACION, CAPTURAS);
   await entrar(p);
 
+  // ---------- Permisos mínimos (Etapa 5): lo que no está en capabilities/default.json queda bloqueado ----------
+  const bloqueados = await p.jsAsync(
+    `const listo = arguments[arguments.length - 1];
+     const probar = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args).then(() => "permitido", (e) => String(e));
+     Promise.all([
+       probar("plugin:dialog|message", { message: "x" }),
+       probar("plugin:sql|close", {}),
+       probar("plugin:window|close", { label: "main" }),
+       probar("plugin:app|version", {}),
+     ]).then(listo);`,
+  );
+  comprobar(
+    "Permisos mínimos: mensajes del sistema, cerrar la base y cerrar la ventana quedan bloqueados; la versión sí se lee",
+    bloqueados.slice(0, 3).every((r) => /not allowed|denied/i.test(r)) && bloqueados[3] === "permitido",
+    bloqueados.join(" | "),
+  );
+
   // ---------- RF-24: alertas de retiro en el Inicio, el ordeño y la ficha ----------
   const retirosInicio = await filas(p, '[data-prueba="tabla-retiros"]');
   comprobar("Inicio: muestra el retiro vigente de Bella (leche y carne)", retirosInicio.length === 2 && retirosInicio.every((f) => f.includes("Bella")), retirosInicio.join(" | "));

@@ -168,7 +168,7 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    npm test
    ```
 
-   Debe ver al final una línea como `Tests  256 passed (256)`: todas aprobadas, ninguna `failed`. (Tarda unos
+   Debe ver al final una línea como `Tests  303 passed (303)`: todas aprobadas, ninguna `failed`. (Tarda unos
    segundos más que antes: una de las pruebas carga 500 animales para medir el rendimiento.)
 
 5. Abra el programa en modo desarrollo:

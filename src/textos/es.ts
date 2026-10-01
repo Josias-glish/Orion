@@ -333,7 +333,7 @@ export const textos = {
     pin: "PIN (de 4 a 6 números)",
     confirmarPin: "Repita el PIN",
     pinesDistintos: "Los dos PIN no coinciden.",
-    ayudaPin: "El PIN es opcional. Se guarda cifrado con un hash: no se puede leer en el archivo de datos.",
+    ayudaPin: "El PIN es opcional. Se guarda cifrado: nadie puede leerlo en el archivo de datos.",
     ayudaRol: {
       propietario: "Puede hacer todo.",
       operario: "Ve las fichas y registra leche, partos, pesos y tratamientos. No edita la genealogía ni los ajustes.",
@@ -416,7 +416,7 @@ export const textos = {
     abortosTitulo: "Abortos registrados",
     abortosVacio: "No hay abortos registrados.",
     intervalosTitulo: "Intervalo entre partos",
-    intervalosAyuda: "Días entre partos consecutivos de cada hembra (R9). Solo aparecen las hembras con dos o más partos.",
+    intervalosAyuda: "Días entre un parto y el siguiente de cada hembra. Solo aparecen las hembras con dos o más partos.",
     intervalosVacio: "Ninguna hembra tiene todavía dos partos registrados.",
     intervalosColumnas: { hembra: "Hembra", partos: "Partos", ultimo: "Último intervalo", promedio: "Promedio" },
     sinMacho: "Sin macho registrado",
@@ -500,7 +500,7 @@ export const textos = {
       proyeccion: (diasLactancia: number) => `Proyección a ${diasLactancia} días`,
     },
     formula: (diasLactancia: number) =>
-      `Proyección = acumulado + promedio diario de los últimos 7 días con registro × días que faltan hasta el día ${diasLactancia} (R8; ver docs/SUPOSICIONES.md).`,
+      `Proyección = acumulado + promedio diario de los últimos 7 días con registro × días que faltan hasta el día ${diasLactancia}. Es una estimación: supone que la cabra sigue dando lo mismo que en su última semana.`,
     curvaTitulo: "Curva de lactancia",
     curvaDescripcion: (n: number) => `Kilos por día (mañana más tarde) en ${dias(n)} con registro.`,
     curvaLeyendaLinea: "Producción registrada",
@@ -537,7 +537,7 @@ export const textos = {
       meta: "Meta para la edad",
       diferencia: "Frente a la meta",
     },
-    gananciaAyuda: "Ganancia diaria = diferencia de peso ÷ días entre pesajes (R10).",
+    gananciaAyuda: "Ganancia diaria = diferencia de peso ÷ días entre un pesaje y el anterior.",
     gananciaPorDia: (gramos: number) => `${Math.round(gramos).toLocaleString("es-CO")} g/día`,
     sobreMeta: (texto: string) => `+${texto} sobre la meta`,
     bajoMeta: (texto: string) => `${texto} bajo la meta`,
@@ -616,7 +616,7 @@ export const textos = {
     calendarioAyuda: "Vacunas y desparasitaciones con próxima fecha en los próximos 30 días, y las ya vencidas.",
     calendarioVacio: "No hay vacunas ni desparasitaciones pendientes en los próximos 30 días.",
     vencida: "Vencida",
-    retirosAyuda: "Animales tratados cuya leche o carne no se puede vender todavía (R7: hasta la fecha de fin inclusive).",
+    retirosAyuda: "Animales tratados cuya leche o carne no se puede vender todavía. La alerta dura hasta el último día del retiro, incluido.",
     retirosVacio: "No hay retiros vigentes.",
     historialVacio: "No hay eventos de salud registrados.",
     columnas: {
@@ -746,12 +746,12 @@ export const textos = {
     filtro: "Copia de respaldo",
     restaurarTitulo: "Restaurar una copia",
     restaurarExplicacion:
-      "Para no borrar ni mezclar datos, una copia solo se restaura en un programa recién instalado, antes de crear la finca (en la primera pantalla). Si necesita volver a una copia en este computador, siga los pasos de la guía de instalación (docs/INSTALACION.md), apartado «Restaurar una copia en este mismo computador».",
+      "Para no borrar ni mezclar datos, una copia solo se restaura en un programa recién instalado, antes de crear la finca (en la primera pantalla). Si necesita volver a una copia en este computador, siga la guía de instalación del programa, sección 5, «Restaurar una copia en este mismo computador».",
     restaurarAsistente: "¿Ya usaba Registro Caprino en otro computador? Restaure su copia de respaldo",
     restaurarBoton: "Elegir copia de respaldo…",
     restaurando: "Restaurando… no cierre el programa.",
     restaurado: (finca: string, fecha: string) => `Se restauró la copia de «${finca}» hecha el ${fecha}.`,
-    soloPropietario: "Solo el propietario puede crear la copia completa (R14).",
+    soloPropietario: "Solo el propietario puede crear la copia completa.",
   },
 
   ficha: {
@@ -913,8 +913,8 @@ export const textos = {
     loteAnimales: (n: number) => (n === 1 ? "1 animal" : `${n} animales`),
     datosArchivo: "Archivo de la base de datos",
     datosModoDesarrollo: "Está usando la base de datos de desarrollo, separada de la del programa instalado.",
-    datosVersion: "Versión de SQLite",
-    datosMigraciones: "Migraciones aplicadas",
+    datosVersion: "Versión del motor de datos (SQLite)",
+    datosMigraciones: "Actualizaciones de la base aplicadas",
     datosPruebaTitulo: "Datos de la prueba técnica (Etapa 1)",
     datosPruebaExplicacion: (n: number) =>
       `Hay ${n} animales creados por la prueba técnica de la Etapa 1. Puede retirarlos (borrado lógico).`,

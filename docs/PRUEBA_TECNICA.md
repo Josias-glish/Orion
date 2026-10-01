@@ -158,3 +158,17 @@ Resultado en el contenedor Linux de desarrollo (WebKitGTK, 2026-10-01), dos ejec
 En la misma corrida, sin regresiones: Etapa 2, 25 de 25; Etapa 3, 24 de 24. La copia de los datos de ejemplo pesa
 unos 280 kB y la restauración reproduce las 17 tablas fila por fila (3505 filas de historial).
 
+### Etapa 5: todo junto y sin red (CA-10)
+
+`pruebas-e2e/todas.sh` corre las pruebas de las etapas 2, 3 y 4 seguidas, cada una con la base vacía y dentro de un
+espacio de red vacío (solo la interfaz `lo`). La de la Etapa 4 comprueba además que los permisos quitados en la
+Etapa 5 quedan bloqueados (mensajes del sistema, cerrar la base, cerrar la ventana).
+
+```bash
+npx tauri build --debug --no-bundle
+sudo sh pruebas-e2e/todas.sh capturas
+```
+
+Resultado (2026-10-01): Etapa 2, **25 de 25**; Etapa 3, **24 de 24**; Etapa 4, **28 de 28**. «CA-10: los flujos 0, 1,
+2, 3 y 5 funcionan sin red.»
+
