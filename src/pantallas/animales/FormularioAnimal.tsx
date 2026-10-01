@@ -161,7 +161,7 @@ export function FormularioAnimal({ id }: { id?: string }) {
               />
             </Campo>
             <Campo etiqueta={t.estado} ancho="corto">
-              <select value={datos.estado} onChange={(e) => cambiar({ estado: e.target.value as EstadoAnimal })}>
+              <select value={datos.estado} onChange={(e) => cambiar({ estado: e.target.value as EstadoAnimal })} data-prueba="estado">
                 {ESTADOS_ANIMAL.map((s) => (
                   <option key={s} value={s}>
                     {textos.comun.estado[s]}

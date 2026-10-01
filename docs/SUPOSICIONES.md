@@ -29,3 +29,46 @@ Cada suposición tiene un marcador `SUPOSICION:` en el código y se reemplaza cu
 | S-22 | 2 | Lotes | Solo se retira un lote vacío, para no cambiar muchos animales sin querer. | `src/datos/repositorios/lotes.ts` | Abierta |
 | S-23 | 2 | Fotos | Se aceptan JPG, PNG y WebP; se copian sin reducir a la carpeta `fotos` junto a la base de datos. Quitar la foto de una ficha no borra el archivo. | `src-tauri/src/lib.rs` (`copiar_foto`) | Abierta |
 | S-24 | 2 | Historial del PIN | El historial anota que el PIN cambió, pero guarda «[protegido]» en lugar del hash. | `src/datos/cambios.ts` | Abierta |
+| S-25 | 3 | Fórmula de la proyección (R8) | Ver la sección «Fórmula de R8» más abajo. | `src/dominio/leche.ts` (`calcularProyeccion`) | Abierta |
+| S-26 | 3 | Día de lactancia | El día del parto es el día 1. | `src/dominio/leche.ts` (`diaDeLactancia`) | Abierta |
+| S-27 | 3 | Jornadas de ordeño | Dos: mañana y tarde. Un solo pesaje por lactancia, fecha y jornada; si se vuelve a anotar, se corrige el anterior (y queda en el historial). La pantalla propone la mañana antes del mediodía y la tarde después. | `0003_reproduccion_leche_pesos.sql`, `src/pantallas/leche/Leche.tsx` | Abierta (pregunta 11) |
+| S-28 | 3 | Servicios | Una monta necesita el macho; una inseminación necesita el macho o el código de la pajilla. Para una inseminación también se puede elegir un macho registrado solo para la genealogía (el donante); para una monta, solo machos del hato. | `src/datos/repositorios/reproduccion.ts` | Abierta |
+| S-29 | 3 | Diagnóstico | El diagnóstico no puede ser anterior al servicio; todo resultado distinto de «sin diagnóstico» lleva fecha. «Aborto» se anota sobre el servicio que estaba «preñada». | `0003_reproduccion_leche_pesos.sql` | Abierta |
+| S-30 | 3 | Partos próximos | Servicios «preñada» o sin diagnóstico cuya fecha probable de parto cae entre hace 15 días y dentro de 30, de hembras activas del hato y sin un parto registrado después del servicio. | `src/datos/repositorios/reproduccion.ts` (`listarPartosProximos`) | Abierta |
+| S-31 | 3 | Padre de las crías (R5) | Es el macho del último servicio «preñada» anterior al parto. Si no hay ninguno, o si fue una inseminación con pajilla sin macho registrado, el padre queda vacío y «sin verificar». La forma de concepción sale del tipo de servicio. | `src/dominio/reproduccion.ts` (`padreDelParto`) | Abierta |
+| S-32 | 3 | Fichas de las crías (R5) | Una cría nacida muerta también tiene ficha, en estado «muerto». Cada cría necesita nombre o arete. Su composición racial es el promedio de la del padre y la madre (vacía si falta alguno). El formulario admite hasta 6 crías. | `src/dominio/reproduccion.ts`, `src/dominio/composicion.ts`, `src/pantallas/reproduccion/RegistrarParto.tsx` | Abierta (pregunta 8) |
+| S-33 | 3 | Lactancia anterior | Si la madre tenía una lactancia abierta al parir, se seca el día anterior al parto. Una hembra tiene a lo sumo una lactancia abierta. No se puede secar antes del último pesaje anotado. | `src/datos/repositorios/reproduccion.ts`, `0003_reproduccion_leche_pesos.sql` | Abierta |
+| S-34 | 3 | Ganancia diaria (R10) | Se calcula entre cada pesaje y el anterior del mismo animal. Dos pesajes el mismo día no tienen ganancia (no se divide por cero). | `src/dominio/pesos.ts` | Abierta |
+| S-35 | 3 | Metas de peso por edad (RF-31) | El usuario anota el peso meta por sexo y edad en meses (solo el propietario las cambia). Entre dos metas, la meta de cada día se calcula en línea recta; fuera del rango anotado no se compara. Un mes = 30,4375 días. Las metas de `npm run semillas` son solo de ejemplo. | `0003_reproduccion_leche_pesos.sql`, `src/dominio/pesos.ts` | Abierta |
+| S-36 | 3 | Servicios y diagnósticos del operario (R14) | R14 permite al operario registrar partos, leche y pesos, pero no menciona los servicios: por ahora solo el propietario registra servicios y diagnósticos. | `src/dominio/permisos.ts` | Abierta (pregunta 10) |
+| S-37 | 3 | Partos de ejemplo | Para tener lactancias en curso, `npm run semillas` agrega cuatro crías nacidas en partos recientes (EJ-13 a EJ-16): quedan 16 animales en lugar de 12. La fecha de nacimiento de Gema pasó a 2022-03-10 para que Bella no tenga dos partos con 81 días de diferencia. | `scripts/reproduccion-de-ejemplo.ts`, `scripts/datos-de-ejemplo.ts` | Abierta |
+
+## Fórmula de R8 (proyección de la lactancia)
+
+La especificación pide «una fórmula documentada». Se usa la más simple que se puede comprobar a mano:
+
+```
+proyección = acumulado + promedio × días que faltan
+
+acumulado       = suma de todos los kilos anotados en la lactancia (mañana y tarde)
+promedio        = kilos por día de los últimos 7 días que tienen algún pesaje
+                  (o de los que haya, si hay menos de 7)
+días que faltan = máximo(0, días de lactancia de la finca − día de lactancia del último pesaje)
+día de lactancia: el día del parto es el día 1
+```
+
+Ejemplo (es la prueba de CA-08 en `src/dominio/leche.test.ts`): lactancia que empezó el 1 de agosto, 305 días de
+lactancia en la finca, y 10 días con registro (días 2 a 11) con 3, 4, …, 12 kg por día entre mañana y tarde.
+
+- Acumulado = 3 + 4 + … + 12 = 75 kg.
+- Últimos 7 días con registro: 6, 7, …, 12 kg → suma 63 → promedio 9 kg por día.
+- Día del último registro = 11 → días que faltan = 305 − 11 = 294.
+- Proyección = 75 + 9 × 294 = **2721 kg**. La prueba comprueba exactamente ese número.
+
+Limitaciones conocidas, para revisar con datos reales:
+
+- No usa una curva de lactancia (Wood u otra): supone que la producción sigue igual al promedio reciente, así que
+  sobreestima al comienzo de la lactancia (antes del pico) y subestima poco después.
+- Un día con una sola jornada anotada cuenta como día con registro: mientras se ordeña, la proyección baja un poco
+  hasta que se anota la otra jornada.
+- Si una lactancia ya pasó los días de la finca, la proyección es igual al acumulado.

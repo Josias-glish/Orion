@@ -238,7 +238,7 @@ export async function padrePropuesto(conexion: Conexion, hembraId: string, fecha
   const servicios = await listarServicios(conexion, { hembraId });
   const padre = padreDelParto(servicios, fecha);
   const servicio = servicios.find((s) => s.id === padre.servicioId) ?? null;
-  return { ...padre, nombrePadre: servicio?.macho ?? null, pajilla: servicio?.pajilla ?? null };
+  return { ...padre, nombrePadre: servicio?.macho ?? null, pajilla: servicio?.pajilla ?? null, fechaServicio: servicio?.fecha ?? null };
 }
 
 async function composicionDe(conexion: Conexion, animalId: string | null): Promise<FraccionRacial[]> {

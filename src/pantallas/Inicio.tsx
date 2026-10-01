@@ -1,14 +1,23 @@
 import { useConexion, useNavegar, usePermiso, useSesion } from "../componentes/contextos";
 import { useCarga } from "../componentes/useCarga";
 import { contarAnimales } from "../datos/repositorios/animales";
+import { listarOrdeno } from "../datos/repositorios/leche";
+import { listarPartosProximos } from "../datos/repositorios/reproduccion";
+import { fechaLocal } from "../dominio/fechas";
 import { textos } from "../textos/es";
+import { TablaPartosProximos } from "./reproduccion/Reproduccion";
 
 export function Inicio() {
   const conexion = useConexion();
   const { usuario, finca } = useSesion();
   const navegar = useNavegar();
   const puedeCrear = usePermiso("crear_animal");
+  const puedeParto = usePermiso("registrar_parto");
+  const hoy = fechaLocal();
   const { datos: conteo } = useCarga(() => contarAnimales(conexion), [conexion]);
+  const { datos: proximos } = useCarga(() => listarPartosProximos(conexion, hoy), [conexion, hoy]);
+  // R11: listarOrdeno ya deja fuera a las vendidas y muertas.
+  const { datos: enLactancia } = useCarga(() => listarOrdeno(conexion, hoy, "manana"), [conexion, hoy]);
   const t = textos.inicio;
 
   return (
@@ -30,6 +39,10 @@ export function Inicio() {
           <div>
             <dt>{t.machos}</dt>
             <dd>{conteo.machos}</dd>
+          </div>
+          <div>
+            <dt>{t.enLactancia}</dt>
+            <dd data-prueba="total-lactancia">{enLactancia?.length ?? "…"}</dd>
           </div>
         </dl>
       ) : (
@@ -56,6 +69,43 @@ export function Inicio() {
             ))}
           </ol>
         </div>
+      )}
+      <h2>{t.partosProximosTitulo}</h2>
+      {proximos === null ? (
+        <p>{textos.comun.cargando}</p>
+      ) : proximos.length === 0 ? (
+        <p className="nota">{t.partosProximosVacio}</p>
+      ) : (
+        <TablaPartosProximos
+          proximos={proximos}
+          hoy={hoy}
+          alRegistrar={puedeParto ? (id) => navegar({ pantalla: "registrarParto", hembraId: id }) : null}
+        />
+      )}
+
+      <h2>{t.lactanciaTitulo}</h2>
+      {enLactancia === null ? (
+        <p>{textos.comun.cargando}</p>
+      ) : enLactancia.length === 0 ? (
+        <p className="nota">{t.lactanciaVacio}</p>
+      ) : (
+        <>
+          <ul className="lista-compacta" data-prueba="inicio-lactancia">
+            {enLactancia.map((f) => (
+              <li key={f.lactanciaId}>
+                <button type="button" className="enlace" onClick={() => navegar({ pantalla: "lactancia", id: f.lactanciaId })}>
+                  {[f.identificador, f.nombre].filter(Boolean).join(" · ")}
+                </button>{" "}
+                <span className="nota">
+                  ({textos.leche.columnas.dia.toLowerCase()} {f.diaLactancia})
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "leche", seccion: "ordeno" })} data-prueba="abrir-ordeno">
+            {t.abrirOrdeno}
+          </button>
+        </>
       )}
       <p className="nota">{t.proximamente}</p>
     </section>

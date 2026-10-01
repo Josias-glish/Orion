@@ -10,7 +10,8 @@ export interface EntradaHistorial {
 }
 
 /**
- * Historial de un animal, incluidos sus identificadores y su composición racial, del más reciente al más antiguo.
+ * Historial de un animal, del más reciente al más antiguo: su ficha, identificadores, composición racial, servicios,
+ * partos, lactancias, pesos y las correcciones de sus pesajes de leche (los pesajes nuevos no se listan uno por uno).
  * Los valores que son id de otro registro (padre, raza, libro, lote…) se cambian por su nombre.
  */
 export async function listarHistorialAnimal(conexion: Conexion, animalId: string): Promise<EntradaHistorial[]> {
@@ -22,8 +23,14 @@ export async function listarHistorialAnimal(conexion: Conexion, animalId: string
      WHERE (h.entidad = 'animal' AND h.registro_id = ?)
         OR (h.entidad = 'identificador' AND h.registro_id IN (SELECT id FROM identificador WHERE animal_id = ?))
         OR (h.entidad = 'composicion_racial' AND h.registro_id IN (SELECT id FROM composicion_racial WHERE animal_id = ?))
+        OR (h.entidad = 'evento_reproductivo' AND h.registro_id IN (SELECT id FROM evento_reproductivo WHERE hembra_id = ?))
+        OR (h.entidad = 'parto' AND h.registro_id IN (SELECT id FROM parto WHERE hembra_id = ?))
+        OR (h.entidad = 'lactancia' AND h.registro_id IN (SELECT id FROM lactancia WHERE hembra_id = ?))
+        OR (h.entidad = 'pesaje_corporal' AND h.registro_id IN (SELECT id FROM pesaje_corporal WHERE animal_id = ?))
+        OR (h.entidad = 'pesaje_leche' AND h.valor_anterior IS NOT NULL AND h.registro_id IN
+              (SELECT p.id FROM pesaje_leche AS p JOIN lactancia AS l ON l.id = p.lactancia_id WHERE l.hembra_id = ?))
      ORDER BY h.marca_tiempo DESC, h.entidad, h.campo`,
-    [animalId, animalId, animalId],
+    [animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId],
   );
 
   const ids = [

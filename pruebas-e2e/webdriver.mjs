@@ -77,6 +77,7 @@ export async function abrirPrograma(aplicacion, carpetaCapturas) {
 
   /** Elige en un <select> la opción cuyo texto es `texto`. */
   async function elegirOpcion(css, texto, indice = 0) {
+    await buscar(css);
     const valor = await js(
       `const el = document.querySelectorAll(arguments[0])[arguments[2]];
        const o = [...el.options].find((o) => o.textContent.trim() === arguments[1]);
@@ -92,8 +93,14 @@ export async function abrirPrograma(aplicacion, carpetaCapturas) {
     writeFileSync(`${carpetaCapturas}/${nombre}.png`, Buffer.from(png, "base64"));
   }
 
+  /** Teclea en el elemento que tiene el foco, como una persona (dispara keydown; "\uE007" es Enter). */
+  async function teclear(texto) {
+    const el = (await wd("GET", `/session/${s}/element/active`))[ELEMENTO];
+    await wd("POST", `/session/${s}/element/${el}/value`, { text: texto });
+  }
+
   const cerrar = () => wd("DELETE", `/session/${s}`);
-  return { s, js, jsAsync, buscar, clic, escribir, elegirOpcion, captura, cerrar };
+  return { s, js, jsAsync, buscar, clic, escribir, elegirOpcion, teclear, captura, cerrar };
 }
 
 /** Registro de comprobaciones con resumen final. */

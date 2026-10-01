@@ -16,12 +16,18 @@ import { ListaAnimales } from "./pantallas/animales/ListaAnimales";
 import { Asistente } from "./pantallas/Asistente";
 import { ElegirUsuario } from "./pantallas/ElegirUsuario";
 import { Inicio } from "./pantallas/Inicio";
+import { DetalleLactancia } from "./pantallas/leche/DetalleLactancia";
+import { Leche } from "./pantallas/leche/Leche";
+import { Pesos } from "./pantallas/pesos/Pesos";
+import { RegistrarParto } from "./pantallas/reproduccion/RegistrarParto";
+import { Reproduccion } from "./pantallas/reproduccion/Reproduccion";
 import { textos } from "./textos/es";
 
 /** Permiso que exige cada pantalla (R14). */
 const PERMISO_DE: Partial<Record<Ruta["pantalla"], Accion>> = {
   nuevoAnimal: "crear_animal",
   editarAnimal: "editar_animal",
+  registrarParto: "registrar_parto",
   ajustes: "ver_ajustes",
 };
 
@@ -37,6 +43,16 @@ function PantallaActual({ ruta }: { ruta: Ruta }) {
       return <FormularioAnimal key="nuevo" />;
     case "editarAnimal":
       return <FormularioAnimal key={ruta.id} id={ruta.id} />;
+    case "reproduccion":
+      return <Reproduccion seccion={ruta.seccion} />;
+    case "registrarParto":
+      return <RegistrarParto key={ruta.hembraId ?? "nuevo"} hembraId={ruta.hembraId} />;
+    case "leche":
+      return <Leche seccion={ruta.seccion} />;
+    case "lactancia":
+      return <DetalleLactancia key={ruta.id} id={ruta.id} />;
+    case "pesos":
+      return <Pesos key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
     case "ajustes":
       return <Ajustes seccion={ruta.seccion} />;
   }

@@ -3,8 +3,10 @@
 Programa de escritorio para Windows y Mac con el que un criador de cabras lecheras en Colombia lleva, sin internet,
 la genealogía, la reproducción, la leche, los pesajes y la salud de cada animal, y exporta el expediente que pide ANCO.
 
-Estado: **Etapa 2** (núcleo y genealogía): finca, usuarios con PIN, animales, identificadores, raza, lotes, pedigrí
-y consanguinidad. Reproducción, salud, leche, pesos y documentos llegan en las etapas siguientes.
+Estado: **Etapa 3** (reproducción, leche y pesajes): además de la finca, los usuarios, los animales, el pedigrí y la
+consanguinidad, ya registra servicios, diagnósticos, partos con la ficha de cada cría, el ordeño en lote, las
+lactancias con su curva y proyección, y los pesos con ganancia diaria y metas por edad. Salud y documentos llegan
+en las etapas siguientes.
 
 ## Documentos
 
@@ -21,6 +23,7 @@ npm install           # instalar dependencias
 npm run tauri dev     # abrir el programa en modo desarrollo
 npm test              # pruebas automáticas
 npm run semillas      # datos de ejemplo en la base de desarrollo
+npm run semillas -- --rendimiento   # además, 500 animales de prueba (CA-09)
 npm run tauri build   # construir el instalador en este equipo
 ```
 

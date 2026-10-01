@@ -1,6 +1,9 @@
 // Todos los textos que ve el usuario. Los componentes no escriben textos propios: los toman de aquí.
 import type { Motivo } from "../datos/errores";
 import { generacion, linea, sexoEsperado, type Camino } from "../dominio/genealogia";
+import type { Jornada } from "../dominio/leche";
+import type { TipoPesaje } from "../dominio/pesos";
+import type { ResultadoServicio, TipoServicio } from "../dominio/reproduccion";
 import type { EstadoAnimal, FormaConcepcion, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
 
 const NOMBRES_GENERACION: Record<number, { macho: string; hembra: string }> = {
@@ -25,6 +28,23 @@ const formaConcepcion: Record<FormaConcepcion, string> = {
   desconocida: "Desconocida",
 };
 const rol: Record<Rol, string> = { propietario: "Propietario", operario: "Operario" };
+const tipoServicio: Record<TipoServicio, string> = { monta: "Monta", inseminacion: "Inseminación" };
+const resultadoServicio: Record<ResultadoServicio, string> = {
+  pendiente: "Sin diagnóstico",
+  prenada: "Preñada",
+  vacia: "Vacía",
+  aborto: "Aborto",
+};
+const jornada: Record<Jornada, string> = { manana: "Mañana", tarde: "Tarde" };
+const tipoPesaje: Record<TipoPesaje, string> = { nacimiento: "Nacimiento", destete: "Destete", control: "Control" };
+
+/** 2.5 → «2,5»; con `unidad`, «2,5 kg». */
+export function formatearKilos(kilos: number, decimales = 1, unidad = true): string {
+  const texto = kilos.toLocaleString("es-CO", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+  return unidad ? `${texto} kg` : texto;
+}
+
+const dias = (n: number) => (n === 1 ? "1 día" : `${n.toLocaleString("es-CO")} días`);
 
 /** Nombres de los campos, para mensajes y para el historial. */
 const campos: Record<string, string> = {
@@ -56,6 +76,22 @@ const campos: Record<string, string> = {
   animal_id: "animal",
   raza_id: "raza",
   fraccion: "fracción",
+  hembra_id: "hembra",
+  macho_id: "macho",
+  pajilla: "pajilla",
+  resultado: "resultado",
+  fecha_diagnostico: "fecha del diagnóstico",
+  fechaDiagnostico: "fecha del diagnóstico",
+  fecha_probable_parto: "fecha probable de parto",
+  evento_reproductivo_id: "servicio",
+  numero_crias: "número de crías",
+  parto_id: "parto",
+  fecha_inicio: "fecha de inicio",
+  fecha_secado: "fecha de secado",
+  lactancia_id: "lactancia",
+  jornada: "jornada",
+  kilos: "kilos",
+  edad_meses: "edad en meses",
 };
 
 const nombreDe = (otro: string) => `«${otro}»`;
@@ -172,6 +208,9 @@ export const textos = {
     titulo: "Menú principal",
     inicio: "Inicio",
     animales: "Animales",
+    reproduccion: "Reproducción",
+    leche: "Leche",
+    pesos: "Pesos",
     ajustes: "Ajustes",
     cambiarUsuario: "Cambiar de usuario",
   },
@@ -185,6 +224,12 @@ export const textos = {
     tipoIdentificador,
     formaConcepcion,
     rol,
+    tipoServicio,
+    resultadoServicio,
+    jornada,
+    tipoPesaje,
+    kilos: formatearKilos,
+    dias,
     si: "Sí",
     no: "No",
     guardar: "Guardar",
@@ -277,8 +322,188 @@ export const textos = {
       "Si un padre o una madre no está confirmado, márquelo como «sin verificar».",
       "Para ver el pedigrí y la consanguinidad, abra la ficha del animal y entre a «Genealogía».",
     ],
-    proximamente:
-      "En próximas etapas verá aquí las alertas de retiro, los partos próximos, las vacunas por vencer y las hembras en lactancia.",
+    enLactancia: "En lactancia",
+    partosProximosTitulo: "Partos próximos",
+    partosProximosVacio: "No hay partos esperados en los próximos 30 días.",
+    lactanciaTitulo: "Hembras en lactancia",
+    lactanciaVacio: "No hay hembras en lactancia.",
+    abrirOrdeno: "Abrir el ordeño",
+    proximamente: "En la etapa 4 verá aquí también las alertas de retiro y las vacunas por vencer.",
+  },
+
+  reproduccion: {
+    titulo: "Reproducción",
+    secciones: { servicios: "Servicios", proximos: "Partos próximos", intervalos: "Abortos e intervalos" },
+    nuevoServicio: "Registrar servicio",
+    hembra: "Hembra",
+    tipo: "Tipo de servicio",
+    macho: "Macho",
+    pajilla: "Código de la pajilla",
+    pajillaAyuda: "Si el macho donante no está registrado, escriba solo el código de la pajilla.",
+    fecha: "Fecha del servicio",
+    observaciones: "Observaciones (opcional)",
+    fppAyuda: (dias: number) => `La fecha probable de parto se calcula sumando ${dias} días de gestación (Ajustes → Finca).`,
+    servicioGuardado: (fpp: string) => `Servicio guardado. Fecha probable de parto: ${fpp}.`,
+    soloPendientes: "Mostrar solo los que esperan diagnóstico",
+    vacio: "Todavía no hay servicios registrados.",
+    columnas: {
+      fecha: "Servicio",
+      hembra: "Hembra",
+      tipo: "Tipo",
+      macho: "Macho o pajilla",
+      resultado: "Resultado",
+      fpp: "Parto probable",
+      acciones: "",
+    },
+    diagnosticar: "Diagnóstico",
+    diagnosticoTitulo: (hembra: string) => `Diagnóstico de ${hembra}`,
+    resultado: "Resultado",
+    fechaDiagnostico: "Fecha del diagnóstico",
+    diagnosticoAyuda: "Use «Aborto» si la hembra estaba preñada y perdió la gestación.",
+    proximosAyuda: "Hembras preñadas o sin diagnóstico cuya fecha probable de parto cae entre hace 15 días y dentro de 30.",
+    proximosVacio: "No hay partos esperados en este período.",
+    faltan: (n: number) => (n === 0 ? "hoy" : n > 0 ? `en ${dias(n)}` : `atrasado ${dias(-n)}`),
+    registrarParto: "Registrar parto",
+    abortosTitulo: "Abortos registrados",
+    abortosVacio: "No hay abortos registrados.",
+    intervalosTitulo: "Intervalo entre partos",
+    intervalosAyuda: "Días entre partos consecutivos de cada hembra (R9). Solo aparecen las hembras con dos o más partos.",
+    intervalosVacio: "Ninguna hembra tiene todavía dos partos registrados.",
+    intervalosColumnas: { hembra: "Hembra", partos: "Partos", ultimo: "Último intervalo", promedio: "Promedio" },
+    sinMacho: "Sin macho registrado",
+    machoSoloGenealogia: "solo genealogía",
+  },
+
+  parto: {
+    titulo: "Registrar parto",
+    hembra: "Madre",
+    fecha: "Fecha del parto",
+    numeroCrias: "Número de crías",
+    observaciones: "Observaciones (opcional)",
+    padreTitulo: "Padre de las crías",
+    padreDelServicio: (padre: string, fecha: string) => `${padre}, del servicio del ${fecha} (diagnóstico: preñada).`,
+    padrePajilla: (pajilla: string, fecha: string) =>
+      `Inseminación del ${fecha} con la pajilla ${pajilla}: el macho no está registrado, así que el padre quedará vacío y «sin verificar».`,
+    sinServicio:
+      "No hay un servicio con diagnóstico «preñada» antes de esta fecha: el padre quedará vacío y «sin verificar». Podrá completarlo después en la ficha de cada cría.",
+    criasTitulo: "Crías",
+    criasAyuda:
+      "Cada cría tendrá su ficha con la madre asignada. Escriba un nombre o un arete para reconocerla. El libro genealógico queda vacío para que lo asigne el propietario.",
+    cria: (n: number) => `Cría ${n}`,
+    sexo: "Sexo",
+    nombre: "Nombre",
+    arete: "Arete",
+    peso: "Peso al nacer (kg)",
+    nacioMuerta: "Nació muerta",
+    lactanciaAviso: "Al guardar se abre la lactancia de la madre. Si tenía otra abierta, se seca el día anterior al parto.",
+    guardar: "Guardar parto",
+    guardado: (n: number) => `Parto guardado: se ${n === 1 ? "creó 1 ficha" : `crearon ${n} fichas`} y se abrió la lactancia.`,
+    verCria: "Ver ficha",
+    otraVez: "Registrar otro parto",
+    elegirHembra: "Elija la madre…",
+  },
+
+  leche: {
+    titulo: "Leche",
+    secciones: { ordeno: "Ordeño", lactancias: "Lactancias" },
+    fecha: "Fecha",
+    jornada: "Jornada",
+    ordenoAyuda:
+      "Escriba los kilos de cada cabra y presione Enter: se guarda y pasa a la siguiente. Si vuelve a escribir un valor, se corrige el anterior.",
+    ordenoVacio: "No hay hembras en lactancia en esta fecha. Las lactancias se abren al registrar un parto.",
+    columnas: {
+      animal: "Cabra",
+      dia: "Día",
+      anterior: "Anterior",
+      kilos: "Kilos",
+      estado: "",
+      retiro: "Retiro",
+    },
+    anteriorAyuda: "Último pesaje de la misma jornada.",
+    guardado: "Guardado",
+    guardando: "Guardando…",
+    progreso: (anotadas: number, total: number) => `${anotadas} de ${total} anotadas`,
+    total: (kilos: string) => `Total de la jornada: ${kilos}`,
+    // Etapa 4 (RF-24): aquí se mostrará el aviso de leche retenida por un tratamiento.
+    retiroPendiente: "La columna «Retiro» mostrará desde la etapa 4 si la leche de una cabra está retenida por un tratamiento.",
+    soloAbiertas: "Mostrar solo las lactancias en curso",
+    lactanciasVacio: "No hay lactancias registradas.",
+    lactanciasColumnas: {
+      hembra: "Hembra",
+      inicio: "Parto",
+      secado: "Secado",
+      dias: "Días",
+      acumulado: "Acumulado",
+      promedio: "Promedio diario",
+      proyeccion: "Proyección",
+    },
+    enCurso: "En curso",
+    sinPesajes: "Sin pesajes",
+    verDetalle: "Ver",
+    detalleTitulo: (hembra: string) => `Lactancia de ${hembra}`,
+    volver: "← Volver a las lactancias",
+    resumen: {
+      inicio: "Inicio (parto)",
+      secado: "Secado",
+      diaActual: "Día del último registro",
+      acumulado: "Acumulado",
+      promedio: (n: number) => `Promedio de los últimos ${n === 1 ? "día" : `${n} días`} con registro`,
+      restantes: "Días que faltan",
+      proyeccion: (diasLactancia: number) => `Proyección a ${diasLactancia} días`,
+    },
+    formula: (diasLactancia: number) =>
+      `Proyección = acumulado + promedio diario de los últimos 7 días con registro × días que faltan hasta el día ${diasLactancia} (R8; ver docs/SUPOSICIONES.md).`,
+    curvaTitulo: "Curva de lactancia",
+    curvaDescripcion: (n: number) => `Kilos por día (mañana más tarde) en ${dias(n)} con registro.`,
+    curvaLeyendaLinea: "Producción registrada",
+    curvaLeyendaPromedio: "Promedio que usa la proyección, hasta el final de la lactancia",
+    curvaEjeX: "Día de lactancia",
+    curvaEjeY: "kg por día",
+    curvaVacia: "La curva aparecerá cuando haya pesajes.",
+    pesajesTitulo: "Pesajes",
+    secarTitulo: "Secar la lactancia",
+    secarAyuda: "Anote la fecha en que dejó de ordeñarla. Después no se podrán anotar pesajes posteriores a esa fecha.",
+    fechaSecado: "Fecha de secado",
+    secar: "Secar",
+    secada: (fecha: string) => `Lactancia secada el ${fecha}.`,
+  },
+
+  pesos: {
+    titulo: "Pesos",
+    secciones: { registrar: "Registrar pesaje", metas: "Metas por edad" },
+    animal: "Animal",
+    fecha: "Fecha",
+    kilos: "Peso (kg)",
+    tipo: "Tipo de pesaje",
+    guardar: "Guardar pesaje",
+    guardado: (animal: string, kilos: string) => `Pesaje guardado: ${animal}, ${kilos}.`,
+    recientesTitulo: "Últimos pesajes",
+    recientesVacio: "Todavía no hay pesajes.",
+    columnas: {
+      fecha: "Fecha",
+      animal: "Animal",
+      tipo: "Tipo",
+      kilos: "Peso",
+      edad: "Edad",
+      ganancia: "Ganancia diaria",
+      meta: "Meta para la edad",
+      diferencia: "Frente a la meta",
+    },
+    gananciaAyuda: "Ganancia diaria = diferencia de peso ÷ días entre pesajes (R10).",
+    gananciaPorDia: (gramos: number) => `${Math.round(gramos).toLocaleString("es-CO")} g/día`,
+    sobreMeta: (texto: string) => `+${texto} sobre la meta`,
+    bajoMeta: (texto: string) => `${texto} bajo la meta`,
+    sinMeta: "Sin meta para esa edad",
+    metasAyuda:
+      "Escriba el peso esperado para cada sexo y edad (en meses). Entre dos metas, el programa calcula la meta de cada día en línea recta. Fuera del rango anotado no compara.",
+    metasVacio: "Todavía no hay metas.",
+    metasColumnas: { sexo: "Sexo", edad: "Edad (meses)", kilos: "Peso meta" },
+    metaNueva: "Agregar o cambiar una meta",
+    metaEdad: "Edad (meses)",
+    metaKilos: "Peso meta (kg)",
+    metasSoloPropietario: "Solo el propietario puede cambiar las metas.",
+    fichaVacio: "Sin pesajes registrados.",
+    registrarEnFicha: "Registrar pesaje",
   },
 
   animales: {
@@ -305,7 +530,13 @@ export const textos = {
   },
 
   ficha: {
-    pestanas: { ficha: "Ficha", genealogia: "Genealogía", historial: "Historial" },
+    pestanas: { ficha: "Ficha", genealogia: "Genealogía", reproduccion: "Reproducción y leche", pesos: "Pesos", historial: "Historial" },
+    reproduccionVacio: "Sin servicios ni partos registrados.",
+    serviciosTitulo: "Servicios",
+    partosTitulo: "Partos",
+    partoResumen: (fecha: string, n: number) => `${fecha}: ${n === 1 ? "1 cría" : `${n} crías`}`,
+    intervaloPromedio: (texto: string) => `Intervalo promedio entre partos: ${texto}.`,
+    lactanciasTitulo: "Lactancias",
     volver: "← Volver a la lista",
     noExiste: "Este animal no existe o fue retirado.",
     datosTitulo: "Datos",
@@ -404,7 +635,16 @@ export const textos = {
   historial: {
     vacio: "Sin cambios registrados.",
     columnas: { fecha: "Fecha y hora", cambio: "Qué cambió", antes: "Antes", despues: "Después", usuario: "Usuario" },
-    entidades: { animal: "Ficha", identificador: "Identificador", composicion_racial: "Raza" } as Record<string, string>,
+    entidades: {
+      animal: "Ficha",
+      identificador: "Identificador",
+      composicion_racial: "Raza",
+      evento_reproductivo: "Servicio",
+      parto: "Parto",
+      lactancia: "Lactancia",
+      pesaje_leche: "Leche (corrección)",
+      pesaje_corporal: "Peso",
+    } as Record<string, string>,
     campo: (c: string) => campos[c] ?? c,
   },
 

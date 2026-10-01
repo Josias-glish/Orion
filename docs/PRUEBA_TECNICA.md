@@ -115,3 +115,23 @@ xvfb-run -a node pruebas-e2e/etapa2.mjs "$PWD/src-tauri/target/debug/registro-ca
 ```
 
 `pruebas-e2e/etapa2.mjs` es la prueba vigente (Flujo 0, desde la Etapa 2).
+
+### Etapa 3: Flujos 1 y 2 sin red
+
+`pruebas-e2e/etapa3.mjs` abre el programa real, carga los datos de ejemplo (`pruebas-e2e/cargar-datos.ts`) y
+comprueba: partos próximos y hembras en lactancia en el Inicio; el Flujo 1 (parto de dos crías con madre y padre);
+el Flujo 2 (ordeño en lote con Enter, corrección, valor inválido, persistencia); la curva y la proyección; R11 (una
+hembra vendida sale del ordeño y de los servicios, pero conserva su historial); servicio y diagnóstico; pesos y
+metas; y CA-09 con 500 animales. Todo corre dentro de un espacio de red vacío, así que el programa no tiene red:
+
+```bash
+npx tauri build --debug --no-bundle
+rm -f ~/.config/co.registrocaprino.escritorio/registro-caprino.db*
+# «unshare -n» crea una red vacía; hay que levantar la interfaz local (lo) para que tauri-driver funcione.
+sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa3.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
+```
+
+Resultado en el contenedor Linux de desarrollo (WebKitGTK, 2026-10-01), tres ejecuciones seguidas: **24 de 24**.
+Tiempos de CA-09 (de Enter a «Guardado» en pantalla): 68 a 253 ms con los datos de ejemplo; 146 a 352 ms con 500
+animales y 233 cabras en el ordeño (abrir la lista: 414 a 459 ms).
+

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useConexion, useContextoCambio, useNavegar, usePermiso, type PestanaAnimal } from "../../componentes/contextos";
+import { TablaPesajesAnimal } from "../pesos/Pesos";
+import { ReproduccionAnimal } from "./ReproduccionAnimal";
 import { FotoAnimal } from "../../componentes/FotoAnimal";
 import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { Pestanas } from "../../componentes/Pestanas";
@@ -43,6 +45,8 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
         opciones={[
           { valor: "ficha", texto: t.pestanas.ficha },
           { valor: "genealogia", texto: t.pestanas.genealogia },
+          ...(animal.sexo === "hembra" ? [{ valor: "reproduccion" as const, texto: t.pestanas.reproduccion }] : []),
+          { valor: "pesos", texto: t.pestanas.pesos },
           { valor: "historial", texto: t.pestanas.historial },
         ]}
         actual={pestana}
@@ -50,8 +54,27 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
       />
       {pestana === "ficha" && <DatosFicha animal={animal} />}
       {pestana === "genealogia" && <Genealogia animalId={id} />}
+      {pestana === "reproduccion" && animal.sexo === "hembra" && <ReproduccionAnimal animal={animal} />}
+      {pestana === "pesos" && <PesosAnimal animalId={id} />}
       {pestana === "historial" && <HistorialAnimal animalId={id} />}
     </section>
+  );
+}
+
+function PesosAnimal({ animalId }: { animalId: string }) {
+  const navegar = useNavegar();
+  const puedeRegistrar = usePermiso("registrar_peso");
+  return (
+    <div>
+      {puedeRegistrar && (
+        <div className="acciones">
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "pesos", seccion: "registrar", animalId })} data-prueba="registrar-pesaje">
+            {textos.pesos.registrarEnFicha}
+          </button>
+        </div>
+      )}
+      <TablaPesajesAnimal animalId={animalId} />
+    </div>
   );
 }
 

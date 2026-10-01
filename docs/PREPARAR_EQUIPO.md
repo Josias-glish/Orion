@@ -168,7 +168,8 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
    npm test
    ```
 
-   Debe ver al final una línea como `Tests  136 passed (136)`: todas aprobadas, ninguna `failed`.
+   Debe ver al final una línea como `Tests  190 passed (190)`: todas aprobadas, ninguna `failed`. (Tarda unos
+   segundos más que antes: una de las pruebas carga 500 animales para medir el rendimiento.)
 
 5. Abra el programa en modo desarrollo:
 
@@ -178,18 +179,24 @@ El proyecto ya está en su repositorio de GitHub `Josias-glish/Orion`; no hace f
 
    La **primera vez tarda entre 5 y 15 minutos**: Rust compila cientos de piezas y verá muchas líneas `Compiling …`.
    Las siguientes veces tarda segundos. Cuando termine verá `Running target/debug/registro-caprino` y se abrirá
-   una ventana titulada **Registro Caprino** con la barra lateral verde (Inicio, Animales, Ajustes, Diagnóstico).
+   una ventana titulada **Registro Caprino** con la barra lateral verde (Inicio, Animales, Reproducción, Leche,
+   Pesos y Ajustes).
 
 6. Para cerrar el modo desarrollo, cierre la ventana o pulse `Ctrl + C` en la terminal.
 
-7. (Opcional) Cargue los datos de ejemplo en la base de desarrollo: 12 cabras ficticias en tres generaciones.
+7. (Opcional) Cargue los datos de ejemplo en la base de desarrollo: 12 cabras ficticias en tres generaciones, más
+   4 crías de partos recientes, con servicios, lactancias en curso, pesajes de leche y de peso, y metas por edad.
    Abra antes el programa al menos una vez con `npm run tauri dev` y ciérrelo. Después:
 
    ```bash
    npm run semillas
    ```
 
-   Debe ver «Se crearon 12 animales de ejemplo» y la consanguinidad de Estrella (25 %), Faro (12,5 %) y Gema (0 %).
+   Debe ver «Se crearon 16 animales de ejemplo», la consanguinidad de Estrella (25 %), Faro (12,5 %) y Gema (0 %),
+   «Lactancias en curso: Dalia (80 pesajes), Bella (190 pesajes), Abril (400 pesajes)» y «Partos próximos: Estrella (…)».
+   Para medir el rendimiento con 500 animales más (CA-09): `npm run semillas -- --rendimiento`. Al final debe decir
+   «CA-09 cumple: menos de un segundo.». Para volver a empezar, borre el archivo de la base de desarrollo (la ruta la
+   muestra `npm run semillas -- --donde`).
    Si todavía no había creado la finca, el script crea «Aprisco de ejemplo» y el usuario «Propietario de ejemplo» (sin PIN).
    Los datos de ejemplo nunca van a la base del programa instalado.
 

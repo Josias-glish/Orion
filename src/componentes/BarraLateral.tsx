@@ -3,7 +3,7 @@ import { puede } from "../dominio/permisos";
 import { textos } from "../textos/es";
 import type { Ruta } from "./contextos";
 
-type Seccion = "inicio" | "animales" | "ajustes";
+type Seccion = "inicio" | "animales" | "reproduccion" | "leche" | "pesos" | "ajustes";
 
 const SECCION_DE: Record<Ruta["pantalla"], Seccion> = {
   inicio: "inicio",
@@ -11,12 +11,20 @@ const SECCION_DE: Record<Ruta["pantalla"], Seccion> = {
   animal: "animales",
   nuevoAnimal: "animales",
   editarAnimal: "animales",
+  reproduccion: "reproduccion",
+  registrarParto: "reproduccion",
+  leche: "leche",
+  lactancia: "leche",
+  pesos: "pesos",
   ajustes: "ajustes",
 };
 
 const DESTINO: Record<Seccion, Ruta> = {
   inicio: { pantalla: "inicio" },
   animales: { pantalla: "animales" },
+  reproduccion: { pantalla: "reproduccion", seccion: "servicios" },
+  leche: { pantalla: "leche", seccion: "ordeno" },
+  pesos: { pantalla: "pesos", seccion: "registrar" },
   ajustes: { pantalla: "ajustes", seccion: "finca" },
 };
 
@@ -29,7 +37,8 @@ interface Props {
 }
 
 export function BarraLateral({ ruta, usuario, version, alNavegar, alCambiarUsuario }: Props) {
-  const secciones: Seccion[] = ["inicio", "animales"];
+  // Salud y Documentos llegan en las etapas 4 y 5.
+  const secciones: Seccion[] = ["inicio", "animales", "reproduccion", "leche", "pesos"];
   // R14: el operario no ve Ajustes.
   if (puede(usuario.rol, "ver_ajustes")) secciones.push("ajustes");
   const actual = SECCION_DE[ruta.pantalla];

@@ -5,6 +5,7 @@ import { ErrorDeRegistro } from "../errores";
 import { listarCatalogo } from "./catalogos";
 import { obtenerAnimal } from "./animales";
 import { listarLactancias } from "./leche";
+import { listarHistorialAnimal } from "./historial";
 import { pesajesDeAnimal } from "./pesos";
 import {
   diagnosticarServicio,
@@ -130,6 +131,10 @@ describe("CA-03 / R5: registrar un parto", () => {
     expect(lactancias.map((l) => [l.hembra, l.fechaInicio, l.fechaSecado])).toEqual([["Bella", "2025-08-06", null]]);
     const h = await historialReproductivo(db, bella);
     expect(h.partos[0]).toMatchObject({ numeroCrias: 3, observaciones: "Parto sin ayuda" });
+    // El parto y la lactancia quedan en el historial de la madre; el peso al nacer, en el de cada cría.
+    const entidades = new Set((await listarHistorialAnimal(db, bella)).map((e) => e.entidad));
+    expect([...entidades]).toEqual(expect.arrayContaining(["parto", "lactancia", "evento_reproductivo"]));
+    expect((await listarHistorialAnimal(db, r.criasIds[0])).some((e) => e.entidad === "pesaje_corporal")).toBe(true);
     expect(h.partos[0].crias).toHaveLength(3);
   });
 

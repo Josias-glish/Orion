@@ -40,7 +40,7 @@ const DIAS_LACTANCIAS_ANTIGUAS = 300;
 /** Producción diaria de ejemplo: curva de Wood (a·d^b·e^(−c·d)) con el pico cerca del día 50 y algo de variación. */
 export function lecheDeEjemplo(dia: number, escala: number): number {
   const wood = 1.956 * Math.pow(dia, 0.2) * Math.exp(-0.004 * dia);
-  return escala * wood * (1 + 0.06 * Math.sin(dia * 1.7));
+  return escala * wood * (1 + 0.04 * Math.sin(dia / 5));
 }
 
 const redondear = (kilos: number) => Math.round(kilos * 10) / 10;

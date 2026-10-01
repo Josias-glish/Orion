@@ -780,3 +780,170 @@ button.nodo:hover {
 .tabla tr.inactivo td {
   color: var(--color-texto-suave);
 }
+
+/* ---------- Etapa 3: reproducción, leche y pesos ---------- */
+
+.numero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.insignia--prenada {
+  background: var(--color-exito-fondo);
+  border-color: var(--color-exito-borde);
+}
+
+.insignia--vacia,
+.insignia--aborto {
+  background: var(--color-error-fondo);
+  border-color: var(--color-error-borde);
+}
+
+.insignia--pendiente {
+  background: var(--color-info-fondo);
+  border-color: var(--color-info-borde);
+}
+
+.cria {
+  margin: 0 0 var(--espacio);
+}
+
+.cria legend {
+  padding: 0 0.5rem;
+}
+
+.lista-compacta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.tabla-con-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.texto-error {
+  color: var(--color-error-borde);
+  font-weight: 600;
+}
+
+/* Ordeño en lote: casilla grande para escribir rápido con el teclado numérico. */
+.ordeno__kilos {
+  width: 7rem;
+  font-size: 1.3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ordeno__estado {
+  min-width: 9rem;
+}
+
+.ordeno tr.fila-error td {
+  background: var(--color-error-fondo);
+}
+
+/* Curva de lactancia (una serie; color validado con la guía de visualización: #2f7d4a sobre blanco). */
+.curva {
+  position: relative;
+  margin: 0 0 var(--espacio);
+  padding: var(--espacio);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+
+.curva svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.curva__rejilla {
+  stroke: #e1e0d9;
+  stroke-width: 1;
+}
+
+.curva__eje {
+  fill: var(--color-texto-suave);
+  font-size: 13px;
+}
+
+.curva__linea {
+  fill: none;
+  stroke: #2f7d4a;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.curva__area {
+  fill: #2f7d4a;
+  opacity: 0.1;
+}
+
+.curva__proyeccion {
+  stroke: var(--color-texto-suave);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.curva__punto {
+  fill: #2f7d4a;
+  stroke: var(--color-superficie);
+  stroke-width: 2;
+}
+
+.curva__valor {
+  fill: var(--color-texto);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.curva__cruz {
+  stroke: var(--color-texto-suave);
+  stroke-width: 1;
+}
+
+.curva__globo {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.curva__clave {
+  width: 14px;
+  height: 2px;
+  background: #2f7d4a;
+}
+
+.curva__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  font-size: 0.85rem;
+  color: var(--color-texto-suave);
+}
+
+.curva__leyenda > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.curva__clave--promedio {
+  background: repeating-linear-gradient(90deg, var(--color-texto-suave) 0 5px, transparent 5px 9px);
+}
