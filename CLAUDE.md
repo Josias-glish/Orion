@@ -11,7 +11,7 @@
 7. Las reglas del dominio son funciones puras en `src/dominio`, probadas con Vitest.
 8. Los textos de la interfaz viven solo en `src/textos/es.ts`; el código usa los nombres del dominio en español.
 9. Funciona completo sin red (la red solo se usa como dice la regla de red), no borra filas (borrado lógico) y registra cada cambio en `historial_cambios`.
-10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md` (hecha hasta la 7, versión 0.3.0). Instaladores con GitHub Actions y `tauri-action`.
+10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md` (hecha hasta la 8, versión 0.4.0). Instaladores con GitHub Actions y `tauri-action`.
 
 ## Regla principal
 
@@ -62,8 +62,9 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Lo mismo para la Etapa 4, sin red (Flujos 3 y 5, R12, CA-11) | ver el encabezado de `pruebas-e2e/etapa4.mjs` |
 | Lo mismo para la Etapa 6, sin red (R29, R30, CA-13 a CA-15, R23) | ver el encabezado de `pruebas-e2e/etapa6.mjs` |
 | Lo mismo para la Etapa 7, sin red (R31, CA-16 a CA-20, R23; necesita `pdftotext` y `pdfimages`) | ver el encabezado de `pruebas-e2e/etapa7.mjs` |
+| Lo mismo para la Etapa 8, sin red (R18, R19, CA-21, CA-22, R30, R23) | ver el encabezado de `pruebas-e2e/etapa8.mjs` |
 | CA-33 con los programas reales: base creada por la 0.1.0, abierta con la versión nueva | ver el encabezado de `pruebas-e2e/actualizacion.mjs` |
-| CA-10: las pruebas del programa real (etapas 2, 3, 4, 6 y 7) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
+| CA-10: las pruebas del programa real (etapas 2, 3, 4, 6, 7 y 8) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
 ## Mapa del código
 
@@ -74,12 +75,15 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   animales de otras fincas), `contactos.ts`, `registros.ts` (R31: formato del número, lista de verificación, numeración por
   libro, estados, instantánea y lote), `pedigri.ts` (columnas del pedigrí a partir de la instantánea) y
   `libro-genealogico.ts` (filas del libro por libro, raza y periodo). En `reproduccion.ts` también R30: `validarServicio`, `ventanaDeGestacion`,
-  `analizarPaternidad` y `elegirPadre` (paternidad incierta).
+  `analizarPaternidad` y `elegirPadre` (paternidad incierta). `calidad-leche.ts` (R18: leer y validar la muestra, promedios que
+  ignoran los vacíos, comparación entre lactancias y su orden), `finanzas.ts` (R19: validar un movimiento, periodo y
+  `resumirFinanzas`: costo por cabra y por lote, rentabilidad, gastos generales aparte y prorrateo opcional) y `orden.ts`
+  (`ordenarFilas`, con los vacíos siempre al final).
 - `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
   y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
   anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
   `repositorios/` (finca, usuarios, catálogos, lotes, contactos, animales, genealogía, historial, reproducción, leche,
-  pesos, salud, documentos, registros), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
+  pesos, salud, documentos, registros, finanzas), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
   respaldo), `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
 - R29: «del hato» = `en_hato = 1` (y `origen` distinto de `externo`); un externo siempre tiene `en_hato = 0`
   (disparador de la 0005), así que todas las listas de trabajo que ya filtraban `en_hato = 1` lo ignoran.
@@ -89,6 +93,15 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   únicos de la 0006) y `libro.siguiente_numero` es el contador. Reemitir sube `version` y reemplaza la instantánea (JSON);
   la anterior queda en `historial_cambios`. Cada versión emitida tiene su fila en `certificado` (`PPE-0001-v2`). El PDF sale
   siempre de la instantánea, nunca de los datos de hoy. Al restaurar un respaldo los registros se insertan en orden de número.
+- R18: la calidad de la leche (`grasa_pct`, `proteina_pct`, `celulas_somaticas` de `pesaje_leche`, migración 0007) es opcional.
+  `guardarPesajeLeche` solo escribe los datos que le llegan (`undefined` = no tocar, `null` = dejar vacío) y
+  `listarComparacionCalidad` trae únicamente los pesajes con algún dato para promediarlos con `resumirCalidad` (promedio
+  simple, sin contar vacíos). Las células somáticas son células por ml (S-67).
+- R19: `categoria_economica` (catálogo editable, precargado con ids fijos) y `movimiento_economico` (valor entero de pesos;
+  animal o lote, nunca los dos; el tipo debe ser el de su categoría, vigilado por disparadores). Solo el propietario
+  (`ver_finanzas`, `gestionar_finanzas`). `resumenFinanciero` carga los movimientos y delega todo el cálculo en
+  `resumirFinanzas`. Un gasto de una monta con costo se enlaza por `evento_reproductivo_id` (un gasto vigente por servicio).
+  Al restaurar un respaldo, los catálogos precargados (razas, libros y categorías) se actualizan antes de insertar los nuevos.
 - CA-33: `src/datos/actualizacion.test.ts` aplica las migraciones nuevas sobre `src/datos/muestras/respaldo-0.1.0-ejemplo.json`
   (hecha por el código de la 0.1.0; no se edita a mano) y `pruebas-e2e/actualizacion.mjs` lo hace con los programas reales.
 - `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
@@ -101,10 +114,12 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   `.zip` del respaldo (`datos.json` + `fotos/` + `documentos/`), con sus pruebas en Rust.
 - `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `reproduccion/`, `leche/`, `pesos/`, `salud/`,
   `documentos/`, `registros/` (solo propietario: lista, lista de verificación y emisión en lote, libro, configuración, pestaña
-  «Registro» de la ficha), `ajustes/`), `src/componentes/`
+  «Registro» de la ficha), `finanzas/` (solo propietario: movimientos, resumen, categorías y la oferta de gasto de una
+  monta), `ajustes/`), `src/componentes/`
   (contextos de conexión, sesión y navegación; campos reutilizables), `src/textos/es.ts` (todos los textos y los
   mensajes de cada motivo de rechazo), `src/estilos.css`.
 - `scripts/`: `semillas.ts`, `datos-de-ejemplo.ts`, `reproduccion-de-ejemplo.ts`, `salud-de-ejemplo.ts`,
+  `calidad-y-finanzas-de-ejemplo.ts` (muestras de calidad y movimientos; sus promedios y totales están en el encabezado),
   `datos-de-rendimiento.ts` (CA-09) y `documentos-de-ejemplo.ts` (fuera de `src`, nunca entran al instalador).
 - `pruebas-e2e/`: pruebas con el programa real en Linux (`tauri-driver`); `cargar-datos.ts` carga los datos de ejemplo
   en la base que se le indique; `dialogo.py` responde los diálogos «Guardar» y «Abrir» de GTK con el teclado.
@@ -168,3 +183,5 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-045** · 2026-10-02 · Etapa 6 · Vigente. CA-33 se prueba en cada versión con una copia de respaldo de los datos de ejemplo hecha por el código de la etiqueta `v0.1.0` (`src/datos/muestras/`, con su receta en `LEEME.md`), en Vitest, y con los programas reales 0.1.0 y nuevo (`pruebas-e2e/actualizacion.mjs`). La versión 0.2.0 se publica con el mismo flujo que la 0.1.0 (D-041).
 - **D-046** · 2026-10-02 · Etapa 7 · Vigente. Librería de Excel: `write-excel-file` 4.1.1 (MIT; una sola dependencia, `fflate`, MIT; 25 versiones en 2026, la última el 2026-06-08; funciona igual en la ventana y en Node; sin red). Comparadas el 2026-10-02 en el registro de npm: `xlsx` (SheetJS) está estancada en la 0.18.5 de npm (2022) y sus versiones nuevas solo se publican en el sitio del autor; `exceljs` es MIT pero su última versión es de diciembre de 2024, ocupa 21 MB y arrastra nueve dependencias; `xlsx-populate` pesa 15 MB y edita plantillas, que no necesitamos; `rust_xlsxwriter` es buena, pero obligaría a pasar los datos por un comando Rust nuevo y a mantener otra dependencia de Rust. `write-excel-file` escribe varias hojas, anchos, negrita, fechas reales y encabezado fijo, que es lo que pedirán la hoja de venta (Etapa 9) y las finanzas. `src/seguridad.test.ts` la admite en la lista cerrada de dependencias y revisa que ni ella ni `fflate` usen red. El diálogo «Guardar» y `guardar_copia` (Rust) aceptan ahora `.xlsx`.
 - **D-047** · 2026-10-02 · Etapa 7 · Vigente. Registros genealógicos (R31): una fila por número, con estado `borrador` (sin número), `emitido` o `anulado`; la reemisión sube `version` y deja la instantánea anterior en `historial_cambios`; el número se asigna al emitir y la base impide saltos, repeticiones y cambios de número, libro o animal (migración 0006, que también reconstruye `certificado` para admitir el tipo `registro_propio` copiando todas sus filas). La emisión (sola o en lote) es la misma función: valida a todos antes de escribir, asigna los consecutivos a los que cumplen y escribe todo junto. Versión 0.3.0 publicada con el mismo flujo de la D-041.
+- **D-048** · 2026-10-02 · Etapa 8 · Vigente. Calidad de la leche (R18): tres columnas opcionales en `pesaje_leche` (una muestra por cabra y jornada, no una tabla aparte, porque la muestra se toma al ordeñar). La captura en el ordeño es una casilla opcional que agrega las columnas: sin marcarla, la pantalla es la de siempre (CA-09 y el flujo 2 no cambian). La comparación es una tabla ordenable (`ordenarFilas`: vacíos siempre al final, empates en el orden original) y un gráfico de barras en SVG propio, sin librería de gráficos, como la curva de lactancia (D-031); la tabla es su vista accesible. Los promedios son simples y se calculan en el dominio; SQLite solo trae los pesajes que tienen algún dato.
+- **D-049** · 2026-10-02 · Etapa 8 · Vigente. Finanzas (R19): costo por cabra = gastos asignados al animal y costo por lote = gastos asignados al lote (sin sumar lo de sus animales, para no contar dos veces); los gastos sin animal ni lote salen siempre aparte; el prorrateo entre animales es opcional, está apagado por defecto y se rotula como suposición (S-71). El valor es un entero de pesos (S-70). El gasto de una monta con costo (R30) se crea desde el servicio, asignado a la hembra servida, con un enlace único para no ofrecerlo dos veces. Restaurar un respaldo actualiza primero los catálogos precargados para que un nombre reutilizado no choque con el índice de nombres únicos. Versión 0.4.0 publicada con el mismo flujo de la D-041.

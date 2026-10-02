@@ -3,7 +3,7 @@ import { puede } from "../dominio/permisos";
 import { textos } from "../textos/es";
 import type { Ruta } from "./contextos";
 
-type Seccion = "inicio" | "animales" | "reproduccion" | "leche" | "pesos" | "salud" | "documentos" | "registros" | "ajustes";
+type Seccion = "inicio" | "animales" | "reproduccion" | "leche" | "pesos" | "salud" | "documentos" | "registros" | "finanzas" | "ajustes";
 
 const SECCION_DE: Record<Ruta["pantalla"], Seccion> = {
   inicio: "inicio",
@@ -19,6 +19,7 @@ const SECCION_DE: Record<Ruta["pantalla"], Seccion> = {
   salud: "salud",
   documentos: "documentos",
   registros: "registros",
+  finanzas: "finanzas",
   ajustes: "ajustes",
 };
 
@@ -31,6 +32,7 @@ const DESTINO: Record<Seccion, Ruta> = {
   salud: { pantalla: "salud", seccion: "registrar" },
   documentos: { pantalla: "documentos", seccion: "certificado" },
   registros: { pantalla: "registros", seccion: "registros" },
+  finanzas: { pantalla: "finanzas", seccion: "movimientos" },
   ajustes: { pantalla: "ajustes", seccion: "finca" },
 };
 
@@ -46,6 +48,8 @@ export function BarraLateral({ ruta, usuario, version, alNavegar, alCambiarUsuar
   const secciones: Seccion[] = ["inicio", "animales", "reproduccion", "leche", "pesos", "salud", "documentos"];
   // R23 y R31: el operario no ve Registros.
   if (puede(usuario.rol, "ver_registros")) secciones.push("registros");
+  // R23: el operario tampoco ve Finanzas.
+  if (puede(usuario.rol, "ver_finanzas")) secciones.push("finanzas");
   // R14: el operario no ve Ajustes.
   if (puede(usuario.rol, "ver_ajustes")) secciones.push("ajustes");
   const actual = SECCION_DE[ruta.pantalla];

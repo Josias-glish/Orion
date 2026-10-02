@@ -1,6 +1,8 @@
+import type { ErrorCalidad } from "../dominio/calidad-leche";
 import type { ErrorComposicion } from "../dominio/composicion";
 import type { ErrorContacto } from "../dominio/contactos";
 import type { ErrorExterno } from "../dominio/externos";
+import type { ErrorFinanzas } from "../dominio/finanzas";
 import type { ErrorGenealogia } from "../dominio/genealogia";
 import type { ErrorIdentificador } from "../dominio/identificadores";
 import type { ErrorRegistro } from "../dominio/registros";
@@ -17,6 +19,8 @@ export type Motivo =
   | ErrorExterno
   | ErrorContacto
   | ErrorRegistro
+  | ErrorCalidad
+  | ErrorFinanzas
   | { codigo: "sin_permiso" }
   | { codigo: "no_encontrado" }
   | { codigo: "dato_obligatorio"; campo: string }

@@ -24,8 +24,10 @@ import {
   type Servicio,
 } from "../../datos/repositorios/reproduccion";
 import { diasEntre, fechaLocal, formatearFecha } from "../../dominio/fechas";
+import { leerPesos } from "../../dominio/finanzas";
 import type { ResultadoServicio, TipoServicio } from "../../dominio/reproduccion";
 import { textos } from "../../textos/es";
+import { OfertaGastoMonta } from "../finanzas/OfertaGastoMonta";
 
 const t = textos.reproduccion;
 
@@ -65,12 +67,6 @@ const servicioVacio = (): DatosServicio => ({
   condiciones: null,
 });
 
-/** «150.000» o «150000» → 150000; vacío → null. Un texto que no es número da NaN y el dominio lo rechaza. */
-const aPesos = (texto: string): number | null => {
-  const limpio = texto.replace(/[\s.$]/g, "");
-  return limpio === "" ? null : Number(limpio);
-};
-
 function SeccionServicios() {
   const conexion = useConexion();
   const contexto = useContextoCambio();
@@ -97,20 +93,21 @@ function SeccionServicios() {
   };
   const [error, setError] = useState<unknown>(null);
   const [exito, setExito] = useState<string | null>(null);
+  // R30: la monta con costo que acaba de guardarse, para ofrecer anotar su gasto en Finanzas.
+  const [oferta, setOferta] = useState<{ servicioId: string; costo: number; hembra: string; macho: string } | null>(null);
   const [diagnosticando, setDiagnosticando] = useState<string | null>(null);
 
   async function guardar() {
     setError(null);
     setExito(null);
+    setOferta(null);
     try {
       const externo = procedencia === "otra_finca";
-      const id = await registrarServicio(
-        conexion,
-        { ...datos, costo: externo ? aPesos(costoTexto) : null, condiciones: externo ? datos.condiciones : null },
-        contexto(),
-      );
+      const costo = externo ? leerPesos(costoTexto) : null;
+      const id = await registrarServicio(conexion, { ...datos, costo, condiciones: externo ? datos.condiciones : null }, contexto());
       const [guardado] = (await listarServicios(conexion, { hembraId: datos.hembraId })).filter((s) => s.id === id);
       setExito(t.servicioGuardado(formatearFecha(guardado.fechaProbableParto!)));
+      if (costo !== null && costo > 0) setOferta({ servicioId: id, costo, hembra: guardado.hembra, macho: machoDeServicio(guardado) });
       setDatos({ ...servicioVacio(), fecha: datos.fecha, tipo: datos.tipo });
       setCostoTexto("");
       await recargar();
@@ -133,6 +130,15 @@ function SeccionServicios() {
           <h2>{t.nuevoServicio}</h2>
           <ListaMotivos error={error} />
           {exito && <Aviso tipo="exito">{exito}</Aviso>}
+          {oferta && (
+            <OfertaGastoMonta
+              {...oferta}
+              alTerminar={(mensaje) => {
+                setOferta(null);
+                if (mensaje) setExito(mensaje);
+              }}
+            />
+          )}
           <div className="rejilla">
             <SelectorAnimal
               etiqueta={t.hembra}

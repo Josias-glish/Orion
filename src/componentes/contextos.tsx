@@ -45,12 +45,14 @@ export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "servicios
 export type VistaAnimales = "hato" | "externos" | "contactos";
 export type SeccionAjustes = "finca" | "usuarios" | "razas" | "libros" | "lotes" | "datos";
 export type SeccionReproduccion = "servicios" | "proximos" | "intervalos";
-export type SeccionLeche = "ordeno" | "lactancias";
+export type SeccionLeche = "ordeno" | "lactancias" | "calidad";
 export type SeccionPesos = "registrar" | "metas";
 export type SeccionSalud = "registrar" | "calendario" | "retiros" | "historial";
 export type SeccionDocumentos = "certificado" | "expediente" | "emitidos" | "respaldo";
 /** R31: registros genealógicos propios (solo el propietario). */
 export type SeccionRegistros = "registros" | "verificacion" | "libro" | "configuracion";
+/** RF-33 y RF-34: ingresos, gastos y resumen (solo el propietario, R23). */
+export type SeccionFinanzas = "movimientos" | "resumen" | "categorias";
 
 /** Pantallas del programa. */
 export type Ruta =
@@ -67,6 +69,7 @@ export type Ruta =
   | { pantalla: "salud"; seccion: SeccionSalud; animalId?: string }
   | { pantalla: "documentos"; seccion: SeccionDocumentos; animalId?: string }
   | { pantalla: "registros"; seccion: SeccionRegistros; registroId?: string }
+  | { pantalla: "finanzas"; seccion: SeccionFinanzas }
   | { pantalla: "ajustes"; seccion: SeccionAjustes };
 
 export const NavegacionContexto = createContext<(ruta: Ruta) => void>(() => {});

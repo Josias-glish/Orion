@@ -577,3 +577,92 @@ describe("migración 0006: registro genealógico propio (R31)", () => {
     expect(f).toEqual({ criador: null, propietario: null, responsable_registros: null });
   });
 });
+
+describe("migración 0007: calidad de la leche y finanzas (RF-32, RF-33, R18, R19)", () => {
+  let db: ConexionMemoria;
+  const ALIMENTO = "cc5e2353-d7bc-4c1a-bf4d-446ae292c429";
+  const VENTA_DE_LECHE = "52d2187c-5628-4b83-8681-1062313fb4eb";
+  beforeEach(() => {
+    db = crearBaseDePrueba();
+  });
+  afterEach(() => db.cerrar());
+
+  /** Un pesaje mínimo (animal, parto y lactancia incluidos); `calidad` agrega columnas de la 0007. */
+  async function pesaje(calidad: Record<string, string | number | null> = {}, jornada = "manana") {
+    const hembra = nuevoId();
+    const parto = nuevoId();
+    const lactancia = nuevoId();
+    const ids = [hembra, parto, lactancia];
+    await db.ejecutar("INSERT INTO animal (id, sexo, creado_en, modificado_en) VALUES (?, 'hembra', ?, ?)", [hembra, AHORA, AHORA]);
+    await db.ejecutar("INSERT INTO parto (id, hembra_id, fecha, numero_crias, creado_en, modificado_en) VALUES (?, ?, '2026-01-01', 1, ?, ?)", [parto, hembra, AHORA, AHORA]);
+    await db.ejecutar("INSERT INTO lactancia (id, hembra_id, parto_id, fecha_inicio, creado_en, modificado_en) VALUES (?, ?, ?, '2026-01-01', ?, ?)", [lactancia, hembra, parto, AHORA, AHORA]);
+    const fila = { id: nuevoId(), lactancia_id: lactancia, fecha: "2026-01-05", jornada, kilos: 2, creado_en: AHORA, modificado_en: AHORA, ...calidad };
+    await db.ejecutar(`INSERT INTO pesaje_leche (${Object.keys(fila).join(", ")}) VALUES (${Object.keys(fila).map(() => "?").join(", ")})`, Object.values(fila));
+    return ids;
+  }
+
+  it("la calidad del pesaje es opcional: sin escribirla, los tres datos quedan vacíos", async () => {
+    await pesaje();
+    const [p] = await db.consultar<{ grasa_pct: number | null; proteina_pct: number | null; celulas_somaticas: number | null }>(
+      "SELECT grasa_pct, proteina_pct, celulas_somaticas FROM pesaje_leche",
+    );
+    expect(p).toEqual({ grasa_pct: null, proteina_pct: null, celulas_somaticas: null });
+  });
+
+  it("guarda grasa y proteína como porcentaje de 0 a 100 y las células somáticas como entero de 0 o más", async () => {
+    await pesaje({ grasa_pct: 3.8, proteina_pct: 3.2, celulas_somaticas: 450000 });
+    await pesaje({ grasa_pct: 0, proteina_pct: 100, celulas_somaticas: 0 });
+    await expect(pesaje({ grasa_pct: -0.1 })).rejects.toThrow(/CHECK/);
+    await expect(pesaje({ grasa_pct: 100.5 })).rejects.toThrow(/CHECK/);
+    await expect(pesaje({ proteina_pct: 101 })).rejects.toThrow(/CHECK/);
+    await expect(pesaje({ celulas_somaticas: -1 })).rejects.toThrow(/CHECK/);
+    await expect(pesaje({ celulas_somaticas: 1.5 })).rejects.toThrow();
+  });
+
+  it("precarga las categorías iniciales con sus id fijos y su tipo", async () => {
+    const filas = await db.consultar<{ id: string; nombre: string; tipo: string; activo: number }>("SELECT id, nombre, tipo, activo FROM categoria_economica ORDER BY nombre");
+    expect(filas.map((f) => [f.nombre, f.tipo, f.activo])).toEqual([
+      ["Alimento", "gasto", 1],
+      ["Mano de obra", "gasto", 1],
+      ["Medicamentos", "gasto", 1],
+      ["Montas y pajillas", "gasto", 1],
+      ["Venta de animales", "ingreso", 1],
+      ["Venta de leche", "ingreso", 1],
+    ]);
+    expect(filas.find((f) => f.nombre === "Alimento")!.id).toBe(ALIMENTO);
+    expect(filas.find((f) => f.nombre === "Venta de leche")!.id).toBe(VENTA_DE_LECHE);
+  });
+
+  it("el nombre de una categoría es único por tipo, sin distinguir mayúsculas; tipo y activo tienen valores válidos", async () => {
+    const categoria = (nombre: string, tipo: string, activo = 1) =>
+      db.ejecutar("INSERT INTO categoria_economica (id, nombre, tipo, activo, creado_en, modificado_en) VALUES (?, ?, ?, ?, ?, ?)", [nuevoId(), nombre, tipo, activo, AHORA, AHORA]);
+    await expect(categoria("ALIMENTO", "gasto")).rejects.toThrow(/UNIQUE/);
+    await categoria("Alimento", "ingreso");
+    await expect(categoria("Otros", "otro")).rejects.toThrow(/CHECK/);
+    await expect(categoria("Otros", "gasto", 2)).rejects.toThrow(/CHECK/);
+    await expect(categoria("   ", "gasto")).rejects.toThrow(/CHECK/);
+  });
+
+  it("un movimiento tiene valor entero mayor que cero, el tipo de su categoría, y animal o lote pero no ambos", async () => {
+    const movimiento = (datos: Record<string, string | number | null>) => {
+      const fila = { id: nuevoId(), fecha: "2026-02-01", tipo: "gasto", categoria_id: ALIMENTO, valor: 1000, creado_en: AHORA, modificado_en: AHORA, ...datos };
+      return db.ejecutar(`INSERT INTO movimiento_economico (${Object.keys(fila).join(", ")}) VALUES (${Object.keys(fila).map(() => "?").join(", ")})`, Object.values(fila));
+    };
+    await movimiento({});
+    await expect(movimiento({ valor: 0 })).rejects.toThrow(/CHECK/);
+    await expect(movimiento({ valor: 10.5 })).rejects.toThrow();
+    await expect(movimiento({ fecha: "2026-02-30" })).rejects.toThrow(/CHECK/);
+    await expect(movimiento({ tipo: "ingreso" })).rejects.toThrow(/tipo del movimiento/);
+    await expect(movimiento({ categoria_id: VENTA_DE_LECHE })).rejects.toThrow(/tipo del movimiento/);
+    await expect(movimiento({ tipo: "otro" })).rejects.toThrow();
+    await expect(movimiento({ animal_id: nuevoId() })).rejects.toThrow(/FOREIGN KEY/);
+  });
+
+  it("una categoría con movimientos no cambia de tipo, y nada se borra de forma física", async () => {
+    await db.ejecutar("INSERT INTO movimiento_economico (id, fecha, tipo, categoria_id, valor, creado_en, modificado_en) VALUES (?, '2026-02-01', 'gasto', ?, 5, ?, ?)", [nuevoId(), ALIMENTO, AHORA, AHORA]);
+    await expect(db.ejecutar("UPDATE categoria_economica SET tipo = 'ingreso' WHERE id = ?", [ALIMENTO])).rejects.toThrow(/no cambia de tipo/);
+    await expect(db.ejecutar("UPDATE movimiento_economico SET tipo = 'ingreso'")).rejects.toThrow(/tipo del movimiento/);
+    await expect(db.ejecutar("DELETE FROM movimiento_economico")).rejects.toThrow(/borrado lógico/);
+    await expect(db.ejecutar("DELETE FROM categoria_economica")).rejects.toThrow(/borrado lógico/);
+  });
+});

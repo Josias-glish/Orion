@@ -1,7 +1,7 @@
 #!/bin/sh
-# CA-10 y CA-30: corre las pruebas de extremo a extremo de las etapas 2, 3, 4, 6 y 7 con el programa real y la red
-# desactivada. Cubre los flujos 0 (etapa 2), 1 y 2 (etapa 3), 3 y 5 (etapa 4) y los sementales de otras fincas
-# (etapa 6). Solo Linux; ver docs/PRUEBA_TECNICA.md. CA-33 tiene su propia prueba: pruebas-e2e/actualizacion.mjs.
+# CA-10 y CA-30: corre las pruebas de extremo a extremo de las etapas 2, 3, 4, 6, 7 y 8 con el programa real y la red
+# desactivada. Cubre los flujos 0 (etapa 2), 1 y 2 (etapa 3), 3 y 5 (etapa 4), los sementales de otras fincas
+# (etapa 6), los registros genealógicos (etapa 7) y la calidad de la leche y las finanzas (etapa 8). Solo Linux; ver docs/PRUEBA_TECNICA.md. CA-33 tiene su propia prueba: pruebas-e2e/actualizacion.mjs.
 #
 # Uso, desde la raíz del proyecto y como administrador (unshare necesita permisos):
 #   npx tauri build --debug --no-bundle
@@ -16,7 +16,7 @@ PROGRAMA="$PWD/src-tauri/target/debug/registro-caprino"
 DATOS="${XDG_CONFIG_HOME:-$HOME/.config}/co.registrocaprino.escritorio"
 FALLOS=0
 
-for ETAPA in etapa2 etapa3 etapa4 etapa6 etapa7; do
+for ETAPA in etapa2 etapa3 etapa4 etapa6 etapa7 etapa8; do
   echo "=== $ETAPA (sin red) ==="
   rm -rf "$DATOS/registro-caprino.db" "$DATOS/registro-caprino.db-wal" "$DATOS/registro-caprino.db-shm" "$DATOS/documentos" "$DATOS/fotos"
   unshare -n sh -c "
@@ -28,6 +28,6 @@ for ETAPA in etapa2 etapa3 etapa4 etapa6 etapa7; do
 done
 
 echo
-for ETAPA in etapa2 etapa3 etapa4 etapa6 etapa7; do echo "$ETAPA: $(tail -n 1 "$CAPTURAS-$ETAPA.txt")"; done
-[ "$FALLOS" -eq 0 ] && echo "CA-10: los flujos 0, 1, 2, 3 y 5, los sementales de otras fincas y los registros genealógicos funcionan sin red." || echo "Hubo fallos en $FALLOS etapas."
+for ETAPA in etapa2 etapa3 etapa4 etapa6 etapa7 etapa8; do echo "$ETAPA: $(tail -n 1 "$CAPTURAS-$ETAPA.txt")"; done
+[ "$FALLOS" -eq 0 ] && echo "CA-10: los flujos 0, 1, 2, 3 y 5, los sementales, los registros genealógicos, la calidad de la leche y las finanzas funcionan sin red." || echo "Hubo fallos en $FALLOS etapas."
 exit "$FALLOS"

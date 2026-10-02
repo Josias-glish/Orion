@@ -189,3 +189,19 @@ npx tauri build --debug --no-bundle
 rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
 sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa7.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
 ```
+
+### Etapa 8: calidad de la leche y finanzas (R18, R19)
+
+`pruebas-e2e/etapa8.mjs` comprueba con el programa real: la calidad de la leche junto al ordeño (casilla opcional, valores
+vacíos que quedan vacíos, errores sin guardar nada a medias, RF-32); la comparación por lactancia, con los promedios del
+cálculo manual y los valores vacíos ignorados (CA-21), la tabla ordenable y el gráfico; los ingresos y gastos (anotar,
+corregir con su historial, retirar con borrado lógico, filtros por periodo y tipo, RF-33); el resumen por finca, por lote y
+por animal con los gastos generales aparte y el reparto opcional, contra un cálculo independiente hecho con la base
+(CA-22, RF-34); las categorías editables; la oferta de anotar el gasto de una monta con costo, al guardarla y desde la ficha
+del semental (R30); y que el operario no ve Finanzas pero sí anota la calidad de la leche (R23).
+
+```bash
+npx tauri build --debug --no-bundle
+rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
+sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa8.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
+```

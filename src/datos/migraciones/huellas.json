@@ -4,5 +4,6 @@
   "0003_reproduccion_leche_pesos.sql": "50c8df0511ae7ad8fa422fa20384e31a9cfdb5f652262c921ed3958d575400c8",
   "0004_salud_y_documentos.sql": "8e1c60aeb1e1dbac394c9ae957205aabf0084d6f79ecf30dd31e71f6de42b5b7",
   "0005_sementales_externos.sql": "7f8bf055697d385855aaeaa489c44dabaf3855904ac6c05dd161a063a86e6fe2",
-  "0006_registro_genealogico.sql": "f2a3f71da2d75ccdba3ef6754f7b328fed7e9ba65c94e1bd0e38a916f630dfa5"
+  "0006_registro_genealogico.sql": "f2a3f71da2d75ccdba3ef6754f7b328fed7e9ba65c94e1bd0e38a916f630dfa5",
+  "0007_calidad_y_finanzas.sql": "2bbf67440d74d40278a9bd9645b305804e822138375a968a3206e5033c1d6223"
 }

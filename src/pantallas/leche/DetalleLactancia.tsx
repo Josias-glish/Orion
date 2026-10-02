@@ -5,9 +5,11 @@ import { useConexion, useContextoCambio, useNavegar, usePermiso } from "../../co
 import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { useCarga } from "../../componentes/useCarga";
 import { obtenerLactancia, secarLactancia } from "../../datos/repositorios/leche";
+import { COLUMNAS_CALIDAD, tieneCalidad } from "../../dominio/calidad-leche";
 import { fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { textos } from "../../textos/es";
 import { CurvaLactancia } from "./CurvaLactancia";
+import { formatoCalidad } from "./formatoCalidad";
 
 const t = textos.leche;
 
@@ -26,6 +28,8 @@ export function DetalleLactancia({ id }: { id: string }) {
   if (!l) return <p className="aviso aviso--error">{textos.errores.motivo({ codigo: "no_encontrado" })}</p>;
   const p = l.proyeccion;
   const r = t.resumen;
+  // RF-32: los pesajes de esta lactancia que traen algún dato de calidad.
+  const muestras = l.pesajes.filter(tieneCalidad);
 
   return (
     <section className="pantalla pantalla--ancha">
@@ -123,6 +127,45 @@ export function DetalleLactancia({ id }: { id: string }) {
         <p className="nota">{t.sinPesajes}</p>
       ) : (
         <TablaPesajes pesajes={l.pesajes} curva={l.curva} />
+      )}
+
+      {muestras.length > 0 && (
+        <>
+          <h2>{t.muestrasTitulo}</h2>
+          <dl className="cifras" data-prueba="calidad-lactancia">
+            {COLUMNAS_CALIDAD.filter((col) => l.calidad[col].promedio !== null).map((col) => (
+              <div key={col}>
+                <dt>{r.calidad(t.calidad.datos[col], l.calidad[col].muestras)}</dt>
+                <dd data-prueba={`promedio-${col}`}>{formatoCalidad[col](l.calidad[col].promedio!)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="nota">{t.muestrasAyuda}</p>
+          <div className="tabla-ancha">
+            <table className="tabla" data-prueba="tabla-muestras-calidad">
+              <thead>
+                <tr>
+                  <th>{t.fecha}</th>
+                  <th>{textos.leche.jornada}</th>
+                  <th className="numero">{t.calidad.columnas.grasa}</th>
+                  <th className="numero">{t.calidad.columnas.proteina}</th>
+                  <th className="numero">{t.calidad.columnas.celulas}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...muestras].reverse().map((p) => (
+                  <tr key={p.id}>
+                    <td>{formatearFecha(p.fecha)}</td>
+                    <td>{textos.comun.jornada[p.jornada]}</td>
+                    <td className="numero">{p.grasaPct === null ? textos.comun.sinDato : formatoCalidad.grasa(p.grasaPct)}</td>
+                    <td className="numero">{p.proteinaPct === null ? textos.comun.sinDato : formatoCalidad.proteina(p.proteinaPct)}</td>
+                    <td className="numero">{p.celulasSomaticas === null ? textos.comun.sinDato : formatoCalidad.celulas(p.celulasSomaticas)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );

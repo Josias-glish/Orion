@@ -1,6 +1,8 @@
 // Todos los textos que ve el usuario. Los componentes no escriben textos propios: los toman de aquí.
 import type { Motivo } from "../datos/errores";
 import { generacion, linea, sexoEsperado, type Camino } from "../dominio/genealogia";
+import type { ColumnaCalidad } from "../dominio/calidad-leche";
+import type { TipoMovimiento } from "../dominio/finanzas";
 import type { Jornada } from "../dominio/leche";
 import type { CampoExpediente } from "../dominio/expediente";
 import type { TipoPesaje } from "../dominio/pesos";
@@ -52,6 +54,21 @@ const tipoRetiro: Record<TipoRetiro, string> = { leche: "Leche", carne: "Carne" 
 export function formatearKilos(kilos: number, decimales = 1, unidad = true): string {
   const texto = kilos.toLocaleString("es-CO", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
   return unidad ? `${texto} kg` : texto;
+}
+
+/** 3,8 → «3,8»; 3,85 → «3,85»; 450000 → «450.000». Sin ceros de relleno. */
+export function formatearNumero(valor: number, maximoDecimales = 2): string {
+  return valor.toLocaleString("es-CO", { maximumFractionDigits: maximoDecimales });
+}
+
+/**
+ * 150000 → «$ 150.000»; −60000 → «−$ 60.000» (el signo se escribe, no depende solo del color). Entre el signo y el número va
+ * un espacio que no se parte, para que una columna angosta no deje el «$» solo en una línea.
+ */
+export function formatearPesos(valor: number): string {
+  const redondeado = Math.round(valor);
+  const texto = `$\u00a0${Math.abs(redondeado).toLocaleString("es-CO", { maximumFractionDigits: 0 })}`;
+  return redondeado < 0 ? `−${texto}` : texto;
 }
 
 const dias = (n: number) => (n === 1 ? "1 día" : `${n.toLocaleString("es-CO")} días`);
@@ -141,6 +158,12 @@ const campos: Record<string, string> = {
   correo: "correo",
   notas: "notas",
   margen_gestacion: "margen de la ventana de gestación",
+  grasa_pct: "grasa (%)",
+  proteina_pct: "proteína (%)",
+  celulas_somaticas: "células somáticas",
+  categoria_id: "categoría",
+  descripcion: "descripción",
+  activo: "activo",
 };
 
 const nombreDe = (otro: string) => `«${otro}»`;
@@ -310,6 +333,30 @@ function motivo(m: Motivo): string {
       return "Este libro ya tiene registros: su prefijo y su formato no se pueden cambiar. Los números emitidos no se modifican.";
     case "numero_inicial_invalido":
       return "El número inicial debe ser un entero mayor que cero, y solo se puede cambiar mientras el libro no tenga registros.";
+    case "grasa_invalida":
+      return "La grasa debe ser un porcentaje de 0 a 100, por ejemplo 3,8. Déjela vacía si no la midió.";
+    case "proteina_invalida":
+      return "La proteína debe ser un porcentaje de 0 a 100, por ejemplo 3,2. Déjela vacía si no la midió.";
+    case "celulas_invalidas":
+      return "Las células somáticas deben ser un número entero, por ejemplo 450000 (también puede escribir 450.000). Déjelas vacías si no las midió.";
+    case "calidad_sin_kilos":
+      return "Anote los kilos de esta cabra para guardar también la calidad de su leche.";
+    case "valor_invalido":
+      return "Escriba el valor en pesos como un número entero mayor que cero, por ejemplo 150000.";
+    case "categoria_otro_tipo":
+      return "La categoría no corresponde: un ingreso lleva una categoría de ingreso y un gasto, una de gasto.";
+    case "categoria_inactiva":
+      return "Esa categoría está desactivada. Elija otra o vuelva a activarla en Categorías.";
+    case "animal_y_lote":
+      return "Un movimiento va a un animal o a un lote, no a los dos. Si es de toda la finca, déjelos vacíos.";
+    case "periodo_invalido":
+      return "El periodo no es válido. Revise las fechas: la primera no puede ser posterior a la segunda.";
+    case "movimiento_animal_no_elegible":
+      return `${nombreDe(m.otro)} no es un animal del hato: los movimientos solo se asignan a animales de esta finca.`;
+    case "servicio_sin_costo":
+      return "Este servicio no tiene un costo anotado.";
+    case "gasto_ya_registrado":
+      return "El costo de este servicio ya se anotó como gasto.";
   }
 }
 
@@ -329,6 +376,7 @@ export const textos = {
     salud: "Salud",
     documentos: "Documentos",
     registros: "Registros",
+    finanzas: "Finanzas",
     ajustes: "Ajustes",
     cambiarUsuario: "Cambiar de usuario",
   },
@@ -368,8 +416,9 @@ export const textos = {
         ? `${meses} ${meses === 1 ? "mes" : "meses"}`
         : `${Math.floor(meses / 12)} ${Math.floor(meses / 12) === 1 ? "año" : "años"}${meses % 12 ? ` y ${meses % 12} m.` : ""}`,
     porcentaje: formatearPorcentaje,
-    /** 150000 → «$ 150.000». */
-    pesos: (valor: number) => `$ ${valor.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`,
+    /** 150000 → «$ 150.000»; los valores negativos llevan el signo menos. */
+    pesos: formatearPesos,
+    numero: formatearNumero,
     origen: { nacido_aqui: "Nacido en la finca", comprado: "Comprado", externo: "De otra finca" } as Record<OrigenAnimal, string>,
   },
 
@@ -507,7 +556,7 @@ export const textos = {
     machoOtraFinca: "Macho de otra finca",
     sinMachosOtraFinca: "No hay machos de otras fincas. Regístrelos en Animales → De otras fincas.",
     costo: "Costo acordado (pesos, opcional)",
-    costoAyuda: "Por ejemplo 150000. Se anotará como gasto cuando el programa tenga finanzas.",
+    costoAyuda: "Por ejemplo 150000. Al guardar, el programa le ofrecerá anotarlo como gasto.",
     condiciones: "Condiciones con el dueño (opcional)",
     condicionesAyuda: "Lo acordado: forma de pago, repetición si queda vacía, entrega de crías…",
     otraFinca: "Otra finca",
@@ -551,7 +600,7 @@ export const textos = {
 
   leche: {
     titulo: "Leche",
-    secciones: { ordeno: "Ordeño", lactancias: "Lactancias" },
+    secciones: { ordeno: "Ordeño", lactancias: "Lactancias", calidad: "Calidad" },
     fecha: "Fecha",
     jornada: "Jornada",
     ordenoAyuda:
@@ -566,6 +615,35 @@ export const textos = {
       retiro: "Retiro",
     },
     anteriorAyuda: "Último pesaje de la misma jornada.",
+    ordenoCalidad: {
+      activar: "Anotar también la calidad de la leche (opcional)",
+      ayuda:
+        "Grasa y proteína en porcentaje (por ejemplo 3,8) y células somáticas por mililitro (por ejemplo 450000). Todo es opcional: lo que deje vacío no cuenta en los promedios. Enter guarda la fila.",
+      columnas: { grasa: "Grasa (%)", proteina: "Proteína (%)", celulas: "Células somáticas (por ml)" },
+    },
+    calidad: {
+      ayuda:
+        "Compara las cabras por lactancia. Cada promedio usa solo las muestras donde ese dato se anotó: lo que está vacío no cuenta, ni siquiera como cero. Haga clic en el título de una columna para ordenar.",
+      vacio: "No hay lactancias para comparar.",
+      sinMuestras: "Todavía no hay muestras de calidad. Anótelas en Ordeño, marcando «Anotar también la calidad de la leche».",
+      columnas: {
+        hembra: "Hembra",
+        inicio: "Parto",
+        grasa: "Grasa (%)",
+        proteina: "Proteína (%)",
+        celulas: "Células somáticas (por ml)",
+      },
+      muestras: (n: number) => (n === 1 ? "1 muestra" : `${n} muestras`),
+      sinDato: "Sin datos",
+      ordenarPor: (columna: string) => `Ordenar por ${columna.toLowerCase()}`,
+      graficoTitulo: "Gráfico de la comparación",
+      graficoElegir: "Dato que se compara",
+      graficoDescripcion: (dato: string, n: number) => `${dato}: promedio de cada lactancia, de mayor a menor (${n === 1 ? "1 cabra" : `${n} cabras`}).`,
+      graficoLimite: (n: number) => `Se muestran las ${n} con el valor más alto; la tabla de arriba trae todas.`,
+      graficoVacio: "Ninguna cabra tiene todavía este dato.",
+      datos: { grasa: "Grasa", proteina: "Proteína", celulas: "Células somáticas" } as Record<ColumnaCalidad, string>,
+      unidades: { grasa: "%", proteina: "%", celulas: "células por ml" } as Record<ColumnaCalidad, string>,
+    },
     guardado: "Guardado",
     guardando: "Guardando…",
     progreso: (anotadas: number, total: number) => `${anotadas} de ${total} anotadas`,
@@ -594,7 +672,10 @@ export const textos = {
       promedio: (n: number) => `Promedio de los últimos ${n === 1 ? "día" : `${n} días`} con registro`,
       restantes: "Días que faltan",
       proyeccion: (diasLactancia: number) => `Proyección a ${diasLactancia} días`,
+      calidad: (dato: string, n: number) => `${dato} (promedio de ${n === 1 ? "1 muestra" : `${n} muestras`})`,
     },
+    muestrasTitulo: "Muestras de calidad",
+    muestrasAyuda: "Los datos que no se anotaron aparecen vacíos y no cuentan en el promedio.",
     formula: (diasLactancia: number) =>
       `Proyección = acumulado + promedio diario de los últimos 7 días con registro × días que faltan hasta el día ${diasLactancia}. Es una estimación: supone que la cabra sigue dando lo mismo que en su última semana.`,
     curvaTitulo: "Curva de lactancia",
@@ -1055,6 +1136,121 @@ export const textos = {
     } satisfies Record<Requisito, string>,
   },
 
+  finanzas: {
+    titulo: "Finanzas",
+    secciones: { movimientos: "Ingresos y gastos", resumen: "Resumen", categorias: "Categorías" },
+    tipo: { ingreso: "Ingreso", gasto: "Gasto" } as Record<TipoMovimiento, string>,
+    tipoPlural: { ingreso: "Ingresos", gasto: "Gastos" } as Record<TipoMovimiento, string>,
+    nuevo: "Anotar un ingreso o un gasto",
+    corregirTitulo: "Corregir el movimiento",
+    campos: {
+      tipo: "Tipo",
+      categoria: "Categoría",
+      valor: "Valor (pesos)",
+      fecha: "Fecha",
+      asignado: "¿A qué se asigna?",
+      lote: "Lote",
+      animal: "Animal",
+      descripcion: "Descripción (opcional)",
+    },
+    valorAyuda: "Número entero en pesos, por ejemplo 150000 o 150.000.",
+    asignacion: {
+      finca: "A toda la finca",
+      lote: "A un lote",
+      animal: "A un animal",
+    },
+    asignacionAyuda: "Los gastos de toda la finca se muestran aparte, como «gastos generales».",
+    sinCategorias: "No hay categorías activas de este tipo. Agregue una en la pestaña Categorías.",
+    guardar: "Guardar movimiento",
+    guardarCambios: "Guardar los cambios",
+    guardado: "Movimiento anotado.",
+    corregido: "Movimiento corregido.",
+    retirado: "Movimiento retirado.",
+    filtros: {
+      desde: "Desde",
+      hasta: "Hasta",
+      tipo: "Tipo",
+      categoria: "Categoría",
+      todos: "Todos",
+      todas: "Todas",
+      quitar: "Quitar los filtros",
+    },
+    vacio: "No hay movimientos con estos filtros.",
+    columnas: { fecha: "Fecha", tipo: "Tipo", categoria: "Categoría", asignado: "Asignado a", descripcion: "Descripción", valor: "Valor", acciones: "" },
+    gastoGeneral: "Gasto general",
+    ingresoGeneral: "Toda la finca",
+    deMonta: "Viene de una monta",
+    corregir: "Corregir",
+    retirar: "Retirar",
+    retirarConfirmar: "¿Retirar este movimiento? Deja de contar, pero queda en el historial.",
+    totales: (n: number, ingresos: string, gastos: string) =>
+      `${n === 1 ? "1 movimiento" : `${n} movimientos`} · Ingresos ${ingresos} · Gastos ${gastos}`,
+    resumen: {
+      periodo: "Periodo",
+      preajustes: { mes: "Este mes", anio: "Este año", todo: "Todo el tiempo" },
+      prorrateo: "Repartir los gastos entre los animales (es una suposición)",
+      prorrateoAyuda:
+        "No es un dato registrado: el gasto de cada lote se reparte en partes iguales entre los animales activos de ese lote, y los gastos generales entre todos los animales activos del hato. Los ingresos no se reparten.",
+      fincaTitulo: "Toda la finca",
+      ingresos: "Ingresos",
+      gastos: "Gastos",
+      rentabilidad: "Rentabilidad (ingresos menos gastos)",
+      gastosAparte: "Gastos generales (sin animal ni lote)",
+      gastosAparteAyuda: "Se muestran aparte. No se reparten entre los animales, salvo que active el reparto.",
+      desglose: {
+        titulo: "De los gastos",
+        generales: "Generales (sin animal ni lote)",
+        lotes: "Asignados a lotes",
+        animales: "Asignados a animales",
+        ingresosGenerales: "Ingresos de toda la finca",
+      },
+      sinRepartir: (valor: string) => `${valor} no se pudo repartir: no hay animales activos entre quienes repartirlo.`,
+      lotesTitulo: "Por lote",
+      lotesAyuda: "Costo del lote = gastos asignados al lote. No incluye lo asignado por separado a sus animales.",
+      lotesVacio: "Ningún movimiento de este periodo está asignado a un lote.",
+      lotesColumnas: { lote: "Lote", ingresos: "Ingresos", gastos: "Gastos (costo del lote)", rentabilidad: "Rentabilidad" },
+      animalesTitulo: "Por animal",
+      animalesAyuda: "Costo por cabra = gastos asignados a ese animal. Haga clic en el título de una columna para ordenar.",
+      animalesAyudaProrrateo: (n: number) =>
+        `Con el reparto, el costo suma lo asignado al animal más su parte de los gastos de su lote y de los generales (entre ${n === 1 ? "1 animal activo" : `${n} animales activos`}).`,
+      animalesVacio: "Ningún movimiento de este periodo está asignado a un animal.",
+      animalesColumnas: {
+        animal: "Animal",
+        ingresos: "Ingresos",
+        directos: "Gastos asignados",
+        deLote: "Parte de su lote",
+        generales: "Parte de los generales",
+        costo: "Costo",
+        rentabilidad: "Rentabilidad",
+      },
+      ordenarPor: (columna: string) => `Ordenar por ${columna.toLowerCase()}`,
+    },
+    categorias: {
+      ayuda: "Puede cambiar el nombre o desactivar una categoría. No se borran: los movimientos que ya la usan la conservan.",
+      gastos: "Categorías de gastos",
+      ingresos: "Categorías de ingresos",
+      vacio: "No hay categorías.",
+      nueva: "Agregar una categoría",
+      nombre: "Nombre",
+      tipo: "Tipo",
+      agregar: "Agregar categoría",
+      creada: (nombre: string) => `Categoría «${nombre}» agregada.`,
+      guardado: "Categoría actualizada.",
+      desactivar: "Desactivar",
+      activar: "Activar",
+      desactivada: "Desactivada",
+    },
+    ofertaMonta: {
+      titulo: "¿Anotar el costo de la monta como gasto?",
+      texto: (costo: string, hembra: string) => `Esta monta tiene un costo de ${costo}. Puede anotarlo ahora como gasto de ${hembra}, la hembra servida.`,
+      categoria: "Categoría del gasto",
+      anotar: "Anotar el gasto",
+      ahoraNo: "Ahora no",
+      anotado: (valor: string) => `Gasto de ${valor} anotado en Finanzas.`,
+      descripcion: (hembra: string, macho: string) => `Monta de ${hembra} con ${macho}`,
+    },
+  },
+
   certificado: {
     tituloDocumento: "Certificado interno del criadero",
     aviso: "Registro interno del criadero. No es el certificado oficial de ANCO.",
@@ -1200,7 +1396,10 @@ export const textos = {
         crias: "Crías",
         costo: "Costo",
         condiciones: "Condiciones",
+        gasto: "Gasto",
       },
+      anotarGasto: "Anotar como gasto",
+      gastoAnotado: "Gasto anotado",
     },
   },
 

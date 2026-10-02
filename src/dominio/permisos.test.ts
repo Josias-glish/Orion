@@ -70,3 +70,16 @@ describe("R23 y R31: registros genealógicos (Etapa 7)", () => {
     }
   });
 });
+
+describe("R23: finanzas (Etapa 8)", () => {
+  it("solo el propietario ve Finanzas y registra, corrige o retira ingresos y gastos", () => {
+    for (const accion of ["ver_finanzas", "gestionar_finanzas"] as const) {
+      expect(puede("propietario", accion), accion).toBe(true);
+      expect(puede("operario", accion), accion).toBe(false);
+    }
+  });
+
+  it("el operario sí puede anotar la calidad de la leche junto al ordeño (es parte de registrar leche)", () => {
+    expect(puede("operario", "registrar_leche")).toBe(true);
+  });
+});

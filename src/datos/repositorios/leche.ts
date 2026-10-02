@@ -1,3 +1,10 @@
+import {
+  resumirCalidad,
+  validarMuestra,
+  type FilaComparacion,
+  type MuestraCalidad,
+  type ResumenCalidad,
+} from "../../dominio/calidad-leche";
 import { esFechaValida, fechaLocal } from "../../dominio/fechas";
 import {
   calcularProyeccion,
@@ -36,6 +43,10 @@ export interface FilaOrdeno {
   kilos: number | null;
   /** Último pesaje de la misma jornada antes de esa fecha, como referencia. */
   kilosAnteriores: number | null;
+  /** RF-32: calidad de la muestra ya anotada para esa fecha y jornada (todo opcional). */
+  grasaPct: number | null;
+  proteinaPct: number | null;
+  celulasSomaticas: number | null;
 }
 
 /**
@@ -45,7 +56,8 @@ export interface FilaOrdeno {
 export async function listarOrdeno(conexion: Conexion, fecha: string, jornada: Jornada): Promise<FilaOrdeno[]> {
   const filas = await conexion.consultar<Omit<FilaOrdeno, "diaLactancia">>(
     `SELECT l.id AS lactanciaId, a.id AS hembraId, a.nombre, i.valor AS identificador, l.fecha_inicio AS fechaInicio,
-            p.id AS pesajeId, p.kilos,
+            p.id AS pesajeId, p.kilos, p.grasa_pct AS grasaPct, p.proteina_pct AS proteinaPct,
+            p.celulas_somaticas AS celulasSomaticas,
             (SELECT x.kilos FROM pesaje_leche AS x
              WHERE x.lactancia_id = l.id AND x.jornada = ? AND x.fecha < ? AND x.eliminado_en IS NULL
              ORDER BY x.fecha DESC LIMIT 1) AS kilosAnteriores
@@ -67,11 +79,18 @@ export interface DatosPesajeLeche {
   fecha: string;
   jornada: Jornada;
   kilos: number;
+  /**
+   * RF-32: calidad de la muestra. Sin escribir el campo (`undefined`) no se toca lo que ya había; `null` lo deja vacío.
+   */
+  grasaPct?: number | null;
+  proteinaPct?: number | null;
+  celulasSomaticas?: number | null;
 }
 
 /**
- * Guarda el peso de leche de una cabra en una jornada (RF-26). Si ya había uno para esa lactancia, fecha y
- * jornada, lo corrige (queda en el historial). Devuelve el id del pesaje.
+ * Guarda el peso de leche de una cabra en una jornada (RF-26) y, si se anotan, la grasa, la proteína y las células
+ * somáticas de la muestra (RF-32, R18: opcionales). Si ya había un pesaje para esa lactancia, fecha y jornada, lo corrige
+ * (queda en el historial). Devuelve el id del pesaje.
  */
 export async function guardarPesajeLeche(conexion: Conexion, datos: DatosPesajeLeche, contexto: ContextoCambio): Promise<string> {
   exigirPermiso(contexto, "registrar_leche");
@@ -99,20 +118,41 @@ export async function guardarPesajeLeche(conexion: Conexion, datos: DatosPesajeL
   if (lactancia.estado !== "activo" || lactancia.en_hato !== 1) {
     motivos.push({ codigo: "animal_no_disponible", otro: lactancia.nombre });
   }
+  motivos.push(
+    ...validarMuestra({
+      grasaPct: datos.grasaPct ?? null,
+      proteinaPct: datos.proteinaPct ?? null,
+      celulasSomaticas: datos.celulasSomaticas ?? null,
+    }),
+  );
   rechazarSi(motivos);
 
-  const [existente] = await conexion.consultar<{ id: string; kilos: number }>(
-    "SELECT id, kilos FROM pesaje_leche WHERE lactancia_id = ? AND fecha = ? AND jornada = ? AND eliminado_en IS NULL",
+  // Solo se escriben los datos de calidad que llegaron: no escribir uno no borra el que ya estaba.
+  const calidad: Record<string, number | null> = {};
+  if (datos.grasaPct !== undefined) calidad.grasa_pct = datos.grasaPct;
+  if (datos.proteinaPct !== undefined) calidad.proteina_pct = datos.proteinaPct;
+  if (datos.celulasSomaticas !== undefined) calidad.celulas_somaticas = datos.celulasSomaticas;
+
+  const [existente] = await conexion.consultar<{
+    id: string;
+    kilos: number;
+    grasa_pct: number | null;
+    proteina_pct: number | null;
+    celulas_somaticas: number | null;
+  }>(
+    `SELECT id, kilos, grasa_pct, proteina_pct, celulas_somaticas FROM pesaje_leche
+     WHERE lactancia_id = ? AND fecha = ? AND jornada = ? AND eliminado_en IS NULL`,
     [datos.lactanciaId, datos.fecha, datos.jornada],
   );
   const cambios = new Cambios(contexto);
   const id = existente
-    ? (cambios.actualizar("pesaje_leche", existente.id, { kilos: existente.kilos }, { kilos: datos.kilos }), existente.id)
+    ? (cambios.actualizar("pesaje_leche", existente.id, existente, { kilos: datos.kilos, ...calidad }), existente.id)
     : cambios.insertar("pesaje_leche", {
         lactancia_id: datos.lactanciaId,
         fecha: datos.fecha,
         jornada: datos.jornada,
         kilos: datos.kilos,
+        ...calidad,
       });
   await cambios.aplicar(conexion);
   return id;
@@ -198,9 +238,11 @@ export interface DetalleLactancia {
   fechaInicio: string;
   fechaSecado: string | null;
   diasLactancia: number;
-  pesajes: (PesajeLeche & { id: string })[];
+  pesajes: (PesajeLeche & MuestraCalidad & { id: string })[];
   curva: PuntoCurva[];
   proyeccion: Proyeccion | null;
+  /** R18: promedios de calidad de la lactancia, sin contar los pesajes donde el dato está vacío. */
+  calidad: ResumenCalidad;
 }
 
 export async function obtenerLactancia(conexion: Conexion, id: string): Promise<DetalleLactancia | null> {
@@ -213,9 +255,9 @@ export async function obtenerLactancia(conexion: Conexion, id: string): Promise<
     [id],
   );
   if (!l) return null;
-  const pesajes = await conexion.consultar<PesajeLeche & { id: string }>(
-    `SELECT id, fecha, jornada, kilos FROM pesaje_leche
-     WHERE lactancia_id = ? AND eliminado_en IS NULL ORDER BY fecha, jornada`,
+  const pesajes = await conexion.consultar<PesajeLeche & MuestraCalidad & { id: string }>(
+    `SELECT id, fecha, jornada, kilos, grasa_pct AS grasaPct, proteina_pct AS proteinaPct, celulas_somaticas AS celulasSomaticas
+     FROM pesaje_leche WHERE lactancia_id = ? AND eliminado_en IS NULL ORDER BY fecha, jornada`,
     [id],
   );
   const dias = await diasLactancia(conexion);
@@ -225,7 +267,39 @@ export async function obtenerLactancia(conexion: Conexion, id: string): Promise<
     pesajes,
     curva: produccionDiaria(l.fechaInicio, pesajes),
     proyeccion: proyectarLactancia(l.fechaInicio, dias, pesajes),
+    calidad: resumirCalidad(pesajes),
   };
+}
+
+/**
+ * RF-32 y R18: una fila por lactancia con sus promedios de grasa, proteína y células somáticas, para comparar entre
+ * cabras. Los pesajes donde un dato está vacío no cuentan en el promedio de ese dato. Orden inicial: por hembra.
+ */
+export async function listarComparacionCalidad(conexion: Conexion, { soloAbiertas = true } = {}): Promise<FilaComparacion[]> {
+  const lactancias = await conexion.consultar<{ id: string; hembra: string; fechaInicio: string; fechaSecado: string | null }>(
+    `SELECT l.id, coalesce(a.nombre, i.valor, '') AS hembra, l.fecha_inicio AS fechaInicio, l.fecha_secado AS fechaSecado
+     FROM lactancia AS l
+     JOIN animal AS a ON a.id = l.hembra_id
+     LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
+     WHERE l.eliminado_en IS NULL AND a.eliminado_en IS NULL AND (? = 0 OR l.fecha_secado IS NULL)
+     ORDER BY hembra COLLATE NOCASE, l.fecha_inicio DESC`,
+    [soloAbiertas ? 1 : 0],
+  );
+  // Solo se traen los pesajes que llevan algún dato de calidad: son muy pocos frente al total de pesajes.
+  const muestras = await conexion.consultar<MuestraCalidad & { lactanciaId: string }>(
+    `SELECT lactancia_id AS lactanciaId, grasa_pct AS grasaPct, proteina_pct AS proteinaPct, celulas_somaticas AS celulasSomaticas
+     FROM pesaje_leche
+     WHERE eliminado_en IS NULL AND (grasa_pct IS NOT NULL OR proteina_pct IS NOT NULL OR celulas_somaticas IS NOT NULL)`,
+  );
+  const porLactancia = new Map<string, MuestraCalidad[]>();
+  for (const m of muestras) porLactancia.set(m.lactanciaId, [...(porLactancia.get(m.lactanciaId) ?? []), m]);
+  return lactancias.map((l) => ({
+    id: l.id,
+    hembra: l.hembra,
+    fechaInicio: l.fechaInicio,
+    enCurso: l.fechaSecado === null,
+    resumen: resumirCalidad(porLactancia.get(l.id) ?? []),
+  }));
 }
 
 /** Lactancias de una hembra (para su ficha). */

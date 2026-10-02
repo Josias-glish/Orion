@@ -1,7 +1,8 @@
 // npm run semillas: carga los datos de ejemplo en la base de DESARROLLO (la de `npm run tauri dev`).
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
 //   npm run semillas                    animales de ejemplo con reproducción, leche, pesos, salud, un semental de otra finca
-//                                       y animales para probar los registros genealógicos (listos y con requisitos pendientes)
+//                                       animales para probar los registros genealógicos (listos y con requisitos pendientes),
+//                                       muestras de calidad de la leche y movimientos de ingresos y gastos
 //   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
 //   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
@@ -11,7 +12,8 @@ import { abrirConexionMemoria, archivosDeMigracion } from "../src/datos/conexion
 import { URL_BASE_DATOS_DESARROLLO } from "../src/datos/bases";
 import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarAnimales, listarExternos } from "../src/datos/repositorios/animales";
-import { listarLactancias } from "../src/datos/repositorios/leche";
+import { listarComparacionCalidad, listarLactancias } from "../src/datos/repositorios/leche";
+import { resumenFinanciero } from "../src/datos/repositorios/finanzas";
 import { listarPartosProximos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
 import { listarVerificaciones } from "../src/datos/repositorios/registros";
 import { listarAlertasRetiro } from "../src/datos/repositorios/salud";
@@ -91,6 +93,19 @@ async function principal() {
       for (const v of lista.filter((x) => !x.lista.cumple)) {
         console.log(`  ${v.nombre ?? v.identificador}: falta ${v.lista.faltantes.join(", ")}`);
       }
+    }
+
+    if (resultado.finanzas) {
+      const calidad = (await listarComparacionCalidad(conexion)).filter((f) => f.resumen.celulas.promedio !== null);
+      console.log(
+        `Calidad de la leche: ${calidad.map((f) => `${f.hembra} (células ${Math.round(f.resumen.celulas.promedio!).toLocaleString("es-CO")} por ml)`).join(", ") || "ninguna muestra"}.`,
+      );
+      const { finca } = await resumenFinanciero(conexion);
+      const pesos = (v: number) => `$ ${v.toLocaleString("es-CO")}`;
+      console.log(
+        `Finanzas (todo el tiempo): ingresos ${pesos(finca.ingresos)}, gastos ${pesos(finca.gastos)} ` +
+          `(generales ${pesos(finca.gastosGenerales)}), rentabilidad ${pesos(finca.rentabilidad)}.`,
+      );
     }
 
     if (process.argv.includes("--rendimiento")) {

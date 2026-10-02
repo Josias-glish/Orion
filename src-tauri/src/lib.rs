@@ -56,6 +56,12 @@ fn migraciones() -> Vec<Migration> {
             sql: include_str!("../../src/datos/migraciones/0006_registro_genealogico.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "calidad_y_finanzas",
+            sql: include_str!("../../src/datos/migraciones/0007_calidad_y_finanzas.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

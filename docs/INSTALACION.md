@@ -1,6 +1,6 @@
 # Cómo instalar Registro Caprino
 
-Guía para instalar **Registro Caprino 0.3.0** en un computador con **Windows 10 u 11** (64 bits) o con **Mac**
+Guía para instalar **Registro Caprino 0.4.0** en un computador con **Windows 10 u 11** (64 bits) o con **Mac**
 (macOS 10.13 o posterior, con chip Apple o Intel). No necesita internet para usar el programa; solo para descargar
 el instalador.
 
@@ -23,8 +23,8 @@ el instalador.
 
 ### Desde la página de versiones (Releases)
 
-1. Abra la página de la versión 0.3.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.3.0>
-   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.3.0»).
+1. Abra la página de la versión 0.4.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.4.0>
+   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.4.0»).
    Las versiones anteriores siguen en <https://github.com/Josias-glish/Orion/releases/tag/v0.2.0> y
    <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0>.
 2. Si el repositorio es privado, primero inicie sesión en GitHub con una cuenta que tenga acceso.
@@ -197,7 +197,7 @@ Para no borrar ni mezclar datos sin querer, el programa **solo restaura en una i
 3. Al abrir, el programa actualiza la base de datos por su cuenta. Sus datos se conservan (CA-33: se prueba en cada
    versión con datos de ejemplo de la 0.1.0).
 4. Compruebe que todo sigue ahí: entre con su usuario y su PIN, abra **Animales** y revise que estén sus animales.
-   Abajo, en la barra lateral, debe decir la versión nueva (por ejemplo «Versión 0.3.0»).
+   Abajo, en la barra lateral, debe decir la versión nueva (por ejemplo «Versión 0.4.0»).
 
 **De la 0.1.0 a la 0.2.0.** Aparecen en Animales las pestañas **«De otras fincas»** (sementales y ancestros que no son
 de la finca) y **«Contactos»** (sus propietarios). Si en la 0.1.0 registró animales «solo para la genealogía», ahora
@@ -211,6 +211,13 @@ verificación, libro genealógico y configuración. Cada libro recibe un prefijo
 certificados anteriores y sus copias de respaldo se conservan; las copias hechas con la 0.1.0 o la 0.2.0 se pueden
 restaurar en la 0.3.0. En cada animal del hato aparece la pestaña **«Registro»**, y en **Genealogía** el botón del
 pedigrí imprimible.
+
+**De la 0.3.0 a la 0.4.0.** En **Leche** hay una pestaña nueva, **«Calidad»**, y en el **ordeño** una casilla para anotar
+también la grasa, la proteína y las células somáticas de cada cabra (todo es opcional; los pesajes que ya tenía quedan
+sin esos datos). Aparece en el menú **«Finanzas»** (solo para el propietario) con seis categorías ya creadas: alimento,
+medicamentos, mano de obra y montas y pajillas (gastos), y venta de leche y de animales (ingresos); las puede renombrar o
+desactivar. Al guardar una monta con costo, el programa le ofrece anotar el gasto. Sus datos y sus copias de respaldo
+se conservan; las copias hechas con versiones anteriores se pueden restaurar en la 0.4.0.
 
 ---
 
