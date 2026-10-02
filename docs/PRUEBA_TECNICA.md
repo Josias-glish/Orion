@@ -160,7 +160,7 @@ unos 280 kB y la restauración reproduce las 17 tablas fila por fila (3505 filas
 
 ### Etapa 5: todo junto y sin red (CA-10)
 
-`pruebas-e2e/todas.sh` corre las pruebas de las etapas 2, 3 y 4 seguidas, cada una con la base vacía y dentro de un
+`pruebas-e2e/todas.sh` corre las pruebas de las etapas 2, 3, 4, 6, 7, 8 y 9 seguidas, cada una con la base vacía y dentro de un
 espacio de red vacío (solo la interfaz `lo`). La de la Etapa 4 comprueba además que los permisos quitados en la
 Etapa 5 quedan bloqueados (mensajes del sistema, cerrar la base, cerrar la ventana).
 
@@ -204,4 +204,22 @@ del semental (R30); y que el operario no ve Finanzas pero sí anota la calidad d
 npx tauri build --debug --no-bundle
 rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
 sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa8.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
+```
+
+### Etapa 9: compra y venta de animales, inventario y hoja de venta (R32, R20, R21)
+
+`pruebas-e2e/etapa9.mjs` comprueba con el programa real: la compra de un animal que ya estaba como de otra finca, que
+conserva su id y su genealogía (y la compra de uno nuevo con padre y madre cargados como animales de otras fincas), con el
+vendedor, la fecha de ingreso, el precio, el registro de asociación, el adjunto PDF copiado a la carpeta de datos (con el
+diálogo «Abrir» real de GTK) y el gasto en Finanzas (CA-23); la venta de una cabra con registro emitido, que queda como
+vendida sin perder su historial, su genealogía ni su registro, y sale del ordeño y del inventario (CA-24); la hoja de venta
+en PDF y en Excel (el PDF con `pdftotext`, el .xlsx celda por celda, ambos contra la base) con el certificado de registro
+propio si se pide (CA-25); el inventario del hato en PDF y en Excel; el historial con filtros por periodo, tipo y contacto
+y el adjunto que se guarda de nuevo; que la copia de respaldo lleva los traspasos y los adjuntos; y que el operario no ve
+compras, ventas ni finanzas (R23). Necesita `poppler-utils` y `python3`, como la Etapa 7.
+
+```bash
+npx tauri build --debug --no-bundle
+rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
+sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa9.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
 ```

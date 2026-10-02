@@ -4,7 +4,7 @@ Programa de escritorio para **Windows y Mac** con el que un criador de cabras le
 internet**, la genealogía, la reproducción, la leche, los pesajes y la salud de cada animal, y prepara el expediente
 que pide ANCO. El primer usuario es el Aprisco El Paraíso.
 
-Versión actual: **0.4.0** (calidad de la leche y finanzas). La 0.3.0 trajo el generador de registros genealógicos; la 0.2.0, los sementales y las montas de otras fincas; la 0.1.0 fue la primera versión para el aprisco.
+Versión actual: **0.5.0** (compra y venta de animales, inventario y hoja de venta). La 0.4.0 trajo la calidad de la leche y las finanzas; la 0.3.0 trajo el generador de registros genealógicos; la 0.2.0, los sementales y las montas de otras fincas; la 0.1.0 fue la primera versión para el aprisco.
 
 ## Qué hace
 
@@ -28,11 +28,18 @@ Versión actual: **0.4.0** (calidad de la leche y finanzas). La 0.3.0 trajo el g
   por periodo; resumen por finca, por lote y por animal con la rentabilidad; los gastos sin asignar salen aparte como
   «gastos generales», y repartirlos entre los animales es una opción rotulada como suposición. Al guardar una monta con
   costo, el programa ofrece anotarlo como gasto.
+- **Compra y venta de animales** (0.5.0, solo el propietario): registrar la compra de un animal (uno nuevo o un animal de
+  otra finca que ya estaba en la genealogía, que conserva su historia), con el vendedor, la fecha de ingreso, el precio,
+  el registro de asociación y facturas en PDF o imagen; registrar la venta de un animal del hato con el comprador, la
+  fecha y el precio (el animal queda como vendido, con su historial, su genealogía y su registro propio intactos); y un
+  historial de compras y ventas con filtros por periodo, tipo y contacto. Al guardar, el programa ofrece anotar el gasto
+  o el ingreso en Finanzas. Es solo un registro: no publica animales en venta.
 - **Pesos**: peso corporal, ganancia diaria y metas por edad que define el aprisco.
 - **Salud**: vacunas y desparasitaciones con calendario, tratamientos con los campos del Registro de Tratamientos del
   ICA, condición corporal y alertas de retiro de leche y carne (en el Inicio, el ordeño y la ficha).
 - **Documentos**: certificado interno del criadero en PDF (no reemplaza el certificado de ANCO), expediente para ANCO
-  en PDF y CSV con aviso de los campos que faltan, y copia de respaldo de todos los datos.
+  en PDF y CSV con aviso de los campos que faltan, inventario del hato en PDF y Excel, hoja de venta con el pedigrí en PDF
+  y Excel (con el certificado de registro propio si el animal lo tiene) y copia de respaldo de todos los datos.
 - **Usuarios**: propietario y operarios, con PIN opcional (guardado cifrado). Cada cambio queda en un historial.
 
 Los datos quedan **solo en el computador**: el programa no se conecta a internet, no envía datos a ningún lado y no

@@ -519,7 +519,7 @@ interface DatosDeEmision {
 }
 
 /** Ancestros del animal hasta cuatro generaciones, con su número de asociación y, si son de otra finca, su propietario. */
-async function pedigriDe(conexion: Conexion, animalId: string): Promise<AncestroInstantanea[]> {
+export async function pedigriDe(conexion: Conexion, animalId: string): Promise<AncestroInstantanea[]> {
   const nodos = (await consultarArbol(conexion, animalId, GENERACIONES_GUARDADAS)).filter((n) => n.camino !== "");
   const registros = new Map<string, string>();
   if (nodos.length > 0) {

@@ -1,10 +1,12 @@
 // CA-11 y RF-43: exportar todos los datos de la finca y restaurarlos en una instalación vacía.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cargarDatosDeEjemplo } from "../../scripts/datos-de-ejemplo";
+import { cargarTraspasosDeEjemplo } from "../../scripts/traspasos-de-ejemplo";
 import { OPERARIO, PROPIETARIO } from "./ayudas-pruebas";
 import { archivosDeMigracion, crearBaseDePrueba, type ConexionMemoria } from "./conexion-memoria";
 import { ErrorDeRegistro } from "./errores";
 import { eliminarAnimal, listarAnimales } from "./repositorios/animales";
+import { listarTraspasos } from "./repositorios/traspasos";
 import { actualizarCategoria, listarCategorias, listarMovimientos } from "./repositorios/finanzas";
 import { cambiarPin } from "./repositorios/usuarios";
 import { anularRegistro, emitirRegistro, reemitirRegistro, registrarDocumentoDeRegistro } from "./repositorios/registros";
@@ -109,6 +111,20 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     expect((await listarMovimientos(destino)).length).toBe(respaldo.tablas.movimiento_economico.filter((m) => m.eliminado_en === null).length);
   });
 
+  it("Etapa 9: las compras, las ventas y sus adjuntos se restauran tal cual, y el animal vendido sigue en su sitio", async () => {
+    await cargarDatosDeEjemplo(origen, HOY);
+    await cargarTraspasosDeEjemplo(origen, () => PROPIETARIO, HOY);
+    const respaldo = await exportarRespaldo(origen, PROPIETARIO);
+    expect(respaldo.tablas.traspaso.map((t) => t.tipo).sort()).toEqual(["compra", "venta"]);
+    await restaurarRespaldo(destino, leerRespaldo(JSON.stringify(respaldo)));
+    const copia = await exportarRespaldo(destino, PROPIETARIO);
+    expect(copia.tablas.traspaso).toEqual(respaldo.tablas.traspaso);
+    expect(copia.tablas.animal).toEqual(respaldo.tablas.animal);
+    const filas = await listarTraspasos(destino);
+    expect(filas.map((f) => f.tipo).sort()).toEqual(["compra", "venta"]);
+    expect(filas.find((f) => f.tipo === "venta")!.animal).toBe("Cacique");
+  });
+
   it("una categoría precargada renombrada se restaura aunque otra nueva use su nombre original", async () => {
     const ALIMENTO = "cc5e2353-d7bc-4c1a-bf4d-446ae292c429";
     await actualizarCategoria(origen, ALIMENTO, { nombre: "Concentrado", activo: true }, PROPIETARIO);
@@ -120,7 +136,7 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     const respaldo = await exportarRespaldo(origen, PROPIETARIO);
     await restaurarRespaldo(destino, leerRespaldo(JSON.stringify(respaldo)));
     expect((await exportarRespaldo(destino, PROPIETARIO)).tablas.categoria_economica).toEqual(respaldo.tablas.categoria_economica);
-    expect((await listarCategorias(destino, { tipo: "gasto" })).map((c) => c.nombre)).toEqual(["Alimento", "Concentrado", "Mano de obra", "Medicamentos", "Montas y pajillas"]);
+    expect((await listarCategorias(destino, { tipo: "gasto" })).map((c) => c.nombre)).toEqual(["Alimento", "Compra de animales", "Concentrado", "Mano de obra", "Medicamentos", "Montas y pajillas"]);
   });
 
   it("el respaldo dice qué es, de qué versión del esquema y cuándo se hizo", async () => {

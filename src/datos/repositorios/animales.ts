@@ -293,7 +293,7 @@ export async function obtenerAnimal(conexion: Conexion, id: string): Promise<Ani
 }
 
 /** Columnas de la tabla animal a partir de los datos del formulario. */
-function aFila(datos: DatosAnimal): Record<string, ValorSql> {
+export function filaDeAnimal(datos: DatosAnimal): Record<string, ValorSql> {
   const texto = (v: string | null) => v?.trim() || null;
   return {
     nombre: texto(datos.nombre),
@@ -320,7 +320,7 @@ function aFila(datos: DatosAnimal): Record<string, ValorSql> {
 }
 
 /** Todas las reglas que debe cumplir un animal antes de guardarse (R1, R2, R3 y datos básicos). */
-async function validarAnimal(
+export async function validarAnimal(
   conexion: Conexion,
   datos: DatosAnimal,
   animalId: string | null,
@@ -383,7 +383,7 @@ export function identificadoresEnUso(conexion: Conexion, excluirAnimalId: string
 
 /** Agrega a un lote de cambios un animal nuevo con sus identificadores y su composición, sin validar. */
 export function prepararAnimalNuevo(cambios: Cambios, datos: DatosAnimal): string {
-  const id = cambios.insertar("animal", aFila(datos));
+  const id = cambios.insertar("animal", filaDeAnimal(datos));
   prepararIdentificadores(cambios, id, [], datos.identificadores);
   for (const f of datos.composicion) {
     cambios.insertar("composicion_racial", { animal_id: id, raza_id: f.razaId, fraccion: f.fraccion });
@@ -419,7 +419,7 @@ export async function guardarAnimal(
     await cambios.aplicar(conexion);
     return nuevoId;
   }
-  cambios.actualizar("animal", actual.id, aFila(actual), aFila(datos));
+  cambios.actualizar("animal", actual.id, filaDeAnimal(actual), filaDeAnimal(datos));
   prepararIdentificadores(cambios, actual.id, actual.identificadores, datos.identificadores);
   await prepararComposicion(conexion, cambios, actual.id, datos.composicion);
   await cambios.aplicar(conexion);
@@ -441,7 +441,7 @@ function filaIdentificador(i: IdentificadorEditable): Record<string, ValorSql> {
  * primero se retiran los que ya no están, después se modifican (primero los que dejan de ser principales)
  * y al final se crean los nuevos.
  */
-function prepararIdentificadores(
+export function prepararIdentificadores(
   cambios: Cambios,
   animalId: string,
   antes: readonly (IdentificadorEditable & { id: string })[],

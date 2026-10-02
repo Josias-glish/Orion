@@ -9,7 +9,7 @@ import { obtenerFinca } from "./repositorios/finca";
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
 /** Número de migraciones que conoce esta versión del programa (una prueba lo compara con la carpeta). */
-export const VERSION_ESQUEMA = 7;
+export const VERSION_ESQUEMA = 8;
 
 /** Todas las tablas de datos, en un orden en que cada tabla va después de las que referencia. */
 export const TABLAS_RESPALDO = [
@@ -33,6 +33,7 @@ export const TABLAS_RESPALDO = [
   "certificado",
   "registro_genealogico",
   "movimiento_economico",
+  "traspaso",
   "historial_cambios",
 ] as const;
 export type TablaRespaldo = (typeof TABLAS_RESPALDO)[number];

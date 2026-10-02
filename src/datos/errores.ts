@@ -6,6 +6,7 @@ import type { ErrorFinanzas } from "../dominio/finanzas";
 import type { ErrorGenealogia } from "../dominio/genealogia";
 import type { ErrorIdentificador } from "../dominio/identificadores";
 import type { ErrorRegistro } from "../dominio/registros";
+import type { ErrorTraspaso } from "../dominio/traspasos";
 import type { ErrorReproduccion } from "../dominio/reproduccion";
 import type { ErrorSalud } from "../dominio/salud";
 
@@ -21,6 +22,7 @@ export type Motivo =
   | ErrorRegistro
   | ErrorCalidad
   | ErrorFinanzas
+  | ErrorTraspaso
   | { codigo: "sin_permiso" }
   | { codigo: "no_encontrado" }
   | { codigo: "dato_obligatorio"; campo: string }

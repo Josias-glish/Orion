@@ -8,6 +8,7 @@ import type { CampoExpediente } from "../dominio/expediente";
 import type { TipoPesaje } from "../dominio/pesos";
 import type { TipoRetiro, TipoSalud } from "../dominio/salud";
 import type { Requisito } from "../dominio/registros";
+import type { TipoTraspaso } from "../dominio/traspasos";
 import type { ResultadoServicio, TipoServicio } from "../dominio/reproduccion";
 import type { EstadoAnimal, FormaConcepcion, OrigenAnimal, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
 
@@ -357,6 +358,34 @@ function motivo(m: Motivo): string {
       return "Este servicio no tiene un costo anotado.";
     case "gasto_ya_registrado":
       return "El costo de este servicio ya se anotó como gasto.";
+    case "traspaso_sin_contacto":
+      return m.tipo === "compra"
+        ? "Elija el vendedor o agréguelo como contacto nuevo."
+        : "Elija el comprador o agréguelo como contacto nuevo.";
+    case "compra_animal_del_hato":
+      return `${nombreDe(m.otro)} ya es un animal del hato: solo se compra un animal de otra finca o uno nuevo.`;
+    case "compra_animal_no_disponible":
+      return `${nombreDe(m.otro)} figura como vendido o muerto, así que no se puede comprar.`;
+    case "venta_animal_no_del_hato":
+      return `${nombreDe(m.otro)} no es un animal del hato: solo se vende un animal de esta finca.`;
+    case "venta_animal_no_activo":
+      return `${nombreDe(m.otro)} ya figura como vendido o muerto, así que no se puede vender.`;
+    case "venta_antes_del_ingreso":
+      return "La fecha de venta no puede ser anterior a la fecha en que el animal llegó a la finca.";
+    case "precio_invalido":
+      return "Escriba el precio en pesos como un número entero mayor que cero, por ejemplo 1500000, o déjelo vacío.";
+    case "adjunto_no_admitido":
+      return "Solo se pueden adjuntar archivos PDF o imágenes (JPG, PNG o WEBP) copiados desde el programa.";
+    case "traspaso_ya_con_movimiento":
+      return "Este traspaso ya tiene su movimiento anotado en Finanzas.";
+    case "traspaso_sin_precio":
+      return "Este traspaso no tiene precio, así que no hay nada que anotar en Finanzas.";
+    case "compra_ancestro_ya_registrado":
+      return m.campo === "padre"
+        ? "Este animal ya tiene un padre registrado: no se puede cargar otro como animal de otra finca."
+        : "Este animal ya tiene una madre registrada: no se puede cargar otra como animal de otra finca.";
+    case "contacto_con_traspasos":
+      return `Este contacto figura en ${m.cantidad === 1 ? "1 compra o venta" : `${m.cantidad} compras o ventas`} del historial, así que no se puede retirar.`;
   }
 }
 
@@ -377,6 +406,7 @@ export const textos = {
     documentos: "Documentos",
     registros: "Registros",
     finanzas: "Finanzas",
+    traspasos: "Compras y ventas",
     ajustes: "Ajustes",
     cambiarUsuario: "Cambiar de usuario",
   },
@@ -740,6 +770,9 @@ export const textos = {
     filtroLote: "Lote",
     vistas: { hato: "Del hato", externos: "De otras fincas", contactos: "Contactos" },
     registrarExterno: "Registrar animal de otra finca",
+    registrarCompra: "Registrar compra",
+    comprar: "Comprar",
+    comprado: (vendedor: string, fecha: string) => `Comprado a ${vendedor} el ${fecha}`,
     externosAyuda:
       "Machos y hembras que no son de la finca: sementales de otros criaderos y ancestros de sus animales. Aparecen en la genealogía, pero no en el inventario, el ordeño ni las alertas.",
     externosVacio: "Todavía no hay animales de otras fincas registrados.",
@@ -850,7 +883,14 @@ export const textos = {
 
   documentos: {
     titulo: "Documentos",
-    secciones: { certificado: "Certificado interno", expediente: "Expediente para ANCO", emitidos: "Emitidos", respaldo: "Copia de respaldo" },
+    secciones: {
+      certificado: "Certificado interno",
+      expediente: "Expediente para ANCO",
+      inventario: "Inventario del hato",
+      hojaVenta: "Hoja de venta",
+      emitidos: "Emitidos",
+      respaldo: "Copia de respaldo",
+    },
     animal: "Animal",
     elegirAnimal: "Elija el animal",
     certificadoAyuda:
@@ -874,6 +914,7 @@ export const textos = {
     guardarCopia: (formato: string) => `Guardar una copia del ${formato}…`,
     filtroPdf: "Documento PDF",
     filtroCsv: "Hoja de cálculo CSV",
+    filtroExcel: "Hoja de cálculo de Excel",
   },
 
   registros: {
@@ -1251,6 +1292,226 @@ export const textos = {
     },
   },
 
+  traspasos: {
+    titulo: "Compras y ventas",
+    ayuda:
+      "El registro de los animales que ha comprado y vendido. Es solo un registro: el programa no publica ni ofrece animales en venta.",
+    tipo: { compra: "Compra", venta: "Venta" } as Record<TipoTraspaso, string>,
+    tipoContacto: { compra: "Vendedor", venta: "Comprador" } as Record<TipoTraspaso, string>,
+    filtros: { desde: "Desde", hasta: "Hasta", tipo: "Tipo", contacto: "Vendedor o comprador", quitar: "Quitar los filtros" },
+    columnas: {
+      fecha: "Fecha",
+      tipo: "Tipo",
+      animal: "Animal",
+      contacto: "Vendedor o comprador",
+      precio: "Precio",
+      finanzas: "Finanzas",
+      documentos: "Documentos",
+      observaciones: "Observaciones",
+    },
+    vacio: "Todavía no hay compras ni ventas registradas.",
+    vacioConFiltro: "No hay compras ni ventas con esos filtros.",
+    resumen: {
+      compras: (cantidad: number, total: string) => `${cantidad === 1 ? "1 compra" : `${cantidad} compras`}: ${total}`,
+      ventas: (cantidad: number, total: string) => `${cantidad === 1 ? "1 venta" : `${cantidad} ventas`}: ${total}`,
+      saldo: (valor: string) => `Vendido menos comprado: ${valor}`,
+    },
+    sinPrecio: "Sin precio",
+    anotadoEnFinanzas: "Anotado",
+    anotarGasto: "Anotar el gasto",
+    anotarIngreso: "Anotar el ingreso",
+    movimientoAnotado: (tipo: string, valor: string) => `${tipo} de ${valor} anotado en Finanzas.`,
+    gasto: "Gasto",
+    ingreso: "Ingreso",
+    descripcionGasto: (animal: string, vendedor: string) => `Compra de ${animal} a ${vendedor}`,
+    descripcionIngreso: (animal: string, comprador: string) => `Venta de ${animal} a ${comprador}`,
+    adjuntos: (cantidad: number) => (cantidad === 1 ? "1 archivo" : `${cantidad} archivos`),
+    sinAdjuntos: "Sin archivos",
+    guardarAdjunto: "Guardar una copia…",
+    adjuntoGuardado: (ruta: string) => `Copia guardada en: ${ruta}`,
+    filtroAdjunto: "Documento PDF o imagen",
+    verAnimal: "Ver la ficha",
+    elHistorial: "Ver el historial de compras y ventas",
+    enLaFicha: "Compra y venta de este animal",
+    compra: {
+      titulo: "Registrar compra",
+      tituloAnimal: (nombre: string) => `Registrar la compra de ${nombre}`,
+      ayuda:
+        "Anote al animal que entró a la finca por compra. Si ya lo tenía registrado como animal de otra finca (por ejemplo un semental o un ancestro), elíjalo: conserva su ficha y su genealogía.",
+      cual: "¿Qué animal compró?",
+      existente: "Uno que ya tengo registrado como de otra finca",
+      nuevo: "Un animal nuevo",
+      elegirAnimal: "Animal de otra finca",
+      sinExternos: "No hay animales de otras fincas registrados. Elija «Un animal nuevo».",
+      datosTitulo: "Datos de la compra",
+      vendedor: "Vendedor",
+      elegirVendedor: "Elija al vendedor",
+      agregarVendedor: "Agregar contacto nuevo",
+      vendedorAyuda: "Es un contacto; sus datos personales no se publican.",
+      fechaIngreso: "Fecha de ingreso a la finca",
+      fechaIngresoAyuda: "Desde ese día el animal cuenta en el inventario.",
+      precio: "Precio pagado",
+      precioAyuda: "En pesos, sin centavos (por ejemplo 1.500.000). Puede dejarlo vacío.",
+      registroAsociacion: "Número de registro de la asociación",
+      registroAsociacionAyuda: "Se guarda como identificador del animal.",
+      lote: "Lote",
+      sinLote: "Sin lote",
+      observaciones: "Observaciones",
+      adjuntosTitulo: "Documentos de origen",
+      adjuntosAyuda: "Opcional: el certificado del criador anterior, la factura o fotos, en PDF o imagen. Se copian a la carpeta de datos del programa.",
+      agregarAdjunto: "Agregar un archivo…",
+      adjuntoNombre: (ruta: string) => ruta.replace(/^documentos\//, ""),
+      quitarAdjunto: "Quitar",
+      crearGasto: "Anotar el precio como gasto en Finanzas",
+      crearGastoAyuda: "Queda como «Compra de animales», asignado a este animal.",
+      sinCertificados: "El programa no vuelve a emitir los certificados del criador anterior: solo guarda el número y los archivos que usted adjunte.",
+      padreTitulo: "Padre",
+      madreTitulo: "Madre",
+      ancestrosAyuda:
+        "Si el animal trae padre o madre que no están en su finca, puede cargarlos como animales de otras fincas para que la genealogía quede completa.",
+      cargarPadre: "Cargar el padre como animal de otra finca",
+      cargarMadre: "Cargar la madre como animal de otra finca",
+      quitarAncestro: "No cargarlo",
+      ancestroNombre: "Nombre",
+      ancestroRegistro: "Número de registro de la asociación",
+      ancestroNacimiento: "Fecha de nacimiento",
+      ancestroPropietario: "Propietario",
+      ancestroPropietarioAyuda: "Si no lo conoce, se anota al vendedor.",
+      guardar: "Registrar la compra",
+      guardando: "Guardando la compra…",
+      listo: (nombre: string) => `Compra de ${nombre} registrada.`,
+      irAFicha: "Ver la ficha del animal",
+      otraCompra: "Registrar otra compra",
+      datosDelAnimal: "Datos del animal",
+      arete: "Arete",
+      areteAyuda: "Opcional.",
+    },
+    venta: {
+      titulo: (nombre: string) => `Registrar la venta de ${nombre}`,
+      ayuda:
+        "El animal queda como vendido: sale del ordeño, de los servicios y del inventario, pero conserva su historial, su genealogía y su registro propio.",
+      noDisponible: "Solo se puede vender un animal del hato que sigue activo.",
+      comprador: "Comprador",
+      elegirComprador: "Elija al comprador",
+      agregarComprador: "Agregar contacto nuevo",
+      compradorAyuda: "Es un contacto; sus datos personales no se publican.",
+      fecha: "Fecha de la venta",
+      precio: "Precio de la venta",
+      precioAyuda: "En pesos, sin centavos (por ejemplo 900.000). Puede dejarlo vacío.",
+      observaciones: "Observaciones",
+      crearIngreso: "Anotar el precio como ingreso en Finanzas",
+      crearIngresoAyuda: "Queda como «Venta de animales», asignado a este animal.",
+      guardar: "Registrar la venta",
+      guardando: "Guardando la venta…",
+      listo: (nombre: string) => `Venta de ${nombre} registrada. El animal quedó como vendido.`,
+      entregarTitulo: "Entregar la hoja de venta",
+      entregarAyuda: "Genera la hoja de venta con el pedigrí para el comprador, en PDF y en Excel.",
+      entregar: "Ir a la hoja de venta",
+      irAFicha: "Ver la ficha del animal",
+    },
+  },
+
+  inventario: {
+    titulo: "Inventario del hato",
+    ayuda:
+      "Los animales activos de la finca: no cuenta los vendidos ni los muertos, ni los animales de otras fincas. Los comprados cuentan desde su fecha de ingreso.",
+    fecha: "Inventario a la fecha",
+    alFecha: (fecha: string) => `Al ${fecha}`,
+    generado: (fecha: string) => `Generado el ${fecha}`,
+    vacio: "No hay animales activos en el hato.",
+    totales: {
+      total: (n: number) => (n === 1 ? "1 animal" : `${n} animales`),
+      hembras: (n: number) => (n === 1 ? "1 hembra" : `${n} hembras`),
+      machos: (n: number) => (n === 1 ? "1 macho" : `${n} machos`),
+      nacidosAqui: (n: number) => `${n} nacidos en la finca`,
+      comprados: (n: number) => (n === 1 ? "1 comprado" : `${n} comprados`),
+    },
+    porLote: "Por lote",
+    sinLote: "Sin lote",
+    columnas: {
+      nombre: "Nombre",
+      identificador: "Identificador",
+      registroAsociacion: "Registro de asociación",
+      sexo: "Sexo",
+      nacimiento: "Nacimiento",
+      edad: "Edad",
+      raza: "Raza",
+      libro: "Libro",
+      lote: "Lote",
+      origen: "Origen",
+    },
+    hojaInventario: "Inventario",
+    hojaResumen: "Resumen",
+    resumenConcepto: "Concepto",
+    resumenCantidad: "Cantidad",
+    resumenTotal: "Total de animales",
+    resumenHembras: "Hembras",
+    resumenMachos: "Machos",
+    resumenNacidosAqui: "Nacidos en la finca",
+    resumenComprados: "Comprados",
+    resumenLote: (lote: string) => `Lote: ${lote}`,
+    edadMeses: "Edad (meses)",
+    generar: "Generar el inventario (PDF y Excel)",
+    generando: "Generando…",
+    listo: (n: number) => `Inventario generado: ${n === 1 ? "1 animal" : `${n} animales`}.`,
+    aviso: "Documento informativo del criadero. No es un certificado oficial.",
+    pagina: (actual: number, total: number) => `Página ${actual} de ${total}`,
+  },
+
+  hojaVenta: {
+    titulo: "Hoja de venta",
+    ayuda:
+      "Genera la hoja de venta de un animal con sus datos, su composición racial y su pedigrí de tres generaciones, en PDF y en Excel. No lleva precios ni datos de contactos.",
+    tituloDe: (nombre: string) => `Hoja de venta: ${nombre}`,
+    aviso: "Documento informativo del criadero. No es un certificado oficial.",
+    generadaEl: (fecha: string) => `Generada el ${fecha}`,
+    elegirAnimal: "Animal que se vende",
+    animalVendido: "Este animal ya figura como vendido.",
+    incluirProduccion: "Incluir la producción de leche",
+    incluirProduccionAyuda: "Solo para hembras. Resume sus lactancias: la leche acumulada y el promedio diario reciente.",
+    incluirCertificado: "Incluir el certificado de registro propio",
+    incluirCertificadoAyuda: "Solo si el animal tiene un registro propio emitido.",
+    sinRegistroPropio: "Este animal no tiene un registro propio emitido.",
+    generar: "Generar la hoja de venta (PDF y Excel)",
+    generando: "Generando…",
+    listo: (nombre: string) => `Hoja de venta de ${nombre} generada.`,
+    certificadoIncluido: (numero: string) => `Se incluyó el certificado de registro propio ${numero}.`,
+    datosTitulo: "Datos del animal",
+    campos: {
+      nombre: "Nombre",
+      sexo: "Sexo",
+      nacimiento: "Nacimiento",
+      color: "Color y señas",
+      identificadores: "Identificadores",
+      libro: "Libro",
+      raza: "Raza y composición",
+      registroPropio: "Registro propio",
+    },
+    composicionIncompleta: "La composición racial no suma 100 %: complétela en la ficha del animal.",
+    sinComposicion: "Sin composición racial anotada",
+    produccionTitulo: "Producción de leche",
+    produccionAyuda: "Leche acumulada en kilos de cada lactancia y promedio diario de los últimos días con registro.",
+    produccionVacia: "Este animal no tiene lactancias registradas.",
+    produccionColumnas: { inicio: "Inicio", secado: "Secado", estado: "Estado", acumulado: "Leche acumulada (kg)", promedio: "Promedio diario (kg)" },
+    enCurso: "En curso",
+    secada: "Secada",
+    hojaAnimal: "Hoja de venta",
+    hojaPedigri: "Pedigrí",
+    hojaProduccion: "Producción",
+    pedigriColumnas: {
+      generacion: "Generación",
+      parentesco: "Parentesco",
+      nombre: "Nombre",
+      identificador: "Identificador",
+      registro: "Registro de asociación",
+      propietario: "Propietario (otra finca)",
+      sinVerificar: "Sin verificar",
+    },
+    datoColumna: "Dato",
+    valorColumna: "Valor",
+    pagina: (actual: number, total: number) => `Página ${actual} de ${total}`,
+  },
+
   certificado: {
     tituloDocumento: "Certificado interno del criadero",
     aviso: "Registro interno del criadero. No es el certificado oficial de ANCO.",
@@ -1336,6 +1597,8 @@ export const textos = {
   },
 
   ficha: {
+    registrarVenta: "Registrar venta",
+    hojaDeVenta: "Hoja de venta",
     pestanas: {
       ficha: "Ficha",
       genealogia: "Genealogía",
@@ -1368,6 +1631,8 @@ export const textos = {
       enHato: "Pertenece al hato",
       origen: "Origen",
       propietario: "Propietario",
+      vendedor: "Comprado a",
+      fechaIngreso: "Fecha de ingreso",
       libro: "Libro genealógico",
       lote: "Lote",
       formaConcepcion: "Forma de concepción",
