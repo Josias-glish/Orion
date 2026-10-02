@@ -1,7 +1,7 @@
 # Pruebas de Registro Caprino
 
-Qué prueba cada criterio de aceptación de la especificación (sección 11), cómo ejecutar las pruebas y el resultado
-de la versión 0.1.0.
+Qué prueba cada criterio de aceptación de la especificación (sección 11) y de la especificación 2 (sección 9), cómo
+ejecutar las pruebas y el resultado de cada versión.
 
 ## Matriz de criterios de aceptación
 
@@ -20,8 +20,18 @@ de la versión 0.1.0.
 | **CA-11** | Los datos permanecen al cerrar y abrir; restaurar reproduce los mismos datos | `src/datos/respaldo.test.ts` | `etapa2.mjs` (cerrar y abrir), `etapa4.mjs` (restaurar y comparar tabla por tabla) |
 | **CA-12** | Los instaladores se instalan y abren en un Windows y en un Mac | Manual: [PRUEBA_CA12.md](PRUEBA_CA12.md) | Lo hace el aprisco |
 
-`src/aceptacion.test.ts` falla si algún criterio de CA-01 a CA-11 se queda sin prueba o si esta tabla deja de
-nombrar alguno.
+### Especificación 2 (desde la versión 0.2.0)
+
+| Criterio | Qué exige | Pruebas automáticas (Vitest) | Programa real (Linux, sin red) |
+| --- | --- | --- | --- |
+| **CA-13** (R29) | Un externo aparece en el pedigrí, pero no en el inventario, el ordeño, los servicios propios, las alertas ni el conteo del tope; no se retira si es ancestro de un animal propio | `src/dominio/externos.test.ts`, `src/datos/repositorios/externos.test.ts` | `pruebas-e2e/etapa6.mjs` |
+| **CA-14** (R30) | El parto de una hembra servida por un macho externo crea la cría con ese padre, y el pedigrí muestra su nombre y su propietario | `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` (monta, parto y pedigrí) |
+| **CA-15** (R30) | Dos servicios con machos distintos en la ventana de gestación: avisa, deja elegir al padre y marcarlo «sin verificar» | `src/dominio/reproduccion.test.ts`, `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` |
+| **CA-33** | Instalar una versión nueva sobre la 0.1.0 conserva todos los datos (con datos de ejemplo) | `src/datos/actualizacion.test.ts` (muestra hecha por la 0.1.0: `src/datos/muestras/`) | `pruebas-e2e/actualizacion.mjs` (programa 0.1.0 → programa nuevo) |
+| R23 (roles) | El operario ve los externos, pero no crea ni edita externos ni contactos | `src/dominio/permisos.test.ts`, `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` |
+
+`src/aceptacion.test.ts` falla si algún criterio de CA-01 a CA-11 (o de los ya implementados de la especificación 2)
+se queda sin prueba o si estas tablas dejan de nombrar alguno.
 
 ## Otras pruebas
 
@@ -45,6 +55,18 @@ cd src-tauri && cargo test       # Rust
 npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
+
+## Resultado de la versión 0.2.0 (2026-10-02)
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 365 de 365 |
+| Rust | 4 de 4 |
+| Programa real sin red, Etapa 2 (Flujo 0) | 25 de 25 |
+| Programa real sin red, Etapa 3 (Flujos 1 y 2, CA-09) | 24 de 24 |
+| Programa real sin red, Etapa 4 (Flujos 3 y 5, CA-11, permisos) | 28 de 28 |
+| Programa real sin red, Etapa 6 (R29, R30, CA-13 a CA-15, R23) | 23 de 23 |
+| CA-33 con los programas reales (base de la 0.1.0 abierta con la 0.2.0) | 8 de 8 |
 
 ## Resultado de la versión 0.1.0 (2026-10-01)
 

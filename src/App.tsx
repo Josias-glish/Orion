@@ -12,7 +12,7 @@ import { puede, type Accion } from "./dominio/permisos";
 import { Ajustes } from "./pantallas/ajustes/Ajustes";
 import { FichaAnimal } from "./pantallas/animales/FichaAnimal";
 import { FormularioAnimal } from "./pantallas/animales/FormularioAnimal";
-import { ListaAnimales } from "./pantallas/animales/ListaAnimales";
+import { Animales } from "./pantallas/animales/Animales";
 import { Asistente } from "./pantallas/Asistente";
 import { ElegirUsuario } from "./pantallas/ElegirUsuario";
 import { Inicio } from "./pantallas/Inicio";
@@ -38,11 +38,11 @@ function PantallaActual({ ruta }: { ruta: Ruta }) {
     case "inicio":
       return <Inicio />;
     case "animales":
-      return <ListaAnimales />;
+      return <Animales vista={ruta.vista ?? "hato"} />;
     case "animal":
       return <FichaAnimal key={ruta.id} id={ruta.id} pestana={ruta.pestana} />;
     case "nuevoAnimal":
-      return <FormularioAnimal key="nuevo" />;
+      return <FormularioAnimal key={ruta.externo ? "nuevo-externo" : "nuevo"} externo={ruta.externo ?? false} />;
     case "editarAnimal":
       return <FormularioAnimal key={ruta.id} id={ruta.id} />;
     case "reproduccion":

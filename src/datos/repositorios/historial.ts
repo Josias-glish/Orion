@@ -62,3 +62,16 @@ export async function listarHistorialAnimal(conexion: Conexion, animalId: string
     f.campo.endsWith("_id") ? { ...f, valorAnterior: traducir(f.valorAnterior), valorNuevo: traducir(f.valorNuevo) } : f,
   );
 }
+
+/** Historial de un registro cualquiera (por ejemplo, un contacto), del más reciente al más antiguo. */
+export function listarHistorialEntidad(conexion: Conexion, entidad: string, registroId: string): Promise<EntradaHistorial[]> {
+  return conexion.consultar<EntradaHistorial>(
+    `SELECT h.marca_tiempo AS marcaTiempo, h.entidad, h.campo,
+            h.valor_anterior AS valorAnterior, h.valor_nuevo AS valorNuevo, u.nombre AS usuario
+     FROM historial_cambios AS h
+     LEFT JOIN usuario AS u ON u.id = h.usuario_id
+     WHERE h.entidad = ? AND h.registro_id = ?
+     ORDER BY h.marca_tiempo DESC, h.campo`,
+    [entidad, registroId],
+  );
+}

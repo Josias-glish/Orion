@@ -1,6 +1,6 @@
 // npm run semillas: carga los datos de ejemplo en la base de DESARROLLO (la de `npm run tauri dev`).
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
-//   npm run semillas                    12 animales de ejemplo con reproducción, leche, pesos y salud
+//   npm run semillas                    animales de ejemplo con reproducción, leche, pesos, salud y un semental de otra finca
 //   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
 //   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
@@ -9,9 +9,9 @@ import { join } from "node:path";
 import { abrirConexionMemoria, archivosDeMigracion } from "../src/datos/conexion-memoria";
 import { URL_BASE_DATOS_DESARROLLO } from "../src/datos/bases";
 import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
-import { listarAnimales } from "../src/datos/repositorios/animales";
+import { listarAnimales, listarExternos } from "../src/datos/repositorios/animales";
 import { listarLactancias } from "../src/datos/repositorios/leche";
-import { listarPartosProximos } from "../src/datos/repositorios/reproduccion";
+import { listarPartosProximos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
 import { listarAlertasRetiro } from "../src/datos/repositorios/salud";
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import { formatearPorcentaje } from "../src/textos/es";
@@ -71,6 +71,15 @@ async function principal() {
       console.log(`Partos próximos: ${proximos.map((s) => `${s.hembra} (${s.fechaProbableParto})`).join(", ") || "ninguno"}.`);
       const retiros = await listarAlertasRetiro(conexion, hoy);
       console.log(`Retiros vigentes: ${retiros.map((r) => `${r.animal} (${r.tipo} hasta ${r.hasta})`).join(", ") || "ninguno"}.`);
+    }
+    if (resultado.externos) {
+      for (const externo of await listarExternos(conexion)) {
+        const { resumen } = await serviciosComoMacho(conexion, externo.id);
+        console.log(
+          `De otras fincas: ${externo.nombre} (${externo.propietario}), ${resumen.servicios} servicios, ` +
+            `${resumen.partos} parto con ${resumen.crias} cría.`,
+        );
+      }
     }
 
     if (process.argv.includes("--rendimiento")) {

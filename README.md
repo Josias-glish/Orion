@@ -4,7 +4,7 @@ Programa de escritorio para **Windows y Mac** con el que un criador de cabras le
 internet**, la genealogía, la reproducción, la leche, los pesajes y la salud de cada animal, y prepara el expediente
 que pide ANCO. El primer usuario es el Aprisco El Paraíso.
 
-Versión actual: **0.1.0** (primera versión para usar en el aprisco).
+Versión actual: **0.2.0** (sementales y montas de otras fincas). La 0.1.0 fue la primera versión para el aprisco.
 
 ## Qué hace
 
@@ -12,7 +12,10 @@ Versión actual: **0.1.0** (primera versión para usar en el aprisco).
   racial, foto, lote y estado. Búsqueda y filtros.
 - **Genealogía**: padre y madre (con «sin verificar»), árbol de tres generaciones y consanguinidad. El programa
   rechaza pedigríes imposibles y explica por qué.
-- **Reproducción**: servicios (monta o inseminación), diagnóstico de preñez, fecha probable de parto, partos con una
+- **Animales de otras fincas** (0.2.0): sementales y ancestros que no son de la finca, con su propietario (contactos).
+  Aparecen en la genealogía y en los servicios, pero no en el inventario, el ordeño ni las alertas.
+- **Reproducción**: servicios (monta o inseminación, con un macho del hato, de otra finca o solo la pajilla, y el costo
+  acordado con su dueño), aviso de paternidad incierta, diagnóstico de preñez, fecha probable de parto, partos con una
   ficha por cría, abortos e intervalo entre partos.
 - **Leche**: ordeño en lote con teclado numérico y Enter, lactancias, curva y proyección.
 - **Pesos**: peso corporal, ganancia diaria y metas por edad que define el aprisco.

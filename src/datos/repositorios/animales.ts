@@ -1,4 +1,5 @@
 import { validarComposicion, type FraccionRacial } from "../../dominio/composicion";
+import { validarExterno, validarRetiroDeExterno } from "../../dominio/externos";
 import { esFechaValida, fechaLocal } from "../../dominio/fechas";
 import { validarGenealogia } from "../../dominio/genealogia";
 import {
@@ -7,13 +8,13 @@ import {
   type IdentificadorEditable,
   type IdentificadorEnUso,
 } from "../../dominio/identificadores";
-import type { EstadoAnimal, FormaConcepcion, Sexo, TipoIdentificador } from "../../dominio/tipos";
+import type { EstadoAnimal, FormaConcepcion, OrigenAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
 import { Cambios, exigirPermiso } from "../cambios";
 import type { Conexion, ContextoCambio, ValorSql } from "../conexion";
 import { ErrorDeRegistro, rechazarSi, type Motivo } from "../errores";
 import { consultarDescendientes, consultarHijos, obtenerGenealogico } from "./genealogia";
 
-export type { EstadoAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
+export type { EstadoAnimal, OrigenAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
 
 /** Datos que el formulario de un animal envía para crearlo o modificarlo. */
 export interface DatosAnimal {
@@ -22,8 +23,14 @@ export interface DatosAnimal {
   fechaNacimiento: string | null;
   colorSenas: string | null;
   estado: EstadoAnimal;
-  /** SUPOSICION: false = registrado solo para la genealogía (nunca estuvo en la finca). */
+  /** SUPOSICION: false = registrado solo para la genealogía (nunca estuvo en la finca). Un externo siempre es false. */
   enHato: boolean;
+  /** R29 (especificación 2): nacido aquí, comprado o de otra finca («externo»). */
+  origen: OrigenAnimal;
+  /** Propietario de un animal externo (o vendedor de uno comprado, Etapa 9). */
+  contactoId: string | null;
+  /** Fecha en que un animal comprado llegó a la finca (Etapa 9). */
+  fechaIngreso: string | null;
   /** Ruta relativa a la carpeta de datos, por ejemplo «fotos/…jpg». */
   foto: string | null;
   libroId: string | null;
@@ -48,6 +55,16 @@ export interface FraccionConNombre extends FraccionRacial {
   raza: string;
 }
 
+/** Propietario de un animal de otra finca, tal como se muestra en su ficha. */
+export interface Propietario {
+  id: string;
+  nombre: string;
+  criadero: string | null;
+  municipio: string | null;
+  telefono: string | null;
+  correo: string | null;
+}
+
 /** Ficha completa de un animal. */
 export interface Animal extends DatosAnimal {
   id: string;
@@ -57,6 +74,7 @@ export interface Animal extends DatosAnimal {
   madre: Pariente | null;
   libro: string | null;
   lote: string | null;
+  propietario: Propietario | null;
   creadoEn: string;
   modificadoEn: string;
 }
@@ -68,6 +86,9 @@ export interface AnimalResumen {
   fechaNacimiento: string | null;
   estado: EstadoAnimal;
   enHato: boolean;
+  origen: OrigenAnimal;
+  /** «Nombre · Criadero» del propietario, en los animales de otras fincas. */
+  propietario: string | null;
   loteId: string | null;
   lote: string | null;
   tipoIdentificador: TipoIdentificador | null;
@@ -96,6 +117,9 @@ export function animalVacio(): DatosAnimal {
     colorSenas: null,
     estado: "activo",
     enHato: true,
+    origen: "nacido_aqui",
+    contactoId: null,
+    fechaIngreso: null,
     foto: null,
     libroId: null,
     loteId: null,
@@ -110,23 +134,47 @@ export function animalVacio(): DatosAnimal {
   };
 }
 
+/** Datos vacíos para registrar un animal de otra finca (R29). SUPOSICION: casi siempre son sementales. */
+export function animalExternoVacio(): DatosAnimal {
+  return { ...animalVacio(), sexo: "macho", origen: "externo", enHato: false };
+}
+
 const escaparLike = (texto: string) => texto.replace(/[\\%_]/g, (c) => `\\${c}`);
 
+/** «Nombre · Criadero» del propietario (SQL), para las listas. */
+export const SQL_PROPIETARIO = "CASE WHEN c.id IS NULL THEN NULL ELSE c.nombre || coalesce(' · ' || c.criadero, '') END";
+
+/**
+ * RF-07: lista de animales. Por defecto, solo los del hato (el inventario): R29, los de otras fincas y los
+ * registrados solo para la genealogía tienen `en_hato` = 0 y salen con `incluirSoloGenealogia` o en `listarExternos`.
+ */
 export async function listarAnimales(conexion: Conexion, filtro: FiltroAnimales = {}): Promise<AnimalResumen[]> {
+  return consultarResumenes(conexion, filtro, filtro.incluirSoloGenealogia ? "todos" : "hato");
+}
+
+/** R29: la lista «De otras fincas»: los externos y los registrados solo para la genealogía en la versión 0.1.0. */
+export function listarExternos(conexion: Conexion, filtro: Pick<FiltroAnimales, "texto" | "sexo"> = {}): Promise<AnimalResumen[]> {
+  return consultarResumenes(conexion, filtro, "fuera");
+}
+
+async function consultarResumenes(conexion: Conexion, filtro: FiltroAnimales, cuales: "hato" | "fuera" | "todos"): Promise<AnimalResumen[]> {
   const texto = filtro.texto?.trim() ? `%${escaparLike(filtro.texto.trim())}%` : null;
+  const enHato = cuales === "hato" ? 1 : cuales === "fuera" ? 0 : null;
   const filas = await conexion.consultar<Omit<AnimalResumen, "enHato"> & { enHato: number }>(
     `SELECT a.id, a.nombre, a.sexo, a.fecha_nacimiento AS fechaNacimiento, a.estado, a.en_hato AS enHato,
+            a.origen, ${SQL_PROPIETARIO} AS propietario,
             a.lote_id AS loteId, l.nombre AS lote,
             i.tipo AS tipoIdentificador, i.valor AS identificador,
             a.observaciones, a.creado_en AS creadoEn
      FROM animal AS a
      LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
      LEFT JOIN lote AS l ON l.id = a.lote_id
+     LEFT JOIN contacto AS c ON c.id = a.contacto_id
      WHERE a.eliminado_en IS NULL
        AND (? IS NULL OR a.sexo = ?)
        AND (? IS NULL OR a.estado = ?)
        AND (? IS NULL OR a.lote_id = ?)
-       AND (? = 1 OR a.en_hato = 1)
+       AND (? IS NULL OR a.en_hato = ?)
        AND (? IS NULL
             OR a.nombre LIKE ? ESCAPE '\\'
             OR EXISTS (SELECT 1 FROM identificador AS x
@@ -139,7 +187,8 @@ export async function listarAnimales(conexion: Conexion, filtro: FiltroAnimales 
       filtro.estado ?? null,
       filtro.loteId ?? null,
       filtro.loteId ?? null,
-      filtro.incluirSoloGenealogia ? 1 : 0,
+      enHato,
+      enHato,
       texto,
       texto,
       texto,
@@ -148,7 +197,7 @@ export async function listarAnimales(conexion: Conexion, filtro: FiltroAnimales 
   return filas.map((f) => ({ ...f, enHato: f.enHato === 1 }));
 }
 
-/** Animales activos del hato, para el inicio. */
+/** Animales activos del hato, para el inicio. R29: los de otras fincas no cuentan (tampoco en el tope de la Etapa 14). */
 export async function contarAnimales(conexion: Conexion): Promise<{ total: number; hembras: number; machos: number }> {
   const [fila] = await conexion.consultar<{ total: number; hembras: number; machos: number }>(
     `SELECT count(*) AS total,
@@ -173,6 +222,13 @@ export async function obtenerAnimal(conexion: Conexion, id: string): Promise<Ani
     [id],
   );
   if (!fila) return null;
+  const [propietario] =
+    typeof fila.contacto_id === "string"
+      ? await conexion.consultar<Propietario>(
+          "SELECT id, nombre, criadero, municipio, telefono, correo FROM contacto WHERE id = ?",
+          [fila.contacto_id],
+        )
+      : [];
 
   const identificadores = await conexion.consultar<{
     id: string;
@@ -212,6 +268,9 @@ export async function obtenerAnimal(conexion: Conexion, id: string): Promise<Ani
     colorSenas: texto(fila.color_senas),
     estado: fila.estado as EstadoAnimal,
     enHato: fila.en_hato === 1,
+    origen: fila.origen as OrigenAnimal,
+    contactoId: texto(fila.contacto_id),
+    fechaIngreso: texto(fila.fecha_ingreso),
     foto: texto(fila.foto),
     libroId: texto(fila.libro_id),
     loteId: texto(fila.lote_id),
@@ -227,6 +286,7 @@ export async function obtenerAnimal(conexion: Conexion, id: string): Promise<Ani
     madre: await pariente(fila.madre_id),
     libro: texto(fila.libro),
     lote: texto(fila.lote),
+    propietario: propietario ?? null,
     creadoEn: String(fila.creado_en),
     modificadoEn: String(fila.modificado_en),
   };
@@ -241,7 +301,11 @@ function aFila(datos: DatosAnimal): Record<string, ValorSql> {
     fecha_nacimiento: texto(datos.fechaNacimiento),
     color_senas: texto(datos.colorSenas),
     estado: datos.estado,
-    en_hato: datos.enHato ? 1 : 0,
+    // R29: un animal de otra finca nunca es del hato.
+    en_hato: datos.origen !== "externo" && datos.enHato ? 1 : 0,
+    origen: datos.origen,
+    contacto_id: datos.contactoId,
+    fecha_ingreso: texto(datos.fechaIngreso),
     foto: datos.foto,
     libro_id: datos.libroId,
     lote_id: datos.loteId,
@@ -269,7 +333,16 @@ async function validarAnimal(
     else if (datos.fechaNacimiento > hoy) motivos.push({ codigo: "fecha_futura", campo: "fechaNacimiento" });
   }
   // SUPOSICION: un animal debe poder reconocerse por su nombre o por algún identificador.
-  if (!datos.nombre?.trim() && datos.identificadores.length === 0) motivos.push({ codigo: "sin_nombre_ni_identificador" });
+  if (datos.origen !== "externo" && !datos.nombre?.trim() && datos.identificadores.length === 0) {
+    motivos.push({ codigo: "sin_nombre_ni_identificador" });
+  }
+  // R29: datos mínimos de un animal de otra finca (nombre, sexo y propietario), sin lote.
+  if (datos.origen === "externo") motivos.push(...validarExterno(datos));
+  if (datos.contactoId) {
+    const [contacto] = await conexion.consultar<{ id: string }>("SELECT id FROM contacto WHERE id = ? AND eliminado_en IS NULL", [datos.contactoId]);
+    if (!contacto) motivos.push({ codigo: "no_encontrado" });
+  }
+  if (datos.fechaIngreso !== null && !esFechaValida(datos.fechaIngreso)) motivos.push({ codigo: "fecha_invalida", campo: "fecha_ingreso" });
 
   // R1
   const padre = datos.padreId ? await obtenerGenealogico(conexion, datos.padreId) : null;
@@ -410,9 +483,29 @@ async function prepararComposicion(
   }
 }
 
-/** Borrado lógico de un animal registrado por error, con sus identificadores y su composición. */
+/**
+ * Borrado lógico de un animal registrado por error, con sus identificadores y su composición.
+ * R29: uno de otra finca que es ancestro de un animal del hato no se puede retirar.
+ */
 export async function eliminarAnimal(conexion: Conexion, animalId: string, contexto: ContextoCambio): Promise<void> {
   exigirPermiso(contexto, "editar_animal");
+  const [animal] = await conexion.consultar<{ origen: OrigenAnimal; enHato: number }>(
+    "SELECT origen, en_hato AS enHato FROM animal WHERE id = ? AND eliminado_en IS NULL",
+    [animalId],
+  );
+  if (!animal) throw new ErrorDeRegistro([{ codigo: "no_encontrado" }]);
+  const descendientes = [...(await consultarDescendientes(conexion, animalId))];
+  const delHato =
+    descendientes.length === 0
+      ? []
+      : await conexion.consultar<{ nombre: string }>(
+          `SELECT coalesce(a.nombre, i.valor, '') AS nombre FROM animal AS a
+           LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
+           WHERE a.id IN (${descendientes.map(() => "?").join(", ")}) AND a.en_hato = 1 AND a.origen <> 'externo'
+           ORDER BY a.fecha_nacimiento`,
+          descendientes,
+        );
+  rechazarSi(validarRetiroDeExterno({ origen: animal.origen, enHato: animal.enHato === 1 }, delHato.map((d) => d.nombre)));
   const cambios = new Cambios(contexto);
   for (const tabla of ["identificador", "composicion_racial"] as const) {
     const filas = await conexion.consultar<{ id: string }>(

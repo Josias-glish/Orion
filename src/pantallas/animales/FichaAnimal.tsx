@@ -16,6 +16,7 @@ import { edadEnMeses, fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { textos } from "../../textos/es";
 import { Genealogia } from "./Genealogia";
 import { HistorialAnimal } from "./HistorialAnimal";
+import { ServiciosMacho } from "./ServiciosMacho";
 
 export const nombreVisible = (a: Pick<Animal, "nombre" | "identificadores">) =>
   a.nombre ?? a.identificadores.find((i) => i.principal)?.valor ?? textos.animales.sinNombre;
@@ -35,8 +36,12 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
 
   return (
     <section className="pantalla pantalla--ancha">
-      <button type="button" className="enlace" onClick={() => navegar({ pantalla: "animales" })}>
-        {t.volver}
+      <button
+        type="button"
+        className="enlace"
+        onClick={() => navegar({ pantalla: "animales", vista: animal.enHato ? "hato" : "externos" })}
+      >
+        {animal.enHato ? t.volver : t.volverExternos}
       </button>
       <div className="encabezado">
         <h1 data-prueba="titulo-animal">
@@ -46,7 +51,11 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
           )}
         </h1>
         <span className={`insignia insignia--${animal.estado}`}>{textos.comun.estado[animal.estado]}</span>
-        {!animal.enHato && <span className="insignia">{textos.animales.soloGenealogia}</span>}
+        {!animal.enHato && (
+          <span className="insignia" data-prueba="insignia-origen">
+            {animal.origen === "externo" ? textos.animales.deOtraFinca : textos.animales.soloGenealogia}
+          </span>
+        )}
       </div>
       {alertas && alertas.length > 0 && (
         <div className="alerta-ficha" data-prueba="alerta-retiro-ficha">
@@ -66,10 +75,16 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
         opciones={[
           { valor: "ficha", texto: t.pestanas.ficha },
           { valor: "genealogia", texto: t.pestanas.genealogia },
-          ...(animal.sexo === "hembra" ? [{ valor: "reproduccion" as const, texto: t.pestanas.reproduccion }] : []),
-          { valor: "pesos", texto: t.pestanas.pesos },
-          { valor: "salud", texto: t.pestanas.salud },
-          { valor: "documentos", texto: t.pestanas.documentos },
+          // R29: un animal de otra finca no tiene reproducción, pesos, salud ni documentos en esta finca.
+          ...(animal.sexo === "hembra" && animal.enHato ? [{ valor: "reproduccion" as const, texto: t.pestanas.reproduccion }] : []),
+          ...(animal.sexo === "macho" ? [{ valor: "servicios" as const, texto: t.pestanas.servicios }] : []),
+          ...(animal.enHato
+            ? [
+                { valor: "pesos" as const, texto: t.pestanas.pesos },
+                { valor: "salud" as const, texto: t.pestanas.salud },
+                { valor: "documentos" as const, texto: t.pestanas.documentos },
+              ]
+            : []),
           { valor: "historial", texto: t.pestanas.historial },
         ]}
         actual={pestana}
@@ -78,6 +93,7 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
       {pestana === "ficha" && <DatosFicha animal={animal} />}
       {pestana === "genealogia" && <Genealogia animalId={id} />}
       {pestana === "reproduccion" && animal.sexo === "hembra" && <ReproduccionAnimal animal={animal} />}
+      {pestana === "servicios" && animal.sexo === "macho" && <ServiciosMacho machoId={id} />}
       {pestana === "pesos" && <PesosAnimal animalId={id} />}
       {pestana === "salud" && <SaludAnimal animalId={id} disponible={animal.estado === "activo" && animal.enHato} />}
       {pestana === "documentos" && <DocumentosAnimal animalId={id} />}
@@ -160,6 +176,8 @@ function DatosFicha({ animal }: { animal: Animal }) {
   const navegar = useNavegar();
   const contexto = useContextoCambio();
   const puedeEditar = usePermiso("editar_animal");
+  // R28 (SUPOSICION): el teléfono y el correo del propietario solo los ve quien puede ver los contactos.
+  const verContactos = usePermiso("ver_contactos");
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const { datos: hijos } = useCarga(() => consultarHijos(conexion, animal.id), [conexion, animal.id]);
@@ -171,7 +189,7 @@ function DatosFicha({ animal }: { animal: Animal }) {
   async function retirar() {
     try {
       await eliminarAnimal(conexion, animal.id, contexto());
-      navegar({ pantalla: "animales" });
+      navegar({ pantalla: "animales", vista: animal.enHato ? "hato" : "externos" });
     } catch (e) {
       setError(e);
     }
@@ -202,8 +220,23 @@ function DatosFicha({ animal }: { animal: Animal }) {
           <dd>{animal.colorSenas ?? textos.comun.sinDato}</dd>
           <dt>{c.estado}</dt>
           <dd>{textos.comun.estado[animal.estado]}</dd>
-          <dt>{c.enHato}</dt>
-          <dd>{animal.enHato ? textos.comun.si : textos.comun.no}</dd>
+          <dt>{c.origen}</dt>
+          <dd data-prueba="origen">{animal.enHato || animal.origen === "externo" ? textos.comun.origen[animal.origen] : textos.animales.soloGenealogia}</dd>
+          {animal.propietario && (
+            <>
+              <dt>{c.propietario}</dt>
+              <dd data-prueba="propietario">
+                {[
+                  animal.propietario.nombre,
+                  animal.propietario.criadero,
+                  animal.propietario.municipio,
+                  ...(verContactos ? [animal.propietario.telefono, animal.propietario.correo] : []),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </dd>
+            </>
+          )}
           <dt>{c.padre}</dt>
           <dd data-prueba="padre">
             <EnlacePariente pariente={animal.padre} sinVerificar={animal.padreSinVerificar} />
@@ -216,8 +249,12 @@ function DatosFicha({ animal }: { animal: Animal }) {
           <dd>{animal.libro ?? textos.comun.sinDato}</dd>
           <dt>{c.formaConcepcion}</dt>
           <dd>{animal.formaConcepcion ? textos.comun.formaConcepcion[animal.formaConcepcion] : textos.comun.sinDato}</dd>
-          <dt>{c.lote}</dt>
-          <dd>{animal.lote ?? textos.comun.sinDato}</dd>
+          {animal.enHato && (
+            <>
+              <dt>{c.lote}</dt>
+              <dd>{animal.lote ?? textos.comun.sinDato}</dd>
+            </>
+          )}
           <dt>{t.razaTitulo}</dt>
           <dd data-prueba="composicion">
             {animal.composicion.length === 0

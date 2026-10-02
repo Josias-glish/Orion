@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Campo, Casilla } from "../../componentes/Campo";
+import { Campo } from "../../componentes/Campo";
 import { useConexion, useNavegar, usePermiso } from "../../componentes/contextos";
 import { useCarga } from "../../componentes/useCarga";
 import { listarAnimales, type FiltroAnimales } from "../../datos/repositorios/animales";
@@ -11,7 +11,7 @@ import { textos } from "../../textos/es";
 /** Se conserva mientras el programa está abierto, para volver a la lista con el mismo filtro. */
 let ultimoFiltro: FiltroAnimales = {};
 
-/** RF-01 y RF-07: lista de animales con búsqueda y filtros. */
+/** RF-01 y RF-07: lista de los animales del hato (el inventario), con búsqueda y filtros. */
 export function ListaAnimales() {
   const conexion = useConexion();
   const navegar = useNavegar();
@@ -28,15 +28,14 @@ export function ListaAnimales() {
   const hayFiltro = Boolean(filtro.texto || filtro.sexo || filtro.estado || filtro.loteId);
 
   return (
-    <section className="pantalla pantalla--ancha">
-      <div className="encabezado">
-        <h1>{t.titulo}</h1>
-        {puedeCrear && (
+    <div>
+      {puedeCrear && (
+        <div className="acciones">
           <button type="button" className="boton" onClick={() => navegar({ pantalla: "nuevoAnimal" })} data-prueba="registrar-animal">
             {t.registrar}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="filtros">
         <Campo etiqueta={t.buscar} ancho="largo">
@@ -80,11 +79,6 @@ export function ListaAnimales() {
             ))}
           </select>
         </Campo>
-        <Casilla
-          etiqueta={t.incluirGenealogia}
-          marcada={Boolean(filtro.incluirSoloGenealogia)}
-          alCambiar={(v) => setFiltro({ ...filtro, incluirSoloGenealogia: v })}
-        />
       </div>
 
       {animales === null ? (
@@ -122,7 +116,6 @@ export function ListaAnimales() {
                     >
                       {a.nombre ?? t.sinNombre}
                     </button>
-                    {!a.enHato && <span className="insignia">{t.soloGenealogia}</span>}
                   </td>
                   <td>{textos.comun.sexo[a.sexo]}</td>
                   <td>
@@ -138,6 +131,6 @@ export function ListaAnimales() {
           </table>
         </>
       )}
-    </section>
+    </div>
   );
 }

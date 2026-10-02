@@ -2,22 +2,29 @@ import { composicionDeCria, type FraccionRacial } from "../../dominio/composicio
 import { esFechaValida, fechaLocal, sumarDias } from "../../dominio/fechas";
 import { validarGenealogia } from "../../dominio/genealogia";
 import { normalizarValor, validarIdentificadores, type IdentificadorEditable } from "../../dominio/identificadores";
+import { esDelHato } from "../../dominio/externos";
 import {
+  analizarPaternidad,
+  elegirPadre,
   fechaProbableParto,
   intervalosEntrePartos,
-  padreDelParto,
+  MARGEN_GESTACION_POR_DEFECTO,
   planificarCrias,
   promedio,
+  validarServicio,
+  type AnalisisPaternidad,
+  type CandidatoPadre,
   type CriaAnotada,
+  type EleccionPadre,
   type ResultadoServicio,
   type ServicioResumido,
   type TipoServicio,
 } from "../../dominio/reproduccion";
-import type { EstadoAnimal, Sexo } from "../../dominio/tipos";
+import type { EstadoAnimal, OrigenAnimal, Sexo } from "../../dominio/tipos";
 import { Cambios, exigirPermiso } from "../cambios";
 import type { Conexion, ContextoCambio } from "../conexion";
 import { ErrorDeRegistro, rechazarSi, type Motivo } from "../errores";
-import { animalVacio, identificadoresEnUso, prepararAnimalNuevo } from "./animales";
+import { animalVacio, identificadoresEnUso, prepararAnimalNuevo, SQL_PROPIETARIO } from "./animales";
 import { obtenerFinca } from "./finca";
 
 /** SUPOSICION: si todavía no hay finca (pruebas), se usan los valores por defecto de la especificación. */
@@ -31,12 +38,13 @@ export interface AnimalBasico {
   fechaNacimiento: string | null;
   estado: EstadoAnimal;
   enHato: boolean;
+  origen: OrigenAnimal;
 }
 
 export async function obtenerAnimalBasico(conexion: Conexion, id: string): Promise<AnimalBasico | null> {
   const [fila] = await conexion.consultar<Omit<AnimalBasico, "enHato"> & { enHato: number }>(
     `SELECT a.id, coalesce(a.nombre, i.valor, '') AS nombre, a.sexo, a.fecha_nacimiento AS fechaNacimiento,
-            a.estado, a.en_hato AS enHato
+            a.estado, a.en_hato AS enHato, a.origen
      FROM animal AS a
      LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
      WHERE a.id = ? AND a.eliminado_en IS NULL`,
@@ -45,9 +53,9 @@ export async function obtenerAnimalBasico(conexion: Conexion, id: string): Promi
   return fila ? { ...fila, enHato: fila.enHato === 1 } : null;
 }
 
-/** R11: un animal vendido o muerto (o que no es del hato) no participa en servicios ni en el ordeño. */
+/** R11 y R29: un animal vendido o muerto, o que no es del hato, no participa en servicios ni en el ordeño. */
 export function estaDisponible(a: AnimalBasico): boolean {
-  return a.estado === "activo" && a.enHato;
+  return a.estado === "activo" && esDelHato(a);
 }
 
 /** Fecha válida, no futura y no anterior al nacimiento del animal. */
@@ -64,6 +72,10 @@ async function diasGestacion(conexion: Conexion): Promise<number> {
   return (await obtenerFinca(conexion))?.diasGestacion ?? DIAS_GESTACION_POR_DEFECTO;
 }
 
+async function margenGestacion(conexion: Conexion): Promise<number> {
+  return (await obtenerFinca(conexion))?.margenGestacion ?? MARGEN_GESTACION_POR_DEFECTO;
+}
+
 // ---------------------------------------------------------------- Servicios (RF-18, RF-19, RF-21)
 
 export interface DatosServicio {
@@ -73,73 +85,83 @@ export interface DatosServicio {
   pajilla: string | null;
   fecha: string;
   observaciones: string | null;
+  /** R30: con un macho de otra finca, el costo acordado (pesos, opcional) y las condiciones con su dueño. */
+  costo?: number | null;
+  condiciones?: string | null;
 }
 
 export interface Servicio extends ServicioResumido {
   hembraId: string;
   hembra: string;
   macho: string | null;
+  /** R30: el macho es de otra finca (o se registró solo para la genealogía). */
+  machoExterno: boolean;
+  /** «Nombre · Criadero» del dueño del macho de otra finca. */
+  propietarioMacho: string | null;
   pajilla: string | null;
   fechaDiagnostico: string | null;
   fechaProbableParto: string | null;
   observaciones: string | null;
+  costo: number | null;
+  condiciones: string | null;
 }
 
 const SELECT_SERVICIO = `
   SELECT e.id, e.hembra_id AS hembraId, coalesce(h.nombre, ih.valor, '') AS hembra,
-         e.macho_id AS machoId, coalesce(m.nombre, im.valor) AS macho, e.pajilla, e.tipo, e.fecha, e.resultado,
-         e.fecha_diagnostico AS fechaDiagnostico, e.fecha_probable_parto AS fechaProbableParto, e.observaciones
+         e.macho_id AS machoId, coalesce(m.nombre, im.valor) AS macho,
+         coalesce(m.en_hato = 0, 0) AS machoExterno, ${SQL_PROPIETARIO} AS propietarioMacho,
+         e.pajilla, e.tipo, e.fecha, e.resultado,
+         e.fecha_diagnostico AS fechaDiagnostico, e.fecha_probable_parto AS fechaProbableParto, e.observaciones,
+         e.costo, e.condiciones
   FROM evento_reproductivo AS e
   JOIN animal AS h ON h.id = e.hembra_id
   LEFT JOIN identificador AS ih ON ih.animal_id = h.id AND ih.principal = 1 AND ih.eliminado_en IS NULL
   LEFT JOIN animal AS m ON m.id = e.macho_id
-  LEFT JOIN identificador AS im ON im.animal_id = m.id AND im.principal = 1 AND im.eliminado_en IS NULL`;
+  LEFT JOIN identificador AS im ON im.animal_id = m.id AND im.principal = 1 AND im.eliminado_en IS NULL
+  LEFT JOIN contacto AS c ON c.id = m.contacto_id`;
 
-/** Hembras que pueden recibir un servicio o parir (R11: activas y del hato). */
+type FilaServicio = Omit<Servicio, "machoExterno"> & { machoExterno: number };
+const aServicio = (f: FilaServicio): Servicio => ({ ...f, machoExterno: f.machoExterno === 1 });
+
+/** Hembras que pueden recibir un servicio o parir (R11 y R29: activas y del hato). */
 export async function listarHembrasDisponibles(conexion: Conexion): Promise<AnimalBasico[]> {
-  return listarDisponibles(conexion, "hembra", true);
+  return listarDisponibles(conexion, "hembra", 1);
 }
 
 /**
- * Machos para un servicio (R11: activos). SUPOSICION: para una inseminación también sirven los machos
- * registrados solo para la genealogía (el donante de la pajilla); para una monta, solo los del hato.
+ * R30. Machos activos para un servicio: los del hato o los de otras fincas (incluidos los registrados solo para la
+ * genealogía en la versión 0.1.0, por ejemplo el donante de una pajilla).
  */
-export async function listarMachosDisponibles(conexion: Conexion, tipo: TipoServicio): Promise<AnimalBasico[]> {
-  return listarDisponibles(conexion, "macho", tipo === "monta");
+export async function listarMachosDisponibles(conexion: Conexion, procedencia: "hato" | "otra_finca"): Promise<AnimalBasico[]> {
+  return listarDisponibles(conexion, "macho", procedencia === "hato" ? 1 : 0);
 }
 
-async function listarDisponibles(conexion: Conexion, sexo: Sexo, soloHato: boolean): Promise<AnimalBasico[]> {
+async function listarDisponibles(conexion: Conexion, sexo: Sexo, enHato: 0 | 1): Promise<AnimalBasico[]> {
   const filas = await conexion.consultar<Omit<AnimalBasico, "enHato"> & { enHato: number }>(
     `SELECT a.id, coalesce(a.nombre, i.valor, '') AS nombre, a.sexo, a.fecha_nacimiento AS fechaNacimiento,
-            a.estado, a.en_hato AS enHato
+            a.estado, a.en_hato AS enHato, a.origen
      FROM animal AS a
      LEFT JOIN identificador AS i ON i.animal_id = a.id AND i.principal = 1 AND i.eliminado_en IS NULL
-     WHERE a.eliminado_en IS NULL AND a.sexo = ? AND a.estado = 'activo' AND (? = 0 OR a.en_hato = 1)
+     WHERE a.eliminado_en IS NULL AND a.sexo = ? AND a.estado = 'activo' AND a.en_hato = ?
      ORDER BY nombre COLLATE NOCASE`,
-    [sexo, soloHato ? 1 : 0],
+    [sexo, enHato],
   );
   return filas.map((f) => ({ ...f, enHato: f.enHato === 1 }));
 }
 
+/** RF-18 y R30: registra un servicio con un macho del hato, uno de otra finca o solo la pajilla. */
 export async function registrarServicio(conexion: Conexion, datos: DatosServicio, contexto: ContextoCambio): Promise<string> {
   exigirPermiso(contexto, "registrar_servicio");
   const hoy = fechaLocal();
-  const motivos: Motivo[] = [];
   const hembra = await obtenerAnimalBasico(conexion, datos.hembraId);
   const macho = datos.machoId ? await obtenerAnimalBasico(conexion, datos.machoId) : null;
   if (!hembra || (datos.machoId && !macho)) throw new ErrorDeRegistro([{ codigo: "no_encontrado" }]);
-  if (hembra.sexo !== "hembra") motivos.push({ codigo: "debe_ser_hembra", otro: hembra.nombre });
-  if (!estaDisponible(hembra)) motivos.push({ codigo: "animal_no_disponible", otro: hembra.nombre });
-  if (macho) {
-    if (macho.sexo !== "macho") motivos.push({ codigo: "debe_ser_macho", otro: macho.nombre });
-    if (macho.estado !== "activo" || (datos.tipo === "monta" && !macho.enHato)) {
-      motivos.push({ codigo: "animal_no_disponible", otro: macho.nombre });
-    }
-  }
-  // SUPOSICION: una monta necesita el macho; una inseminación, el macho o el código de la pajilla.
-  if (datos.tipo === "monta" && !macho) motivos.push({ codigo: "monta_sin_macho" });
-  if (datos.tipo === "inseminacion" && !macho && !datos.pajilla?.trim()) motivos.push({ codigo: "inseminacion_sin_dato" });
-  motivos.push(...validarFechaEvento(datos.fecha, hembra, hoy));
+  const costo = datos.costo ?? null;
+  const condiciones = datos.condiciones?.trim() || null;
+  const motivos: Motivo[] = [
+    ...validarServicio({ tipo: datos.tipo, pajilla: datos.pajilla, costo, condiciones }, hembra, macho),
+    ...validarFechaEvento(datos.fecha, hembra, hoy),
+  ];
   rechazarSi(motivos);
 
   const cambios = new Cambios(contexto);
@@ -152,6 +174,8 @@ export async function registrarServicio(conexion: Conexion, datos: DatosServicio
     resultado: "pendiente",
     fecha_probable_parto: fechaProbableParto(datos.fecha, await diasGestacion(conexion)),
     observaciones: datos.observaciones?.trim() || null,
+    costo,
+    condiciones,
   });
   await cambios.aplicar(conexion);
   return id;
@@ -190,7 +214,7 @@ export async function listarServicios(
   conexion: Conexion,
   filtro: { hembraId?: string; soloPendientes?: boolean } = {},
 ): Promise<Servicio[]> {
-  return conexion.consultar<Servicio>(
+  const filas = await conexion.consultar<FilaServicio>(
     `${SELECT_SERVICIO}
      WHERE e.eliminado_en IS NULL
        AND (? IS NULL OR e.hembra_id = ?)
@@ -198,6 +222,45 @@ export async function listarServicios(
      ORDER BY e.fecha DESC`,
     [filtro.hembraId ?? null, filtro.hembraId ?? null, filtro.soloPendientes ? 1 : 0],
   );
+  return filas.map(aServicio);
+}
+
+export interface ServicioComoMacho extends Servicio {
+  /** Crías nacidas de los partos registrados con este servicio. */
+  crias: number;
+}
+
+export interface HistorialMacho {
+  servicios: ServicioComoMacho[];
+  resumen: { servicios: number; prenadas: number; vacias: number; abortos: number; pendientes: number; partos: number; crias: number };
+}
+
+/** R30: historial de servicios de un macho (del hato o de otra finca) y sus resultados. */
+export async function serviciosComoMacho(conexion: Conexion, machoId: string): Promise<HistorialMacho> {
+  const filas = await conexion.consultar<FilaServicio & { crias: number; partos: number }>(
+    `${SELECT_SERVICIO.replace(
+      "e.costo, e.condiciones",
+      `e.costo, e.condiciones,
+         (SELECT coalesce(sum(p.numero_crias), 0) FROM parto AS p WHERE p.evento_reproductivo_id = e.id AND p.eliminado_en IS NULL) AS crias,
+         (SELECT count(*) FROM parto AS p WHERE p.evento_reproductivo_id = e.id AND p.eliminado_en IS NULL) AS partos`,
+    )}
+     WHERE e.eliminado_en IS NULL AND e.macho_id = ?
+     ORDER BY e.fecha DESC`,
+    [machoId],
+  );
+  const contar = (r: ResultadoServicio) => filas.filter((f) => f.resultado === r).length;
+  return {
+    servicios: filas.map(({ partos: _partos, ...f }) => ({ ...aServicio(f), crias: f.crias })),
+    resumen: {
+      servicios: filas.length,
+      prenadas: contar("prenada"),
+      vacias: contar("vacia"),
+      abortos: contar("aborto"),
+      pendientes: contar("pendiente"),
+      partos: filas.reduce((s, f) => s + f.partos, 0),
+      crias: filas.reduce((s, f) => s + f.crias, 0),
+    },
+  };
 }
 
 /**
@@ -205,7 +268,7 @@ export async function listarServicios(
  * después del servicio. SUPOSICION: se muestran desde 15 días atrasados hasta `dias` días adelante.
  */
 export async function listarPartosProximos(conexion: Conexion, hoy: string, dias = 30): Promise<Servicio[]> {
-  return conexion.consultar<Servicio>(
+  const filas = await conexion.consultar<FilaServicio>(
     `${SELECT_SERVICIO}
      WHERE e.eliminado_en IS NULL AND e.resultado IN ('prenada', 'pendiente')
        AND h.estado = 'activo' AND h.en_hato = 1 AND h.eliminado_en IS NULL
@@ -215,6 +278,7 @@ export async function listarPartosProximos(conexion: Conexion, hoy: string, dias
      ORDER BY e.fecha_probable_parto`,
     [sumarDias(hoy, -15), sumarDias(hoy, dias)],
   );
+  return filas.map(aServicio);
 }
 
 // ---------------------------------------------------------------- Partos (RF-20, R5)
@@ -224,6 +288,8 @@ export interface DatosParto {
   fecha: string;
   crias: CriaAnotada[];
   observaciones: string | null;
+  /** R30: el padre que eligió el usuario. Obligatorio cuando la paternidad es incierta. */
+  padre?: EleccionPadre;
 }
 
 export interface ResultadoParto {
@@ -233,12 +299,50 @@ export interface ResultadoParto {
   padreId: string | null;
 }
 
-/** Lo que el programa propondrá como padre antes de registrar el parto (para mostrarlo en la pantalla). */
-export async function padrePropuesto(conexion: Conexion, hembraId: string, fecha: string) {
+/** Un padre posible, con lo que la pantalla necesita mostrar. */
+export interface CandidatoConNombre extends CandidatoPadre {
+  macho: string | null;
+  machoExterno: boolean;
+  propietario: string | null;
+}
+
+export interface PaternidadDelParto extends Omit<AnalisisPaternidad, "candidatos"> {
+  candidatos: CandidatoConNombre[];
+  /** El servicio del padre propuesto por R5 (para mostrar su macho, pajilla y fecha). */
+  servicioPropuesto: Servicio | null;
+}
+
+/** Fecha del último parto de la hembra antes de `fecha` (sus servicios anteriores ya dieron crías). */
+async function partoAnterior(conexion: Conexion, hembraId: string, fecha: string): Promise<string | null> {
+  const [fila] = await conexion.consultar<{ fecha: string | null }>(
+    "SELECT max(fecha) AS fecha FROM parto WHERE hembra_id = ? AND fecha < ? AND eliminado_en IS NULL",
+    [hembraId, fecha],
+  );
+  return fila?.fecha ?? null;
+}
+
+/**
+ * R5 y R30 (CA-15): quién puede ser el padre de un parto. El programa propone el último servicio «preñada» y avisa si
+ * dentro de la ventana de gestación hubo servicios con machos distintos.
+ */
+export async function analisisDePaternidad(conexion: Conexion, hembraId: string, fecha: string): Promise<PaternidadDelParto> {
   const servicios = await listarServicios(conexion, { hembraId });
-  const padre = padreDelParto(servicios, fecha);
-  const servicio = servicios.find((s) => s.id === padre.servicioId) ?? null;
-  return { ...padre, nombrePadre: servicio?.macho ?? null, pajilla: servicio?.pajilla ?? null, fechaServicio: servicio?.fecha ?? null };
+  const analisis = analizarPaternidad(
+    servicios,
+    fecha,
+    await diasGestacion(conexion),
+    await margenGestacion(conexion),
+    await partoAnterior(conexion, hembraId, fecha),
+  );
+  const porId = new Map(servicios.map((s) => [s.id, s]));
+  return {
+    ...analisis,
+    candidatos: analisis.candidatos.map((c) => {
+      const s = porId.get(c.servicioId)!;
+      return { ...c, macho: s.macho, machoExterno: s.machoExterno, propietario: s.propietarioMacho };
+    }),
+    servicioPropuesto: analisis.propuesto.servicioId ? (porId.get(analisis.propuesto.servicioId) ?? null) : null,
+  };
 }
 
 async function composicionDe(conexion: Conexion, animalId: string | null): Promise<FraccionRacial[]> {
@@ -267,7 +371,12 @@ export async function registrarParto(conexion: Conexion, datos: DatosParto, cont
   if (datos.crias.some((c) => c.pesoNacimiento !== null && !(c.pesoNacimiento > 0))) motivos.push({ codigo: "kilos_invalidos" });
   rechazarSi(motivos);
 
-  const padre = padreDelParto(await listarServicios(conexion, { hembraId: madre.id }), datos.fecha);
+  // R5 y R30: el padre propuesto o, si la paternidad es incierta, el que elija el usuario.
+  const analisis = await analisisDePaternidad(conexion, madre.id, datos.fecha);
+  if (analisis.incierta && !datos.padre) throw new ErrorDeRegistro([{ codigo: "elegir_padre" }]);
+  const eleccion = datos.padre ? elegirPadre(analisis, datos.padre) : { padre: analisis.propuesto, motivos: [] };
+  rechazarSi(eleccion.motivos);
+  const padre = eleccion.padre;
   const datosPadre = padre.padreId ? await obtenerAnimalBasico(conexion, padre.padreId) : null;
   const composicion = composicionDeCria(await composicionDe(conexion, padre.padreId), await composicionDe(conexion, madre.id));
   const fichas = planificarCrias(madre.id, datos.fecha, padre, datos.crias);

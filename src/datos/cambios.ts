@@ -10,6 +10,7 @@ export type Tabla =
   | "raza"
   | "libro"
   | "lote"
+  | "contacto"
   | "animal"
   | "identificador"
   | "composicion_racial"

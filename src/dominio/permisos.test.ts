@@ -47,3 +47,17 @@ describe("R14: reproducción, leche y pesos (Etapa 3)", () => {
     expect(puede("propietario", "registrar_servicio")).toBe(true);
   });
 });
+
+describe("R23 (especificación 2): animales de otras fincas y contactos (Etapa 6)", () => {
+  it("el operario ve las fichas de los externos, pero no crea ni edita externos ni contactos", () => {
+    expect(puede("operario", "ver_fichas")).toBe(true);
+    for (const accion of ["crear_animal", "editar_animal", "editar_contactos", "ver_contactos"] as const) {
+      expect(puede("operario", accion), accion).toBe(false);
+    }
+  });
+
+  it("SUPOSICION (R28, datos mínimos): solo el propietario ve la lista de contactos con teléfonos y correos", () => {
+    expect(puede("propietario", "ver_contactos")).toBe(true);
+    expect(puede("propietario", "editar_contactos")).toBe(true);
+  });
+});

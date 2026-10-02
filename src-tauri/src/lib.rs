@@ -44,6 +44,12 @@ fn migraciones() -> Vec<Migration> {
             sql: include_str!("../../src/datos/migraciones/0004_salud_y_documentos.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "sementales_externos",
+            sql: include_str!("../../src/datos/migraciones/0005_sementales_externos.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -16,6 +16,7 @@ const finca = {
   registroSanitarioPredio: null,
   diasGestacion: 150,
   diasLactancia: 305,
+  margenGestacion: 10,
 };
 
 describe("primer arranque (RF-06)", () => {

@@ -1,6 +1,6 @@
 import { coeficienteConsanguinidad, type NodoPedigri } from "../../dominio/consanguinidad";
 import { compararCaminos, MAX_GENERACIONES_POR_DEFECTO, type AnimalGenealogico, type Camino } from "../../dominio/genealogia";
-import type { EstadoAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
+import type { EstadoAnimal, OrigenAnimal, Sexo, TipoIdentificador } from "../../dominio/tipos";
 import type { Conexion } from "../conexion";
 
 /** Un animal dentro del árbol genealógico. El camino vacío es el propio animal. */
@@ -15,6 +15,9 @@ export interface NodoArbol {
   fechaNacimiento: string | null;
   estado: EstadoAnimal;
   enHato: boolean;
+  /** R29: un ancestro de otra finca aparece en el pedigrí con su propietario («Nombre · Criadero»). */
+  origen: OrigenAnimal;
+  propietario: string | null;
   padreId: string | null;
   madreId: string | null;
   tipoIdentificador: TipoIdentificador | null;
@@ -49,10 +52,12 @@ export async function consultarArbol(
        )
      SELECT x.id, ar.camino, length(ar.camino) AS generacion, ar.sin_verificar AS sinVerificar,
             x.nombre, x.sexo, x.fecha_nacimiento AS fechaNacimiento, x.estado, x.en_hato AS enHato,
+            x.origen, CASE WHEN c.id IS NULL THEN NULL ELSE c.nombre || coalesce(' · ' || c.criadero, '') END AS propietario,
             x.padre_id AS padreId, x.madre_id AS madreId,
             i.tipo AS tipoIdentificador, i.valor AS identificador
      FROM arbol AS ar
      JOIN animal AS x ON x.id = ar.id AND x.eliminado_en IS NULL
+     LEFT JOIN contacto AS c ON c.id = x.contacto_id
      LEFT JOIN identificador AS i
        ON i.animal_id = x.id AND i.principal = 1 AND i.eliminado_en IS NULL`,
     [animalId, generaciones],

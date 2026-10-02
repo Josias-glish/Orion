@@ -1,6 +1,6 @@
 # Cómo instalar Registro Caprino
 
-Guía para instalar **Registro Caprino 0.1.0** en un computador con **Windows 10 u 11** (64 bits) o con **Mac**
+Guía para instalar **Registro Caprino 0.2.0** en un computador con **Windows 10 u 11** (64 bits) o con **Mac**
 (macOS 10.13 o posterior, con chip Apple o Intel). No necesita internet para usar el programa; solo para descargar
 el instalador.
 
@@ -23,8 +23,9 @@ el instalador.
 
 ### Desde la página de versiones (Releases)
 
-1. Abra la página de la versión 0.1.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0>
-   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.1.0»).
+1. Abra la página de la versión 0.2.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.2.0>
+   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.2.0»).
+   La versión anterior, 0.1.0, sigue en <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0>.
 2. Si el repositorio es privado, primero inicie sesión en GitHub con una cuenta que tenga acceso.
 3. Baje hasta **Assets** y descargue el archivo para su computador:
 
@@ -191,7 +192,17 @@ Para no borrar ni mezclar datos sin querer, el programa **solo restaura en una i
 
 1. Antes de actualizar, cree una **copia de respaldo** (sección 5).
 2. Descargue el instalador nuevo e instálelo encima del anterior, como la primera vez. No hace falta desinstalar.
-3. Al abrir, el programa actualiza la base de datos por su cuenta. Sus datos se conservan.
+   En Windows, si el instalador pregunta, elija actualizar o reemplazar la versión instalada.
+3. Al abrir, el programa actualiza la base de datos por su cuenta. Sus datos se conservan (CA-33: se prueba en cada
+   versión con datos de ejemplo de la 0.1.0).
+4. Compruebe que todo sigue ahí: entre con su usuario y su PIN, abra **Animales** y revise que estén sus animales.
+   Abajo, en la barra lateral, debe decir la versión nueva (por ejemplo «Versión 0.2.0»).
+
+**De la 0.1.0 a la 0.2.0.** Aparecen en Animales las pestañas **«De otras fincas»** (sementales y ancestros que no son
+de la finca) y **«Contactos»** (sus propietarios). Si en la 0.1.0 registró animales «solo para la genealogía», ahora
+están en «De otras fincas» como «Sin propietario registrado»; al editarlos, el programa le pedirá el propietario.
+En Ajustes → Finca hay un dato nuevo, el **margen de la gestación** (10 días): sirve para avisar cuando no se sabe cuál
+de dos machos es el padre de un parto.
 
 ---
 

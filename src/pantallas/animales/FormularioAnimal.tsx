@@ -7,6 +7,7 @@ import { SelectorAnimal } from "../../componentes/SelectorAnimal";
 import { useCarga } from "../../componentes/useCarga";
 import { elegirYCopiarFoto } from "../../datos/fotos";
 import {
+  animalExternoVacio,
   animalVacio,
   guardarAnimal,
   listarPosiblesPadres,
@@ -14,6 +15,7 @@ import {
   type DatosAnimal,
 } from "../../datos/repositorios/animales";
 import { listarCatalogo } from "../../datos/repositorios/catalogos";
+import { listarContactos } from "../../datos/repositorios/contactos";
 import { listarLotes } from "../../datos/repositorios/lotes";
 import type { IdentificadorEditable } from "../../dominio/identificadores";
 import {
@@ -26,6 +28,7 @@ import {
   type TipoIdentificador,
 } from "../../dominio/tipos";
 import { textos } from "../../textos/es";
+import { FormularioContacto } from "./FormularioContacto";
 
 /** Fila de composición tal como se escribe (el porcentaje es texto mientras se edita: «12,5»). */
 interface FilaRaza {
@@ -44,8 +47,11 @@ const nuevaClave = () => siguienteClave++;
 const aFraccion = (texto: string) => Number(texto.replace(",", ".")) / 100;
 const aTexto = (fraccion: number) => String(Number((fraccion * 100).toFixed(4))).replace(".", ",");
 
-/** RF-01 a RF-03, RF-08, RF-11 y RF-13: registrar o editar un animal. */
-export function FormularioAnimal({ id }: { id?: string }) {
+/**
+ * RF-01 a RF-03, RF-08, RF-11 y RF-13: registrar o editar un animal. Con `externo` (o al editar uno que no es del
+ * hato), es un animal de otra finca (R29, RF-47): pide el propietario y no tiene lote.
+ */
+export function FormularioAnimal({ id, externo = false }: { id?: string; externo?: boolean }) {
   const conexion = useConexion();
   const navegar = useNavegar();
   const contexto = useContextoCambio();
@@ -57,13 +63,16 @@ export function FormularioAnimal({ id }: { id?: string }) {
       razas: await listarCatalogo(conexion, "raza"),
       libros: await listarCatalogo(conexion, "libro"),
       lotes: await listarLotes(conexion),
+      contactos: await listarContactos(conexion),
       machos: (await listarPosiblesPadres(conexion, "macho")).filter((a) => a.id !== id),
       hembras: (await listarPosiblesPadres(conexion, "hembra")).filter((a) => a.id !== id),
     }),
     [conexion, id],
   );
 
-  const [datos, setDatos] = useState<DatosAnimal | null>(id ? null : animalVacio());
+  const [datos, setDatos] = useState<DatosAnimal | null>(id ? null : externo ? animalExternoVacio() : animalVacio());
+  const [contactos, setContactos] = useState(catalogos?.contactos ?? []);
+  const [agregandoPropietario, setAgregandoPropietario] = useState(false);
   const [identificadores, setIdentificadores] = useState<FilaIdentificador[]>([]);
   const [razas, setRazas] = useState<FilaRaza[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -71,15 +80,21 @@ export function FormularioAnimal({ id }: { id?: string }) {
   const arriba = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
+    if (catalogos) setContactos(catalogos.contactos);
     const animal = catalogos?.animal;
     if (!animal) return;
-    setDatos(animal);
+    // R29: un animal registrado solo para la genealogía (versión 0.1.0) se edita como de otra finca.
+    setDatos(animal.enHato ? animal : { ...animal, origen: "externo" });
     setIdentificadores(animal.identificadores.map((i) => ({ ...i, clave: nuevaClave() })));
     setRazas(animal.composicion.map((f) => ({ clave: nuevaClave(), razaId: f.razaId, porcentaje: aTexto(f.fraccion) })));
   }, [catalogos]);
 
   if (catalogos && id && !catalogos.animal) return <p className="aviso aviso--error">{textos.ficha.noExiste}</p>;
   if (!catalogos || !datos) return <p>{textos.comun.cargando}</p>;
+  const esExterno = datos.origen === "externo";
+  const convierte = esExterno && catalogos.animal !== null && catalogos.animal.origen !== "externo";
+  const volver = () =>
+    navegar(id ? { pantalla: "animal", id, pestana: "ficha" } : { pantalla: "animales", vista: esExterno ? "externos" : "hato" });
   const cambiar = (cambio: Partial<DatosAnimal>) => setDatos({ ...datos, ...cambio });
   const sumaTexto = textos.comun.porcentaje(razas.reduce((s, r) => s + (aFraccion(r.porcentaje) || 0), 0) * 100);
   // Las razas y libros inactivos no se ofrecen, salvo que el animal ya los tenga.
@@ -127,7 +142,8 @@ export function FormularioAnimal({ id }: { id?: string }) {
 
   return (
     <section className="pantalla pantalla--ancha">
-      <h1 ref={arriba}>{id ? t.tituloEditar(catalogos.animal?.nombre ?? "") : t.tituloNuevo}</h1>
+      <h1 ref={arriba}>{id ? t.tituloEditar(catalogos.animal?.nombre ?? "") : esExterno ? t.tituloNuevoExterno : t.tituloNuevo}</h1>
+      {esExterno && <p className="nota">{t.externoAyuda}</p>}
       <ListaMotivos error={error} />
       <form
         onSubmit={(e) => {
@@ -172,12 +188,49 @@ export function FormularioAnimal({ id }: { id?: string }) {
             <Campo etiqueta={t.colorSenas} ancho="largo">
               <input value={datos.colorSenas ?? ""} onChange={(e) => cambiar({ colorSenas: e.target.value })} />
             </Campo>
-            <div className="campo campo--largo">
-              <Casilla etiqueta={t.enHato} marcada={datos.enHato} alCambiar={(v) => cambiar({ enHato: v })} prueba="en-hato" />
-              <span className="campo__ayuda">{t.enHatoAyuda}</span>
-            </div>
           </div>
         </fieldset>
+
+        {esExterno && (
+          <fieldset className="tarjeta">
+            <legend>{t.propietarioTitulo}</legend>
+            {convierte && <p className="nota">{t.conversionAviso}</p>}
+            {agregandoPropietario ? (
+              <FormularioContacto
+                alGuardar={async (contactoId) => {
+                  setContactos(await listarContactos(conexion));
+                  cambiar({ contactoId });
+                  setAgregandoPropietario(false);
+                }}
+                alCancelar={() => setAgregandoPropietario(false)}
+              />
+            ) : (
+              <div className="rejilla">
+                <Campo etiqueta={t.propietario} ayuda={t.propietarioAyuda}>
+                  <select value={datos.contactoId ?? ""} onChange={(e) => cambiar({ contactoId: e.target.value || null })} data-prueba="propietario">
+                    <option value="">{t.elegirPropietario}</option>
+                    {contactos.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.criadero ? `${c.nombre} · ${c.criadero}` : c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+                <div className="campo">
+                  <span className="campo__etiqueta">&nbsp;</span>
+                  <button
+                    type="button"
+                    className="boton boton--secundario"
+                    onClick={() => setAgregandoPropietario(true)}
+                    data-prueba="agregar-propietario"
+                  >
+                    {t.agregarPropietario}
+                  </button>
+                </div>
+              </div>
+            )}
+          </fieldset>
+        )}
 
         <fieldset className="tarjeta">
           <legend>{t.fotoTitulo}</legend>
@@ -325,16 +378,18 @@ export function FormularioAnimal({ id }: { id?: string }) {
                 ))}
               </select>
             </Campo>
-            <Campo etiqueta={t.lote}>
-              <select value={datos.loteId ?? ""} onChange={(e) => cambiar({ loteId: e.target.value || null })}>
-                <option value="">{t.sinLote}</option>
-                {catalogos.lotes.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nombre}
-                  </option>
-                ))}
-              </select>
-            </Campo>
+            {!esExterno && (
+              <Campo etiqueta={t.lote}>
+                <select value={datos.loteId ?? ""} onChange={(e) => cambiar({ loteId: e.target.value || null })}>
+                  <option value="">{t.sinLote}</option>
+                  {catalogos.lotes.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nombre}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            )}
           </div>
         </fieldset>
 
@@ -385,11 +440,7 @@ export function FormularioAnimal({ id }: { id?: string }) {
         </fieldset>
 
         <div className="acciones acciones--fijas">
-          <button
-            type="button"
-            className="boton boton--secundario"
-            onClick={() => navegar(id ? { pantalla: "animal", id, pestana: "ficha" } : { pantalla: "animales" })}
-          >
+          <button type="button" className="boton boton--secundario" onClick={volver}>
             {textos.comun.cancelar}
           </button>
           <button type="submit" className="boton" disabled={guardando} data-prueba="guardar">

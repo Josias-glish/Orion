@@ -366,3 +366,64 @@ describe("migración 0004: salud y documentos", () => {
     }
   });
 });
+
+describe("migración 0005: sementales y montas de otras fincas (R29, R30)", () => {
+  let db: ConexionMemoria;
+  let contacto: string;
+  beforeEach(async () => {
+    db = crearBaseDePrueba();
+    contacto = nuevoId();
+    await db.ejecutar("INSERT INTO contacto (id, nombre, creado_en, modificado_en) VALUES (?, 'Ramiro', ?, ?)", [contacto, AHORA, AHORA]);
+  });
+  afterEach(() => db.cerrar());
+
+  const animal = (datos: Record<string, string | number | null>) => {
+    const fila = { id: nuevoId(), sexo: "macho", creado_en: AHORA, modificado_en: AHORA, ...datos };
+    return db
+      .ejecutar(`INSERT INTO animal (${Object.keys(fila).join(", ")}) VALUES (${Object.keys(fila).map(() => "?").join(", ")})`, Object.values(fila))
+      .then(() => fila.id);
+  };
+
+  it("los animales nuevos quedan «nacido_aqui» por defecto; el origen solo admite tres valores", async () => {
+    const id = await animal({});
+    const [fila] = await db.consultar<{ origen: string; contacto_id: string | null }>("SELECT origen, contacto_id FROM animal WHERE id = ?", [id]);
+    expect(fila).toEqual({ origen: "nacido_aqui", contacto_id: null });
+    await expect(animal({ origen: "prestado" })).rejects.toThrow(/CHECK/);
+  });
+
+  it("R29 en la base: un externo no es del hato ni está en un lote", async () => {
+    await expect(animal({ origen: "externo", contacto_id: contacto })).rejects.toThrow(/R29/);
+    const id = await animal({ origen: "externo", en_hato: 0, contacto_id: contacto });
+    await expect(db.ejecutar("UPDATE animal SET en_hato = 1 WHERE id = ?", [id])).rejects.toThrow(/R29/);
+  });
+
+  it("R29 en la base: una hembra externa no recibe servicios ni abre lactancias", async () => {
+    const hembra = await animal({ sexo: "hembra", origen: "externo", en_hato: 0, contacto_id: contacto });
+    await expect(
+      db.ejecutar(
+        "INSERT INTO evento_reproductivo (id, hembra_id, tipo, fecha, creado_en, modificado_en) VALUES (?, ?, 'monta', '2025-03-10', ?, ?)",
+        [nuevoId(), hembra, AHORA, AHORA],
+      ),
+    ).rejects.toThrow(/R29/);
+  });
+
+  it("el costo del servicio es un entero no negativo, y el margen de gestación va de 0 a 60", async () => {
+    const hembra = await animal({ sexo: "hembra" });
+    const servicio = (costo: number) =>
+      db.ejecutar(
+        "INSERT INTO evento_reproductivo (id, hembra_id, tipo, fecha, costo, creado_en, modificado_en) VALUES (?, ?, 'inseminacion', '2025-03-10', ?, ?, ?)",
+        [nuevoId(), hembra, costo, AHORA, AHORA],
+      );
+    await expect(servicio(-1)).rejects.toThrow(/CHECK/);
+    await expect(servicio(1.5)).rejects.toThrow();
+    await servicio(150000);
+    const finca = (margen: number) =>
+      db.ejecutar("INSERT INTO finca (id, nombre, margen_gestacion, creado_en, modificado_en) VALUES (?, 'F', ?, ?, ?)", [nuevoId(), margen, AHORA, AHORA]);
+    await expect(finca(61)).rejects.toThrow(/CHECK/);
+    await finca(0);
+  });
+
+  it("los contactos no se borran: solo borrado lógico", async () => {
+    await expect(db.ejecutar("DELETE FROM contacto")).rejects.toThrow(/borrado lógico/);
+  });
+});

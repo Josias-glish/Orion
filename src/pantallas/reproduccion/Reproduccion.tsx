@@ -13,7 +13,7 @@ import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { Pestanas } from "../../componentes/Pestanas";
 import { SelectorAnimal } from "../../componentes/SelectorAnimal";
 import { useCarga } from "../../componentes/useCarga";
-import { listarAnimales } from "../../datos/repositorios/animales";
+import { listarAnimales, listarExternos } from "../../datos/repositorios/animales";
 import {
   diagnosticarServicio,
   listarPartosProximos,
@@ -51,6 +51,9 @@ export function Reproduccion({ seccion }: { seccion: SeccionReproduccion }) {
 export const machoDeServicio = (s: Pick<Servicio, "macho" | "pajilla">) =>
   [s.macho, s.pajilla && `${textos.reproduccion.pajilla}: ${s.pajilla}`].filter(Boolean).join(" · ") || t.sinMacho;
 
+/** R30: de dónde viene el macho del servicio. */
+type Procedencia = "hato" | "otra_finca" | "pajilla";
+
 const servicioVacio = (): DatosServicio => ({
   hembraId: "",
   tipo: "monta",
@@ -58,7 +61,15 @@ const servicioVacio = (): DatosServicio => ({
   pajilla: null,
   fecha: fechaLocal(),
   observaciones: null,
+  costo: null,
+  condiciones: null,
 });
+
+/** «150.000» o «150000» → 150000; vacío → null. Un texto que no es número da NaN y el dominio lo rechaza. */
+const aPesos = (texto: string): number | null => {
+  const limpio = texto.replace(/[\s.$]/g, "");
+  return limpio === "" ? null : Number(limpio);
+};
 
 function SeccionServicios() {
   const conexion = useConexion();
@@ -69,11 +80,21 @@ function SeccionServicios() {
   const { datos: servicios, recargar } = useCarga(() => listarServicios(conexion, { soloPendientes }), [conexion, soloPendientes]);
   const { datos: hembras } = useCarga(() => listarAnimales(conexion, { sexo: "hembra", estado: "activo" }), [conexion]);
   const [datos, setDatos] = useState<DatosServicio>(servicioVacio);
-  // R11: para una inseminación también sirven los machos registrados solo para la genealogía (donantes de pajillas).
+  const [procedencia, setProcedencia] = useState<Procedencia>("hato");
+  const [costoTexto, setCostoTexto] = useState("");
+  // R30: machos del hato o de otras fincas (los de otra finca también sirven como donantes de pajillas).
   const { datos: machos } = useCarga(
-    () => listarAnimales(conexion, { sexo: "macho", estado: "activo", incluirSoloGenealogia: datos.tipo === "inseminacion" }),
-    [conexion, datos.tipo],
+    async () =>
+      procedencia === "otra_finca"
+        ? (await listarExternos(conexion, { sexo: "macho" })).filter((m) => m.estado === "activo")
+        : listarAnimales(conexion, { sexo: "macho", estado: "activo" }),
+    [conexion, procedencia],
   );
+  const elegirProcedencia = (p: Procedencia) => {
+    setProcedencia(p);
+    setCostoTexto("");
+    setDatos({ ...datos, machoId: null, costo: null, condiciones: null, tipo: p === "pajilla" ? "inseminacion" : datos.tipo });
+  };
   const [error, setError] = useState<unknown>(null);
   const [exito, setExito] = useState<string | null>(null);
   const [diagnosticando, setDiagnosticando] = useState<string | null>(null);
@@ -82,10 +103,16 @@ function SeccionServicios() {
     setError(null);
     setExito(null);
     try {
-      const id = await registrarServicio(conexion, datos, contexto());
+      const externo = procedencia === "otra_finca";
+      const id = await registrarServicio(
+        conexion,
+        { ...datos, costo: externo ? aPesos(costoTexto) : null, condiciones: externo ? datos.condiciones : null },
+        contexto(),
+      );
       const [guardado] = (await listarServicios(conexion, { hembraId: datos.hembraId })).filter((s) => s.id === id);
       setExito(t.servicioGuardado(formatearFecha(guardado.fechaProbableParto!)));
       setDatos({ ...servicioVacio(), fecha: datos.fecha, tipo: datos.tipo });
+      setCostoTexto("");
       await recargar();
     } catch (e) {
       setError(e);
@@ -117,7 +144,12 @@ function SeccionServicios() {
             <Campo etiqueta={t.tipo} ancho="corto">
               <select
                 value={datos.tipo}
-                onChange={(e) => setDatos({ ...datos, tipo: e.target.value as TipoServicio, machoId: null })}
+                onChange={(e) => {
+                  const tipo = e.target.value as TipoServicio;
+                  // Una monta necesita el macho: «solo pajilla» vuelve a «del hato».
+                  if (tipo === "monta" && procedencia === "pajilla") setProcedencia("hato");
+                  setDatos({ ...datos, tipo, machoId: tipo === "monta" && procedencia === "pajilla" ? null : datos.machoId });
+                }}
                 data-prueba="servicio-tipo"
               >
                 {(["monta", "inseminacion"] as const).map((v) => (
@@ -127,20 +159,60 @@ function SeccionServicios() {
                 ))}
               </select>
             </Campo>
-            <SelectorAnimal
-              etiqueta={t.macho}
-              candidatos={machos ?? []}
-              valor={datos.machoId}
-              alCambiar={(id) => setDatos({ ...datos, machoId: id })}
-              prueba="servicio-macho"
-            />
+            <div className="campo campo--largo">
+              <span className="campo__etiqueta">{t.procedencia}</span>
+              <div className="opciones">
+                {(["hato", "otra_finca", "pajilla"] as const).map((p) => (
+                  <label key={p} className="casilla">
+                    <input
+                      type="radio"
+                      name="procedencia"
+                      checked={procedencia === p}
+                      onChange={() => elegirProcedencia(p)}
+                      data-prueba={`procedencia-${p}`}
+                    />
+                    <span>{t.procedencias[p]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {procedencia !== "pajilla" && (
+              <SelectorAnimal
+                etiqueta={procedencia === "otra_finca" ? t.machoOtraFinca : t.macho}
+                candidatos={machos ?? []}
+                valor={datos.machoId}
+                alCambiar={(id) => setDatos({ ...datos, machoId: id })}
+                prueba="servicio-macho"
+              />
+            )}
+            {procedencia === "otra_finca" && machos?.length === 0 && <p className="nota">{t.sinMachosOtraFinca}</p>}
             {datos.tipo === "inseminacion" && (
               <Campo etiqueta={t.pajilla} ayuda={t.pajillaAyuda}>
-                <input value={datos.pajilla ?? ""} onChange={(e) => setDatos({ ...datos, pajilla: e.target.value })} />
+                <input value={datos.pajilla ?? ""} onChange={(e) => setDatos({ ...datos, pajilla: e.target.value })} data-prueba="servicio-pajilla" />
               </Campo>
             )}
+            {procedencia === "otra_finca" && (
+              <>
+                <Campo etiqueta={t.costo} ancho="corto" ayuda={t.costoAyuda}>
+                  <input inputMode="numeric" value={costoTexto} onChange={(e) => setCostoTexto(e.target.value)} data-prueba="servicio-costo" />
+                </Campo>
+                <Campo etiqueta={t.condiciones} ancho="largo" ayuda={t.condicionesAyuda}>
+                  <input
+                    value={datos.condiciones ?? ""}
+                    onChange={(e) => setDatos({ ...datos, condiciones: e.target.value })}
+                    data-prueba="servicio-condiciones"
+                  />
+                </Campo>
+              </>
+            )}
             <Campo etiqueta={t.fecha} ancho="corto" ayuda={t.fppAyuda(finca.diasGestacion)}>
-              <input type="date" value={datos.fecha} max={fechaLocal()} onChange={(e) => setDatos({ ...datos, fecha: e.target.value })} />
+              <input
+                type="date"
+                value={datos.fecha}
+                max={fechaLocal()}
+                onChange={(e) => setDatos({ ...datos, fecha: e.target.value })}
+                data-prueba="servicio-fecha"
+              />
             </Campo>
             <Campo etiqueta={t.observaciones} ancho="largo">
               <input value={datos.observaciones ?? ""} onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })} />
@@ -208,7 +280,7 @@ function FilaServicio({
 }) {
   const navegar = useNavegar();
   return (
-    <tr data-servicio={s.hembra}>
+    <tr data-servicio={s.hembra} data-macho={s.macho ?? ""}>
       <td>{formatearFecha(s.fecha)}</td>
       <td>
         <button type="button" className="enlace" onClick={() => navegar({ pantalla: "animal", id: s.hembraId, pestana: "reproduccion" })}>
@@ -216,7 +288,16 @@ function FilaServicio({
         </button>
       </td>
       <td>{textos.comun.tipoServicio[s.tipo]}</td>
-      <td>{machoDeServicio(s)}</td>
+      <td>
+        {s.machoId ? (
+          <button type="button" className="enlace" onClick={() => navegar({ pantalla: "animal", id: s.machoId!, pestana: "servicios" })}>
+            {machoDeServicio(s)}
+          </button>
+        ) : (
+          machoDeServicio(s)
+        )}
+        {s.machoExterno && <span className="insignia">{t.otraFinca}</span>}
+      </td>
       <td>
         <span className={`insignia insignia--${s.resultado}`}>{textos.comun.resultadoServicio[s.resultado]}</span>
         {s.fechaDiagnostico && <span className="nota"> {formatearFecha(s.fechaDiagnostico)}</span>}
@@ -271,7 +352,7 @@ function FormularioDiagnostico({ servicio, alTerminar }: { servicio: Servicio; a
         </select>
       </Campo>
       <Campo etiqueta={t.fechaDiagnostico} ancho="corto">
-        <input type="date" value={fecha} min={servicio.fecha} max={fechaLocal()} onChange={(e) => setFecha(e.target.value)} />
+        <input type="date" value={fecha} min={servicio.fecha} max={fechaLocal()} onChange={(e) => setFecha(e.target.value)} data-prueba="fecha-diagnostico" />
       </Campo>
       <button type="submit" className="boton" data-prueba="guardar-diagnostico">
         {textos.comun.guardar}
