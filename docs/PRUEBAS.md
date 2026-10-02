@@ -69,6 +69,24 @@ npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
 
+## Resultado de la versión 0.5.0 (2026-10-02)
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 695 de 695 |
+| Rust | 8 de 8 |
+| Programa real sin red, Etapa 2 (Flujo 0) | 25 de 25 |
+| Programa real sin red, Etapa 3 (Flujos 1 y 2, CA-09) | 24 de 24 |
+| Programa real sin red, Etapa 4 (Flujos 3 y 5, CA-11, permisos) | 28 de 28 |
+| Programa real sin red, Etapa 6 (R29, R30, CA-13 a CA-15, R23) | 23 de 23 |
+| Programa real sin red, Etapa 7 (R31, CA-16 a CA-20, R23) | 51 de 51 |
+| Programa real sin red, Etapa 8 (R18, R19, CA-21, CA-22, R30, R23) | 56 de 56 |
+| Programa real sin red, Etapa 9 (R32, R20, R21, CA-23 a CA-25, R23) | 65 de 65 |
+| CA-33 con los programas reales (base de la 0.1.0 abierta con la 0.5.0) | 13 de 13 |
+
+CA-12 (instalar en un Windows y en un Mac) no se puede probar aquí: lo hace el aprisco con
+[PRUEBA_CA12.md](PRUEBA_CA12.md).
+
 ## Resultado de la versión 0.4.0 (2026-10-02)
 
 | Prueba | Resultado |
