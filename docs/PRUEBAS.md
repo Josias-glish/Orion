@@ -74,6 +74,19 @@ npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
 
+## Resultado de la ayuda para datos de una versión más nueva (2026-10-02, sobre el código de la 0.5.0)
+
+Caso real: el programa 0.1.0 (migraciones 1 a 4) abriendo datos de la 0.5.0 (1 a 8) muestra «No se pudo abrir la base de datos»
+con `migration 5 was previously applied but is missing in the resolved migrations`. Reproducido con los programas reales: la base
+queda intacta (migraciones 1 a 8) y el programa nuevo la abre sin problema. El programa nuevo ahora lo explica en español.
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 704 de 704 (700 + 4 de `error-al-abrir.test.ts`) |
+| Tipos (`npm run tipos`) | sin errores |
+| Rust | 15 de 15 (14 + la que vigila el texto de sqlx) |
+| Programa real sin red, `pruebas-e2e/base-mas-nueva.mjs` | 10 de 10: explica qué pasó y qué hacer, conserva el detalle técnico, no toca la base y abre normal al quitar la migración «del futuro» |
+
 ## Resultado de D-004 / D-054: transacciones reales (2026-10-02, sobre el código de la 0.5.0)
 
 Sin versión nueva: el cambio llega a los instaladores con la siguiente publicación.

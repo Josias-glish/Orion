@@ -6,6 +6,7 @@ import { ConexionContexto, NavegacionContexto, SesionContexto, type Ruta, type S
 import { consultarArranque, type EstadoArranque } from "./datos/arranque";
 import type { Conexion } from "./datos/conexion";
 import { abrirConexionTauri } from "./datos/conexion-tauri";
+import { causaDelErrorAlAbrir } from "./datos/error-al-abrir";
 import { obtenerFinca, type Finca } from "./datos/repositorios/finca";
 import type { Usuario } from "./datos/repositorios/usuarios";
 import { puede, type Accion } from "./dominio/permisos";
@@ -135,6 +136,12 @@ export default function App() {
       <main className="centrado">
         <Aviso tipo="error">
           <p>{textos.errores.abrirBase}</p>
+          {causaDelErrorAlAbrir(errorAlAbrir) === "version_mas_nueva" && (
+            <>
+              <p>{textos.errores.baseDeVersionMasNueva.explicacion}</p>
+              <p>{textos.errores.baseDeVersionMasNueva.queHacer}</p>
+            </>
+          )}
           <details>
             <summary>{textos.errores.detalleTecnico}</summary>
             <code>{errorAlAbrir}</code>

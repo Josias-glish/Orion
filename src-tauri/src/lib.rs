@@ -195,3 +195,16 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar Registro Caprino");
 }
+
+#[cfg(test)]
+mod pruebas {
+    /// La interfaz (`src/datos/error-al-abrir.ts`) reconoce este texto de sqlx para explicar que los datos son de una
+    /// versión más nueva del programa. Si una versión nueva de sqlx lo cambia, esta prueba avisa antes de que se pierda la ayuda.
+    #[test]
+    fn el_texto_de_sqlx_para_una_base_de_version_mas_nueva_no_cambio() {
+        assert_eq!(
+            sqlx::migrate::MigrateError::VersionMissing(5).to_string(),
+            "migration 5 was previously applied but is missing in the resolved migrations"
+        );
+    }
+}
