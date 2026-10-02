@@ -70,7 +70,10 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     const copia = await exportarRespaldo(destino, PROPIETARIO);
     expect(copia.tablas).toEqual(respaldo.tablas);
     // No es una comparación vacía: hay datos de verdad en las tablas grandes.
-    expect(respaldo.tablas.animal.length).toBe(16);
+    // 16 de la sección 12 más Titán (de otra finca) y su cría Roble (etapa 6), con el contacto de su propietario.
+    expect(respaldo.tablas.animal.length).toBe(18);
+    expect(respaldo.tablas.contacto).toHaveLength(1);
+    expect(respaldo.tablas.animal.filter((a) => a.origen === "externo")).toHaveLength(1);
     expect(respaldo.tablas.pesaje_leche.length).toBe(670);
     expect(respaldo.tablas.historial_cambios.length).toBeGreaterThan(3000);
     expect(respaldo.tablas.evento_salud.length).toBe(14); // 13 de las semillas + 1 de esta prueba

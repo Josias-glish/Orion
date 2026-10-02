@@ -60,20 +60,29 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Prueba de extremo a extremo en Linux (ver `docs/PRUEBA_TECNICA.md`) | `xvfb-run -a node pruebas-e2e/etapa2.mjs <binario> <carpeta>` |
 | Lo mismo para la Etapa 3, sin red (Flujos 1 y 2, R11, CA-09) | ver el encabezado de `pruebas-e2e/etapa3.mjs` |
 | Lo mismo para la Etapa 4, sin red (Flujos 3 y 5, R12, CA-11) | ver el encabezado de `pruebas-e2e/etapa4.mjs` |
-| CA-10: las tres pruebas del programa real seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
+| Lo mismo para la Etapa 6, sin red (R29, R30, CA-13 a CA-15, R23) | ver el encabezado de `pruebas-e2e/etapa6.mjs` |
+| CA-33 con los programas reales: base creada por la 0.1.0, abierta con la versión nueva | ver el encabezado de `pruebas-e2e/actualizacion.mjs` |
+| CA-10: las pruebas del programa real (etapas 2, 3, 4 y 6) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
 ## Mapa del código
 
 - `src/dominio/`: reglas puras, sin React ni base de datos. `genealogia.ts` (R1), `identificadores.ts` (R2),
   `composicion.ts` (R3), `consanguinidad.ts` (R6), `permisos.ts` (R14), `pin.ts`, `usuarios.ts`, `fechas.ts`, `tipos.ts`,
   `reproduccion.ts` (R4, R5, R9), `leche.ts` (R8: la fórmula vive solo en `calcularProyeccion`), `pesos.ts` (R10, metas),
-  `salud.ts` (R7, calendario, validaciones), `expediente.ts` (R13: campos, faltantes y avisos).
+  `salud.ts` (R7, calendario, validaciones), `expediente.ts` (R13: campos, faltantes y avisos), `externos.ts` (R29:
+  animales de otras fincas), `contactos.ts`. En `reproduccion.ts` también R30: `validarServicio`, `ventanaDeGestacion`,
+  `analizarPaternidad` y `elegirPadre` (paternidad incierta).
 - `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
   y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
   anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
-  `repositorios/` (finca, usuarios, catálogos, lotes, animales, genealogía, historial, reproducción, leche, pesos,
-  salud, documentos), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
+  `repositorios/` (finca, usuarios, catálogos, lotes, contactos, animales, genealogía, historial, reproducción, leche,
+  pesos, salud, documentos), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
   respaldo), `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
+- R29: «del hato» = `en_hato = 1` (y `origen` distinto de `externo`); un externo siempre tiene `en_hato = 0`
+  (disparador de la 0005), así que todas las listas de trabajo que ya filtraban `en_hato = 1` lo ignoran.
+  `listarExternos` trae los de otras fincas y los «solo genealogía» de la 0.1.0.
+- CA-33: `src/datos/actualizacion.test.ts` aplica las migraciones nuevas sobre `src/datos/muestras/respaldo-0.1.0-ejemplo.json`
+  (hecha por el código de la 0.1.0; no se edita a mano) y `pruebas-e2e/actualizacion.mjs` lo hace con los programas reales.
 - `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
   huella y su registro en `src-tauri/src/lib.rs`; las pruebas fallan si falta algo.
 - `src/documentos/`: PDF y CSV. `certificado.ts` (R12), `expediente.ts` (R13), `comun.ts` (formato y estilos),
@@ -143,3 +152,6 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-040** · 2026-10-01 · Etapa 5 · Vigente. Las pruebas de Rust (`cargo test`) corren en Windows y macOS dentro del flujo de instaladores, antes de construir (necesitan `dist/`, por eso se construye la interfaz primero). No se agregan al flujo de pruebas de cada envío porque compilar Tauri en tres sistemas tarda mucho más que Vitest.
 - **D-041** · 2026-10-01 · Etapa 5 · Vigente. Versión 0.1.0 publicada desde la rama de trabajo, en el commit `95c2451` (el pull request no se ha fusionado: fusionarlo lo decide el usuario). Las sesiones de Claude Code en la nube solo pueden subir a su rama: subir la etiqueta dio error 403. Por eso el flujo de instaladores se ejecutó a mano («Run workflow», previsto en D-017): `tauri-action` crea el borrador «Registro Caprino v0.1.0» con la etiqueta `v0.1.0` sobre el commit de la ejecución (`releaseCommitish`, por defecto el SHA actual). GitHub crea la etiqueta cuando se publica el borrador. A pedido del usuario, el borrador se publicó con la opción «publicar» del mismo flujo: un trabajo aparte, sin construir, revisa que el borrador tenga el `.exe`, el `.msi` y el `.dmg` y lo publica con `gh release edit --draft=false` y el token de GitHub Actions. Para versiones siguientes: «Run workflow» para construir y, después de revisar el borrador, «Run workflow» con «publicar»; o, con permiso, `git push origin vX.Y.Z`.
 - **D-042** · 2026-10-01 · Prompt maestro 2 · Vigente. La especificación de las etapas 6 a 15 se guarda sin cambios en `docs/ESPECIFICACION_2.md`. Su regla de red (sección 4) reemplaza la del MVP. El release v0.1.0 se publicó antes de empezar (la sección 0 lo exige): etiqueta `v0.1.0` sobre `95c2451`.
+- **D-043** · 2026-10-02 · Etapa 6 · Vigente. Animales de otras fincas (R29) en la misma tabla `animal`, con `origen = 'externo'`, `contacto_id` y siempre `en_hato = 0`: así todas las consultas de trabajo que ya filtraban `en_hato = 1` (inventario, ordeño, servicios, alertas, salud, pesos) los ignoran sin cambios, y la genealogía y la consanguinidad los incluyen. Los animales «solo genealogía» de la 0.1.0 quedan `nacido_aqui` como pide la especificación 2 (S-55) y se muestran en «De otras fincas».
+- **D-044** · 2026-10-02 · Etapa 6 · Vigente. Paternidad incierta (R30): el margen de la ventana de gestación es un dato de la finca (`finca.margen_gestacion`, 10 días, S-52). Si hay dos o más padres posibles, `registrarParto` no guarda sin una elección explícita (motivo `elegir_padre`); la pantalla propone el último servicio «preñada» marcado «sin verificar». R5 deja de usar servicios anteriores al parto previo de la hembra.
+- **D-045** · 2026-10-02 · Etapa 6 · Vigente. CA-33 se prueba en cada versión con una copia de respaldo de los datos de ejemplo hecha por el código de la etiqueta `v0.1.0` (`src/datos/muestras/`, con su receta en `LEEME.md`), en Vitest, y con los programas reales 0.1.0 y nuevo (`pruebas-e2e/actualizacion.mjs`). La versión 0.2.0 se publica con el mismo flujo que la 0.1.0 (D-041).

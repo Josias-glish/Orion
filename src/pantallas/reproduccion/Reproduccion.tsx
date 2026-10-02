@@ -206,7 +206,13 @@ function SeccionServicios() {
               </>
             )}
             <Campo etiqueta={t.fecha} ancho="corto" ayuda={t.fppAyuda(finca.diasGestacion)}>
-              <input type="date" value={datos.fecha} max={fechaLocal()} onChange={(e) => setDatos({ ...datos, fecha: e.target.value })} />
+              <input
+                type="date"
+                value={datos.fecha}
+                max={fechaLocal()}
+                onChange={(e) => setDatos({ ...datos, fecha: e.target.value })}
+                data-prueba="servicio-fecha"
+              />
             </Campo>
             <Campo etiqueta={t.observaciones} ancho="largo">
               <input value={datos.observaciones ?? ""} onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })} />
@@ -274,7 +280,7 @@ function FilaServicio({
 }) {
   const navegar = useNavegar();
   return (
-    <tr data-servicio={s.hembra}>
+    <tr data-servicio={s.hembra} data-macho={s.macho ?? ""}>
       <td>{formatearFecha(s.fecha)}</td>
       <td>
         <button type="button" className="enlace" onClick={() => navegar({ pantalla: "animal", id: s.hembraId, pestana: "reproduccion" })}>
@@ -346,7 +352,7 @@ function FormularioDiagnostico({ servicio, alTerminar }: { servicio: Servicio; a
         </select>
       </Campo>
       <Campo etiqueta={t.fechaDiagnostico} ancho="corto">
-        <input type="date" value={fecha} min={servicio.fecha} max={fechaLocal()} onChange={(e) => setFecha(e.target.value)} />
+        <input type="date" value={fecha} min={servicio.fecha} max={fechaLocal()} onChange={(e) => setFecha(e.target.value)} data-prueba="fecha-diagnostico" />
       </Campo>
       <button type="submit" className="boton" data-prueba="guardar-diagnostico">
         {textos.comun.guardar}

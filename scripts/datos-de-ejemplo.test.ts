@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sumarDias } from "../src/dominio/fechas";
 import { crearBaseDePrueba, type ConexionMemoria } from "../src/datos/conexion-memoria";
-import { listarAnimales, obtenerAnimal } from "../src/datos/repositorios/animales";
+import { listarAnimales, listarExternos, obtenerAnimal } from "../src/datos/repositorios/animales";
 import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarLactancias, listarOrdeno } from "../src/datos/repositorios/leche";
 import { listarMetas, pesajesDeAnimal } from "../src/datos/repositorios/pesos";
 import { listarAlertasRetiro, listarProximasAplicaciones } from "../src/datos/repositorios/salud";
-import { historialReproductivo, listarPartosProximos, listarServicios, resumenIntervalos } from "../src/datos/repositorios/reproduccion";
+import { historialReproductivo, listarPartosProximos, listarServicios, resumenIntervalos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
+import { consultarArbol } from "../src/datos/repositorios/genealogia";
+import { PROPIETARIO } from "../src/datos/ayudas-pruebas";
+import { cargarExternosDeEjemplo } from "./externos-de-ejemplo";
 import { cargarDatosDeEjemplo, MARCA_EJEMPLO } from "./datos-de-ejemplo";
 
 let db: ConexionMemoria;
@@ -20,8 +23,9 @@ const porArete = async (arete: string) => (await listarAnimales(db, { texto: are
 
 describe("datos de ejemplo (sección 12)", () => {
   it("carga 12 animales en tres generaciones con la consanguinidad esperada, más las crías de los partos recientes", async () => {
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true });
-    expect(await listarAnimales(db)).toHaveLength(16);
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true, externos: true });
+    // Más Roble, la cría de Titán (etapa 6).
+    expect(await listarAnimales(db)).toHaveLength(17);
     const consanguinidad = async (arete: string) => (await calcularConsanguinidad(db, (await porArete(arete)).id)).coeficiente;
     expect(await consanguinidad("EJ-10")).toBeCloseTo(0.25, 10); // hijos de hermanos completos
     expect(await consanguinidad("EJ-11")).toBeCloseTo(0.125, 10); // hijos de medios hermanos
@@ -32,8 +36,9 @@ describe("datos de ejemplo (sección 12)", () => {
 
   it("no duplica nada si se ejecuta dos veces", async () => {
     await cargarDatosDeEjemplo(db, HOY);
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false });
-    expect(await listarAnimales(db)).toHaveLength(16);
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false, externos: false });
+    expect(await listarAnimales(db)).toHaveLength(17);
+    expect(await listarExternos(db)).toHaveLength(1);
   });
 
   it("deja lactancias en curso con pesajes hasta ayer, un parto próximo, un aborto y metas de peso", async () => {
@@ -58,16 +63,20 @@ describe("datos de ejemplo (sección 12)", () => {
     expect((await listarServicios(db)).map((s) => s.resultado).sort()).toEqual([
       "aborto",
       "pendiente",
+      "pendiente",
       "prenada",
       "prenada",
       "prenada",
       "prenada",
+      "prenada",
+      "vacia",
       "vacia",
     ]);
     // R9 con los partos antiguos y los recientes.
     expect((await resumenIntervalos(db)).map((r) => [r.hembra, r.partos])).toEqual([
       ["Abril", 2],
       ["Bella", 3],
+      ["Canela", 2],
       ["Dalia", 2],
     ]);
     const bella = await historialReproductivo(db, (await porArete("EJ-07")).id);
@@ -93,5 +102,25 @@ describe("datos de ejemplo (sección 12)", () => {
     const proximas = await listarProximasAplicaciones(db, HOY);
     expect(proximas.filter((p) => p.vencida).map((p) => p.animal)).toEqual(["Bruno", "Cacique", "Duque", "Zeus"]);
     expect(proximas.filter((p) => !p.vencida).map((p) => p.animal)).toEqual(["Abril", "Bella", "Brisa", "Canela", "Dalia"]);
+  });
+
+  it("trae un semental de otra finca con su propietario, tres servicios y una cría suya (etapa 6)", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    const [titan] = await listarExternos(db);
+    expect([titan.nombre, titan.origen, titan.propietario]).toEqual(["Titán", "externo", "Criador vecino (ejemplo) · Hato El Roble (ejemplo)"]);
+    const h = await serviciosComoMacho(db, titan.id);
+    expect(h.resumen).toMatchObject({ servicios: 3, prenadas: 1, vacias: 1, pendientes: 1, partos: 1, crias: 1 });
+    const roble = await porArete("EJ-17");
+    const [padre] = (await consultarArbol(db, roble.id)).filter((n) => n.camino === "P");
+    expect([padre.nombre, padre.propietario]).toEqual(["Titán", "Criador vecino (ejemplo) · Hato El Roble (ejemplo)"]);
+    // Titán no aparece en el inventario ni en el ordeño; Canela no quedó con la lactancia abierta.
+    expect((await listarAnimales(db)).map((a) => a.nombre)).not.toContain("Titán");
+    expect((await listarOrdeno(db, HOY, "manana")).map((f) => f.nombre)).not.toContain("Canela");
+  });
+
+  it("agrega el semental a una base que ya tenía los datos de ejemplo de la versión 0.1.0, sin duplicarlo", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    expect(await cargarExternosDeEjemplo(db, () => PROPIETARIO, HOY)).toBe(false);
+    expect(await listarExternos(db)).toHaveLength(1);
   });
 });

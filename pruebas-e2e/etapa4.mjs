@@ -203,7 +203,8 @@ try {
   comprobar("CA-11: restaura la copia y vuelve a pedir el usuario", restaurado.includes("Aprisco de ejemplo"), restaurado);
   await entrar(p);
   const total = (await p.buscar('[data-prueba="total-animales"]')).texto;
-  comprobar("CA-11: los 16 animales vuelven a estar", total === "16", `activos = ${total}`);
+  // 16 de la sección 12 más Roble, la cría del semental de otra finca (Etapa 6); Titán no cuenta (R29).
+  comprobar("CA-11: los 17 animales del hato vuelven a estar", total === "17", `activos = ${total}`);
   comprobar("CA-11: también vuelven los documentos emitidos", readdirSync(join(DATOS, "documentos")).sort().join() === enCarpeta.join());
   await p.clic('[data-pantalla="documentos"]');
   await p.clic('[data-pestana="respaldo"]');
