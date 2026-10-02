@@ -9,7 +9,7 @@ import { obtenerFinca } from "./repositorios/finca";
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
 /** Número de migraciones que conoce esta versión del programa (una prueba lo compara con la carpeta). */
-export const VERSION_ESQUEMA = 4;
+export const VERSION_ESQUEMA = 5;
 
 /** Todas las tablas de datos, en un orden en que cada tabla va después de las que referencia. */
 export const TABLAS_RESPALDO = [
@@ -18,6 +18,7 @@ export const TABLAS_RESPALDO = [
   "raza",
   "libro",
   "lote",
+  "contacto",
   "animal",
   "identificador",
   "composicion_racial",
@@ -103,7 +104,7 @@ export function leerRespaldo(texto: string): Respaldo {
 }
 
 /** Ordena los animales para que cada padre y cada madre se inserten antes que sus crías (R1 en la base). */
-function animalesEnOrden(filas: Fila[]): Fila[] {
+export function animalesEnOrden(filas: Fila[]): Fila[] {
   const porId = new Map(filas.map((f) => [String(f.id), f]));
   const resultado: Fila[] = [];
   const visitados = new Set<string>();

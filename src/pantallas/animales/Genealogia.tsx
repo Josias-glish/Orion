@@ -118,7 +118,11 @@ function NodoGenealogico({
       {nodo.identificador && nodo.nombre && <span className="nodo__dato">{nodo.identificador}</span>}
       {nodo.fechaNacimiento && <span className="nodo__dato">{formatearFecha(nodo.fechaNacimiento)}</span>}
       {nodo.sinVerificar && <span className="insignia insignia--aviso">{t.sinVerificar}</span>}
-      {!nodo.enHato && <span className="insignia">{textos.animales.soloGenealogia}</span>}
+      {/* R29 y CA-14: un ancestro de otra finca muestra su propietario. */}
+      {!nodo.enHato && (
+        <span className="insignia">{nodo.origen === "externo" ? textos.animales.deOtraFinca : textos.animales.soloGenealogia}</span>
+      )}
+      {nodo.propietario && <span className="nodo__dato" data-prueba="propietario-nodo">{textos.genealogia.propietario(nodo.propietario)}</span>}
     </>
   );
   if (!camino) {

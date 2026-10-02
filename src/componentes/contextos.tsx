@@ -40,7 +40,9 @@ export function usePermiso(accion: Accion): boolean {
   return puede(useSesion().usuario.rol, accion);
 }
 
-export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "pesos" | "salud" | "documentos" | "historial";
+export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "servicios" | "pesos" | "salud" | "documentos" | "historial";
+/** R29: los animales del hato, los de otras fincas y los contactos (propietarios). */
+export type VistaAnimales = "hato" | "externos" | "contactos";
 export type SeccionAjustes = "finca" | "usuarios" | "razas" | "libros" | "lotes" | "datos";
 export type SeccionReproduccion = "servicios" | "proximos" | "intervalos";
 export type SeccionLeche = "ordeno" | "lactancias";
@@ -51,9 +53,9 @@ export type SeccionDocumentos = "certificado" | "expediente" | "emitidos" | "res
 /** Pantallas del programa. */
 export type Ruta =
   | { pantalla: "inicio" }
-  | { pantalla: "animales" }
+  | { pantalla: "animales"; vista?: VistaAnimales }
   | { pantalla: "animal"; id: string; pestana: PestanaAnimal }
-  | { pantalla: "nuevoAnimal" }
+  | { pantalla: "nuevoAnimal"; externo?: boolean }
   | { pantalla: "editarAnimal"; id: string }
   | { pantalla: "reproduccion"; seccion: SeccionReproduccion }
   | { pantalla: "registrarParto"; hembraId: string | null }

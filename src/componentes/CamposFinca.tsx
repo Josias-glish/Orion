@@ -9,7 +9,7 @@ export function CamposFinca({ datos, alCambiar }: { datos: DatosFinca; alCambiar
     value: datos[campo] ?? "",
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => alCambiar({ ...datos, [campo]: e.target.value }),
   });
-  const numero = (campo: "diasGestacion" | "diasLactancia") => ({
+  const numero = (campo: "diasGestacion" | "diasLactancia" | "margenGestacion") => ({
     value: Number.isNaN(datos[campo]) ? "" : String(datos[campo]),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => alCambiar({ ...datos, [campo]: Number.parseInt(e.target.value, 10) }),
   });
@@ -33,6 +33,9 @@ export function CamposFinca({ datos, alCambiar }: { datos: DatosFinca; alCambiar
       <Campo etiqueta={t.diasLactancia} ancho="corto" ayuda={t.ayudaDias}>
         <input type="number" min={1} inputMode="numeric" {...numero("diasLactancia")} />
       </Campo>
+      <Campo etiqueta={t.margenGestacion} ancho="corto" ayuda={t.ayudaMargen}>
+        <input type="number" min={0} max={60} inputMode="numeric" {...numero("margenGestacion")} data-prueba="finca-margen" />
+      </Campo>
     </div>
   );
 }
@@ -44,4 +47,5 @@ export const fincaVacia = (): DatosFinca => ({
   registroSanitarioPredio: null,
   diasGestacion: 150,
   diasLactancia: 305,
+  margenGestacion: 10,
 });

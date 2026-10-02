@@ -10,6 +10,8 @@ export interface Finca {
   registroSanitarioPredio: string | null;
   diasGestacion: number;
   diasLactancia: number;
+  /** R30: días antes y después de la gestación en que un servicio pudo dar el parto (SUPOSICION: 10). */
+  margenGestacion: number;
 }
 
 export type DatosFinca = Omit<Finca, "id">;
@@ -18,7 +20,7 @@ export type DatosFinca = Omit<Finca, "id">;
 export async function obtenerFinca(conexion: Conexion): Promise<Finca | null> {
   const filas = await conexion.consultar<Finca>(
     `SELECT id, nombre, criadero, municipio, registro_sanitario_predio AS registroSanitarioPredio,
-            dias_gestacion AS diasGestacion, dias_lactancia AS diasLactancia
+            dias_gestacion AS diasGestacion, dias_lactancia AS diasLactancia, margen_gestacion AS margenGestacion
      FROM finca WHERE eliminado_en IS NULL ORDER BY creado_en LIMIT 1`,
   );
   return filas[0] ?? null;
@@ -30,6 +32,8 @@ export function validarFinca(datos: DatosFinca): Motivo[] {
   for (const campo of ["diasGestacion", "diasLactancia"] as const) {
     if (!Number.isInteger(datos[campo]) || datos[campo] <= 0) motivos.push({ codigo: "numero_invalido", campo });
   }
+  const margen = datos.margenGestacion;
+  if (!Number.isInteger(margen) || margen < 0 || margen > 60) motivos.push({ codigo: "margen_invalido" });
   return motivos;
 }
 
@@ -42,6 +46,7 @@ function aFila(datos: DatosFinca): Record<string, ValorSql> {
     registro_sanitario_predio: texto(datos.registroSanitarioPredio),
     dias_gestacion: datos.diasGestacion,
     dias_lactancia: datos.diasLactancia,
+    margen_gestacion: datos.margenGestacion,
   };
 }
 

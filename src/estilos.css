@@ -1010,3 +1010,9 @@ fieldset.opciones legend {
   margin-bottom: 0.25rem;
   width: 100%;
 }
+
+/* Etapa 6: opciones una debajo de otra (por ejemplo, los padres posibles de un parto). */
+.opciones--columna {
+  flex-direction: column;
+  align-items: flex-start;
+}

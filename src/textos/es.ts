@@ -6,7 +6,7 @@ import type { CampoExpediente } from "../dominio/expediente";
 import type { TipoPesaje } from "../dominio/pesos";
 import type { TipoRetiro, TipoSalud } from "../dominio/salud";
 import type { ResultadoServicio, TipoServicio } from "../dominio/reproduccion";
-import type { EstadoAnimal, FormaConcepcion, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
+import type { EstadoAnimal, FormaConcepcion, OrigenAnimal, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
 
 const NOMBRES_GENERACION: Record<number, { macho: string; hembra: string }> = {
   1: { macho: "Padre", hembra: "Madre" },
@@ -115,6 +115,17 @@ const campos: Record<string, string> = {
   proxima_fecha: "próxima fecha",
   numero: "número",
   archivo: "archivo",
+  origen: "origen",
+  contacto_id: "propietario",
+  fecha_ingreso: "fecha de ingreso",
+  costo: "costo",
+  condiciones: "condiciones",
+  criadero: "criadero",
+  municipio: "municipio",
+  telefono: "teléfono",
+  correo: "correo",
+  notas: "notas",
+  margen_gestacion: "margen de la ventana de gestación",
 };
 
 const nombreDe = (otro: string) => `«${otro}»`;
@@ -236,6 +247,26 @@ function motivo(m: Motivo): string {
       return "Esta copia la hizo una versión más nueva del programa. Actualice Registro Caprino y vuelva a intentarlo.";
     case "respaldo_danado":
       return "El archivo no es una copia de respaldo de Registro Caprino o está dañado.";
+    case "costo_solo_externo":
+      return "El costo y las condiciones solo se anotan cuando el macho es de otra finca.";
+    case "costo_invalido":
+      return "Escriba el costo en pesos, como número entero (por ejemplo 150000), o déjelo vacío.";
+    case "padre_no_candidato":
+      return "Ese servicio no puede haber dado este parto. Elija uno de la lista o «Padre desconocido».";
+    case "elegir_padre":
+      return "Hubo servicios con machos distintos cerca de la fecha de la concepción. Elija el padre de las crías o «Padre desconocido».";
+    case "externo_sin_propietario":
+      return "Elija el propietario del animal o agréguelo como contacto nuevo.";
+    case "externo_en_lote":
+      return "Un animal de otra finca no puede estar en un lote de esta finca.";
+    case "externo_ancestro_de_propio":
+      return `No se puede retirar: es ancestro de ${nombreDe(m.otro)}, que es del hato, y su genealogía quedaría incompleta.`;
+    case "correo_invalido":
+      return "El correo no parece válido. Revíselo (por ejemplo nombre@correo.com) o déjelo vacío.";
+    case "contacto_en_uso":
+      return `Este contacto es propietario de ${m.cantidad === 1 ? "1 animal" : `${m.cantidad} animales`}. Cámbielos de propietario antes de retirarlo.`;
+    case "margen_invalido":
+      return "El margen de la ventana de gestación debe ser un número entero de 0 a 60 días.";
   }
 }
 
@@ -293,6 +324,9 @@ export const textos = {
         ? `${meses} ${meses === 1 ? "mes" : "meses"}`
         : `${Math.floor(meses / 12)} ${Math.floor(meses / 12) === 1 ? "año" : "años"}${meses % 12 ? ` y ${meses % 12} m.` : ""}`,
     porcentaje: formatearPorcentaje,
+    /** 150000 → «$ 150.000». */
+    pesos: (valor: number) => `$ ${valor.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`,
+    origen: { nacido_aqui: "Nacido en la finca", comprado: "Comprado", externo: "De otra finca" } as Record<OrigenAnimal, string>,
   },
 
   errores: {
@@ -323,6 +357,9 @@ export const textos = {
     diasGestacion: "Días de gestación",
     diasLactancia: "Días de lactancia",
     ayudaDias: "Valores por defecto: 150 días de gestación y 305 de lactancia. Cámbielos si en su finca son otros.",
+    margenGestacion: "Margen de la gestación (días)",
+    ayudaMargen:
+      "Al registrar un parto, los servicios hechos entre la gestación menos y más este margen pueden ser el padre. Si hay machos distintos, el programa avisa. Valor provisional: 10.",
   },
 
   usuario: {
@@ -421,6 +458,15 @@ export const textos = {
     intervalosColumnas: { hembra: "Hembra", partos: "Partos", ultimo: "Último intervalo", promedio: "Promedio" },
     sinMacho: "Sin macho registrado",
     machoSoloGenealogia: "solo genealogía",
+    procedencia: "¿De dónde es el macho?",
+    procedencias: { hato: "Del hato", otra_finca: "De otra finca", pajilla: "Solo pajilla (donante sin registrar)" },
+    machoOtraFinca: "Macho de otra finca",
+    sinMachosOtraFinca: "No hay machos de otras fincas. Regístrelos en Animales → De otras fincas.",
+    costo: "Costo acordado (pesos, opcional)",
+    costoAyuda: "Por ejemplo 150000. Se anotará como gasto cuando el programa tenga finanzas.",
+    condiciones: "Condiciones con el dueño (opcional)",
+    condicionesAyuda: "Lo acordado: forma de pago, repetición si queda vacía, entrega de crías…",
+    otraFinca: "Otra finca",
   },
 
   parto: {
@@ -451,6 +497,12 @@ export const textos = {
     emitirCertificado: "Emitir certificado interno",
     otraVez: "Registrar otro parto",
     elegirHembra: "Elija la madre…",
+    deOtraFinca: (propietario?: string) => (propietario ? `de otra finca: ${propietario}` : "de otra finca"),
+    servicioDel: (fecha: string, resultado: string) => `servicio del ${fecha} (${resultado})`,
+    incierta: (desde: string, hasta: string) =>
+      `Paternidad incierta: entre el ${desde} y el ${hasta} hubo servicios con machos distintos, y cualquiera puede ser el padre. Elija el padre de las crías.`,
+    padreDesconocido: "Padre desconocido (dejarlo vacío)",
+    marcarSinVerificar: "Marcar el padre «sin verificar»",
   },
 
   leche: {
@@ -561,7 +613,13 @@ export const textos = {
     filtroSexo: "Sexo",
     filtroEstado: "Estado",
     filtroLote: "Lote",
-    incluirGenealogia: "Mostrar también los registrados solo para la genealogía",
+    vistas: { hato: "Del hato", externos: "De otras fincas", contactos: "Contactos" },
+    registrarExterno: "Registrar animal de otra finca",
+    externosAyuda:
+      "Machos y hembras que no son de la finca: sementales de otros criaderos y ancestros de sus animales. Aparecen en la genealogía, pero no en el inventario, el ordeño ni las alertas.",
+    externosVacio: "Todavía no hay animales de otras fincas registrados.",
+    sinPropietario: "Sin propietario registrado",
+    deOtraFinca: "De otra finca",
     cantidad: (n: number) => (n === 1 ? "1 animal" : `${n} animales`),
     vacio: "No hay animales que coincidan con la búsqueda.",
     vacioSinFiltro: "Todavía no hay animales registrados.",
@@ -574,7 +632,30 @@ export const textos = {
       nacimiento: "Nacimiento",
       lote: "Lote",
       estado: "Estado",
+      propietario: "Propietario",
     },
+  },
+
+  contactos: {
+    ayuda:
+      "Propietarios de los animales de otras fincas. Son datos personales de otras personas: anote solo lo necesario. Nunca se publican.",
+    ayudaDatos: "Solo el nombre es obligatorio.",
+    nuevo: "Nuevo contacto",
+    nuevoTitulo: "Nuevo contacto",
+    editarTitulo: "Editar contacto",
+    campos: {
+      nombre: "Nombre",
+      criadero: "Criadero o finca",
+      municipio: "Municipio",
+      telefono: "Teléfono",
+      correo: "Correo",
+      notas: "Notas",
+    },
+    animales: "Animales",
+    vacio: "Todavía no hay contactos.",
+    guardado: "Contacto guardado.",
+    retirar: "Retirar",
+    retirado: (nombre: string) => `Se retiró a ${nombre}.`,
   },
 
   salud: {
@@ -759,6 +840,7 @@ export const textos = {
       ficha: "Ficha",
       genealogia: "Genealogía",
       reproduccion: "Reproducción y leche",
+      servicios: "Servicios",
       pesos: "Pesos",
       salud: "Salud",
       documentos: "Documentos",
@@ -783,6 +865,8 @@ export const textos = {
       colorSenas: "Color y señas",
       estado: "Estado",
       enHato: "Pertenece al hato",
+      origen: "Origen",
+      propietario: "Propietario",
       libro: "Libro genealógico",
       lote: "Lote",
       formaConcepcion: "Forma de concepción",
@@ -798,6 +882,21 @@ export const textos = {
     retirarConHijos: (n: number) =>
       `Atención: este animal es padre o madre de ${n} ${n === 1 ? "animal" : "animales"}; su genealogía quedará incompleta.`,
     retirarConfirmar: "¿Seguro que quiere retirar esta ficha?",
+    volverExternos: "← Volver a «De otras fincas»",
+    serviciosMacho: {
+      vacio: "Este macho todavía no tiene servicios registrados.",
+      resumen: (servicios: number, prenadas: number, vacias: number, abortos: number, pendientes: number, partos: number, crias: number) =>
+        `${servicios === 1 ? "1 servicio" : `${servicios} servicios`}: ${prenadas} preñada(s), ${vacias} vacía(s), ${abortos} aborto(s) y ${pendientes} sin diagnóstico. ${partos === 1 ? "1 parto" : `${partos} partos`} con ${crias === 1 ? "1 cría" : `${crias} crías`}.`,
+      columnas: {
+        fecha: "Servicio",
+        hembra: "Hembra",
+        tipo: "Tipo",
+        resultado: "Resultado",
+        crias: "Crías",
+        costo: "Costo",
+        condiciones: "Condiciones",
+      },
+    },
   },
 
   formulario: {
@@ -809,9 +908,16 @@ export const textos = {
     fechaNacimiento: "Fecha de nacimiento",
     colorSenas: "Color y señas",
     estado: "Estado",
-    enHato: "Pertenece al hato",
-    enHatoAyuda:
-      "Quite la marca si el animal nunca estuvo en la finca y solo lo registra para la genealogía (por ejemplo, los abuelos de una cabra comprada o el macho de una pajilla).",
+    tituloNuevoExterno: "Registrar animal de otra finca",
+    externoAyuda:
+      "Un semental de otro criadero, o un ancestro que nunca estuvo en la finca. Solo aparecerá en la genealogía y en los servicios.",
+    propietarioTitulo: "Propietario",
+    propietario: "Propietario (dueño del animal)",
+    propietarioAyuda: "Si no está en la lista, agréguelo como contacto nuevo.",
+    elegirPropietario: "Elija el propietario…",
+    agregarPropietario: "Agregar propietario nuevo",
+    conversionAviso:
+      "Este animal se registró solo para la genealogía. Al guardarlo con su propietario quedará en «De otras fincas».",
     fotoTitulo: "Foto",
     elegirFoto: "Elegir foto…",
     quitarFoto: "Quitar foto",
@@ -861,6 +967,7 @@ export const textos = {
     desconocido: "Desconocido",
     sinVerificar: "Sin verificar",
     ayudaArbol: "Haga clic en un ancestro para ver su propia genealogía.",
+    propietario: (propietario: string) => `Propietario: ${propietario}`,
     hijosTitulo: "Crías registradas",
     sinHijos: "No tiene crías registradas.",
   },
@@ -879,6 +986,7 @@ export const textos = {
       pesaje_corporal: "Peso",
       evento_salud: "Salud",
       certificado: "Documento",
+      contacto: "Contacto",
     } as Record<string, string>,
     campo: (c: string) => campos[c] ?? c,
   },

@@ -61,7 +61,7 @@ describe("servicios (RF-18, RF-19)", () => {
     expect(await codigos(servicio())).toEqual(["animal_no_disponible"]);
     expect((await listarHembrasDisponibles(db)).map((h) => h.nombre)).not.toContain("Bella");
     await db.ejecutar("UPDATE animal SET estado = 'muerto' WHERE id = ?", [zeus]);
-    expect((await listarMachosDisponibles(db, "monta")).map((m) => m.nombre)).not.toContain("Zeus");
+    expect((await listarMachosDisponibles(db, "hato")).map((m) => m.nombre)).not.toContain("Zeus");
   });
 
   it("diagnostica preñez, vacía o aborto con fecha no anterior al servicio", async () => {

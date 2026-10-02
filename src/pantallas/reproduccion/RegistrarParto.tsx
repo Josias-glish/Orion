@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Aviso } from "../../componentes/Aviso";
 import { Campo, Casilla } from "../../componentes/Campo";
 import { useConexion, useContextoCambio, useNavegar, usePermiso } from "../../componentes/contextos";
@@ -7,10 +7,10 @@ import { SelectorAnimal } from "../../componentes/SelectorAnimal";
 import { useCarga } from "../../componentes/useCarga";
 import { ErrorDeRegistro } from "../../datos/errores";
 import { listarAnimales } from "../../datos/repositorios/animales";
-import { padrePropuesto, registrarParto, type ResultadoParto } from "../../datos/repositorios/reproduccion";
+import { analisisDePaternidad, registrarParto, type CandidatoConNombre, type ResultadoParto } from "../../datos/repositorios/reproduccion";
 import { esFechaValida, fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { leerKilos } from "../../dominio/leche";
-import type { CriaAnotada } from "../../dominio/reproduccion";
+import type { CriaAnotada, EleccionPadre } from "../../dominio/reproduccion";
 import { textos } from "../../textos/es";
 
 const t = textos.parto;
@@ -25,7 +25,17 @@ interface CriaEnFormulario extends Omit<CriaAnotada, "pesoNacimiento" | "nombre"
 
 const criaVacia = (): CriaEnFormulario => ({ sexo: "hembra", nombre: "", arete: "", peso: "", nacioMuerta: false });
 
-/** Flujo 1 (RF-20, R5): parto con una ficha por cría y apertura de la lactancia. */
+/** Cómo se muestra un padre posible: macho (de otra finca y su dueño) o pajilla, con la fecha del servicio. */
+const textoCandidato = (c: CandidatoConNombre) =>
+  [
+    c.macho ?? (c.pajilla ? `${textos.reproduccion.pajilla}: ${c.pajilla}` : textos.reproduccion.sinMacho),
+    c.machoExterno ? t.deOtraFinca(c.propietario ?? undefined) : null,
+    t.servicioDel(formatearFecha(c.fecha), textos.comun.resultadoServicio[c.resultado]),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+/** Flujo 1 (RF-20, R5 y R30): parto con una ficha por cría y apertura de la lactancia. */
 export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null }) {
   const conexion = useConexion();
   const contexto = useContextoCambio();
@@ -40,9 +50,16 @@ export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null 
   const puedeEmitir = usePermiso("emitir_documento");
   const { datos: hembras } = useCarga(() => listarAnimales(conexion, { sexo: "hembra", estado: "activo" }), [conexion]);
   const { datos: padre } = useCarga(
-    async () => (hembraId && esFechaValida(fecha) ? padrePropuesto(conexion, hembraId, fecha) : null),
+    async () => (hembraId && esFechaValida(fecha) ? analisisDePaternidad(conexion, hembraId, fecha) : null),
     [conexion, hembraId, fecha],
   );
+  // R30 (CA-15): si la paternidad es incierta, el usuario elige el padre; por defecto el propuesto y «sin verificar».
+  const [eleccion, setEleccion] = useState<EleccionPadre | null>(null);
+  useEffect(() => {
+    if (!padre?.incierta) return setEleccion(null);
+    const propuesto = padre.candidatos.find((c) => c.servicioId === padre.propuesto.servicioId) ?? padre.candidatos[0];
+    setEleccion({ servicioId: propuesto.servicioId, sinVerificar: true });
+  }, [padre]);
   const madre = hembras?.find((h) => h.id === hembraId);
 
   const cambiarNumero = (n: number) => {
@@ -65,7 +82,13 @@ export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null 
         nacioMuerta: c.nacioMuerta,
       }));
       if (!hembraId) throw new ErrorDeRegistro([{ codigo: "dato_obligatorio", campo: "madre_id" }]);
-      setResultado(await registrarParto(conexion, { hembraId, fecha, crias: anotadas, observaciones: observaciones || null }, contexto()));
+      setResultado(
+        await registrarParto(
+          conexion,
+          { hembraId, fecha, crias: anotadas, observaciones: observaciones || null, ...(eleccion ? { padre: eleccion } : {}) },
+          contexto(),
+        ),
+      );
     } catch (e) {
       setError(e);
     } finally {
@@ -147,17 +170,54 @@ export function RegistrarParto({ hembraId: inicial }: { hembraId: string | null 
               <input value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
             </Campo>
           </div>
-          {padre && (
+          {padre && !padre.incierta && (
             <>
               <h2>{t.padreTitulo}</h2>
               <p data-prueba="padre-propuesto">
-                {padre.padreId && padre.nombrePadre
-                  ? t.padreDelServicio(padre.nombrePadre, formatearFecha(padre.fechaServicio ?? fecha))
-                  : padre.pajilla
-                    ? t.padrePajilla(padre.pajilla, formatearFecha(padre.fechaServicio ?? fecha))
+                {padre.servicioPropuesto?.macho
+                  ? t.padreDelServicio(
+                      padre.servicioPropuesto.machoExterno
+                        ? `${padre.servicioPropuesto.macho} (${t.deOtraFinca(padre.servicioPropuesto.propietarioMacho ?? undefined)})`
+                        : padre.servicioPropuesto.macho,
+                      formatearFecha(padre.servicioPropuesto.fecha),
+                    )
+                  : padre.servicioPropuesto?.pajilla
+                    ? t.padrePajilla(padre.servicioPropuesto.pajilla, formatearFecha(padre.servicioPropuesto.fecha))
                     : t.sinServicio}
               </p>
             </>
+          )}
+          {padre?.incierta && eleccion && (
+            <div data-prueba="paternidad-incierta">
+              <h2>{t.padreTitulo}</h2>
+              <Aviso tipo="error">
+                <p className="destacado">⚠ {t.incierta(formatearFecha(padre.ventana.desde), formatearFecha(padre.ventana.hasta))}</p>
+              </Aviso>
+              <div className="opciones opciones--columna">
+                {[...padre.candidatos.map((c) => ({ id: c.servicioId as string | null, texto: textoCandidato(c) })), { id: null, texto: t.padreDesconocido }].map(
+                  (o) => (
+                    <label key={o.id ?? "desconocido"} className="casilla">
+                      <input
+                        type="radio"
+                        name="padre"
+                        checked={eleccion.servicioId === o.id}
+                        onChange={() => setEleccion({ ...eleccion, servicioId: o.id })}
+                        data-prueba={`padre-${o.id ?? "desconocido"}`}
+                      />
+                      <span>{o.texto}</span>
+                    </label>
+                  ),
+                )}
+              </div>
+              {eleccion.servicioId !== null && (
+                <Casilla
+                  etiqueta={t.marcarSinVerificar}
+                  marcada={eleccion.sinVerificar}
+                  alCambiar={(v) => setEleccion({ ...eleccion, sinVerificar: v })}
+                  prueba="padre-sin-verificar"
+                />
+              )}
+            </div>
           )}
         </div>
 

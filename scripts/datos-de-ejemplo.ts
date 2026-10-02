@@ -133,6 +133,7 @@ export async function asegurarFinca(conexion: Conexion): Promise<{ contexto: () 
             registroSanitarioPredio: null,
             diasGestacion: 150,
             diasLactancia: 305,
+            margenGestacion: 10,
           },
       { nombre: "Propietario de ejemplo", contacto: null },
       null,
