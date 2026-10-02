@@ -53,9 +53,14 @@ se queda sin prueba o si estas tablas dejan de nombrar alguno.
   copia de respaldo), sin telemetría, permisos mínimos de Tauri, datos en la carpeta del usuario.
 - Usabilidad medible (`src/aceptacion.test.ts`): contraste WCAG AA de 17 combinaciones de colores, letra de 18 px y
   campos de 48 px de alto.
-- Rust (`cd src-tauri && cargo test`): archivos de documentos y respaldo `.zip`. También corre en Windows y macOS
-  dentro del flujo de instaladores.
-- Etapa 1 (`pruebas-e2e/transacciones.mjs`): el experimento que dio origen a la decisión D-004.
+- Rust (`cd src-tauri && cargo test`): archivos de documentos y respaldo `.zip`, y los lotes de escrituras en una sola
+  transacción (`src-tauri/src/lote.rs`, D-054: lote correcto, lote que falla a mitad, lote vacío, parámetros no admitidos,
+  enlace de enteros y tildes, y 20 rondas con consultas simultáneas). También corre en Windows y macOS dentro del flujo de instaladores.
+- Conexión del programa (`src/datos/conexion-tauri.test.ts`, con la API de Tauri simulada): un lote va entero a `ejecutar_lote`,
+  un lote vacío no llama a Rust, el error llega a quien lo pidió y lo suelto sigue por el plugin SQL.
+- Transacciones con el programa real (`pruebas-e2e/transacciones.mjs`): nació en la Etapa 1 como el experimento que dio origen a
+  la decisión D-004 (sin transacción, 19 de 20 rondas fallaban). Desde D-054 comprueba que los lotes son transacciones reales: 0 de 20
+  rondas con filas colgadas, un lote correcto deja sus filas y 4 lotes simultáneos no se bloquean.
 
 ## Cómo ejecutarlas
 
