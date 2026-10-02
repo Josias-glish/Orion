@@ -37,7 +37,7 @@ describe("criterios de aceptación CA-01 a CA-11 (sección 11)", () => {
     for (let n = 1; n <= 12; n++) expect(matriz).toContain(`CA-${String(n).padStart(2, "0")}`);
   });
   // Especificación 2: los criterios de las etapas ya hechas. Cada etapa nueva agrega aquí los suyos.
-  const ESPECIFICACION_2 = ["CA-13", "CA-14", "CA-15", "CA-33"];
+  const ESPECIFICACION_2 = ["CA-13", "CA-14", "CA-15", "CA-16", "CA-17", "CA-18", "CA-19", "CA-20", "CA-33"];
   for (const ca of ESPECIFICACION_2) {
     it(`${ca} (especificación 2) tiene pruebas en Vitest, en el programa real y en la matriz`, () => {
       expect(vitest.includes(ca), ca).toBe(true);
@@ -159,6 +159,6 @@ describe("publicación (Etapa 5)", () => {
     const cargo = /^version = "([^"]+)"/m.exec(leer("src-tauri/Cargo.toml"))![1];
     const tauri = JSON.parse(leer("src-tauri/tauri.conf.json")).version;
     expect([bloqueo.version, bloqueo.packages[""].version, cargo, tauri]).toEqual([paquete, paquete, paquete, paquete]);
-    expect(paquete).toBe("0.2.0");
+    expect(paquete).toBe("0.3.0");
   });
 });

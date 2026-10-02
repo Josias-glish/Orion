@@ -3,6 +3,7 @@ import type { ErrorContacto } from "../dominio/contactos";
 import type { ErrorExterno } from "../dominio/externos";
 import type { ErrorGenealogia } from "../dominio/genealogia";
 import type { ErrorIdentificador } from "../dominio/identificadores";
+import type { ErrorRegistro } from "../dominio/registros";
 import type { ErrorReproduccion } from "../dominio/reproduccion";
 import type { ErrorSalud } from "../dominio/salud";
 
@@ -15,6 +16,7 @@ export type Motivo =
   | ErrorReproduccion
   | ErrorExterno
   | ErrorContacto
+  | ErrorRegistro
   | { codigo: "sin_permiso" }
   | { codigo: "no_encontrado" }
   | { codigo: "dato_obligatorio"; campo: string }

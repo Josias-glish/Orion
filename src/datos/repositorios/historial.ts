@@ -11,7 +11,7 @@ export interface EntradaHistorial {
 
 /**
  * Historial de un animal, del más reciente al más antiguo: su ficha, identificadores, composición racial, servicios,
- * partos, lactancias, pesos, salud, documentos emitidos y las correcciones de sus pesajes de leche (los pesajes nuevos no se listan uno por uno).
+ * partos, lactancias, pesos, salud, documentos emitidos, registros genealógicos (sin la copia completa de cada versión) y las correcciones de sus pesajes de leche (los pesajes nuevos no se listan uno por uno).
  * Los valores que son id de otro registro (padre, raza, libro, lote…) se cambian por su nombre.
  */
 export async function listarHistorialAnimal(conexion: Conexion, animalId: string): Promise<EntradaHistorial[]> {
@@ -29,10 +29,11 @@ export async function listarHistorialAnimal(conexion: Conexion, animalId: string
         OR (h.entidad = 'pesaje_corporal' AND h.registro_id IN (SELECT id FROM pesaje_corporal WHERE animal_id = ?))
         OR (h.entidad = 'evento_salud' AND h.registro_id IN (SELECT id FROM evento_salud WHERE animal_id = ?))
         OR (h.entidad = 'certificado' AND h.registro_id IN (SELECT id FROM certificado WHERE animal_id = ?))
+        OR (h.entidad = 'registro_genealogico' AND h.campo <> 'instantanea' AND h.registro_id IN (SELECT id FROM registro_genealogico WHERE animal_id = ?))
         OR (h.entidad = 'pesaje_leche' AND h.valor_anterior IS NOT NULL AND h.registro_id IN
               (SELECT p.id FROM pesaje_leche AS p JOIN lactancia AS l ON l.id = p.lactancia_id WHERE l.hembra_id = ?))
      ORDER BY h.marca_tiempo DESC, h.entidad, h.campo`,
-    [animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId],
+    [animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId, animalId],
   );
 
   const ids = [

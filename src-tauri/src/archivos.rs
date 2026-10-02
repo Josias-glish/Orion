@@ -13,7 +13,7 @@ pub const DATOS_RESPALDO: &str = "datos.json";
 /// Carpetas de la carpeta de datos que viajan en el respaldo.
 pub const CARPETAS_RESPALDO: [&str; 2] = ["fotos", "documentos"];
 /// Formatos que el programa puede escribir donde elija el usuario.
-pub const EXTENSIONES_COPIA: [&str; 3] = ["pdf", "csv", "zip"];
+pub const EXTENSIONES_COPIA: [&str; 4] = ["pdf", "csv", "xlsx", "zip"];
 /// Tope para datos.json (evita llenar la memoria con un archivo dañado o ajeno).
 const MAXIMO_DATOS: u64 = 1 << 30;
 
@@ -57,13 +57,13 @@ pub fn guardar_documento(carpeta_datos: &Path, nombre: &str, contenido: &[u8]) -
     Ok(format!("documentos/{nombre}"))
 }
 
-/// Escribe una copia donde eligió el usuario en el diálogo «Guardar». Solo PDF, CSV o ZIP.
+/// Escribe una copia donde eligió el usuario en el diálogo «Guardar». Solo PDF, CSV, XLSX (Excel) o ZIP.
 pub fn guardar_copia(destino: &Path, contenido: &[u8]) -> Result<(), String> {
     match extension(destino) {
         Some(e) if EXTENSIONES_COPIA.contains(&e.as_str()) => {
             escribir_completo(destino, |f| f.write_all(contenido).map_err(|e| e.to_string()))
         }
-        _ => Err("solo se guardan archivos PDF, CSV o ZIP".into()),
+        _ => Err("solo se guardan archivos PDF, CSV, XLSX o ZIP".into()),
     }
 }
 
@@ -173,9 +173,19 @@ mod pruebas {
     }
 
     #[test]
+    fn guarda_copias_de_excel_junto_a_las_de_pdf_y_csv() {
+        let carpeta = carpeta_temporal("copias");
+        for nombre in ["libro.pdf", "libro.csv", "libro.xlsx", "libro.XLSX"] {
+            guardar_copia(&carpeta.join(nombre), b"contenido").unwrap();
+            assert_eq!(fs::read(carpeta.join(nombre)).unwrap(), b"contenido");
+        }
+    }
+
+    #[test]
     fn rechaza_extensiones_y_archivos_ajenos() {
         let carpeta = carpeta_temporal("ajenos");
         assert!(guardar_copia(&carpeta.join("x.exe"), b"no").is_err());
+        assert!(guardar_copia(&carpeta.join("x.xlsm"), b"no").is_err());
         assert!(guardar_documento(&carpeta, "x.exe", b"no").is_err());
         assert!(crear_respaldo(&carpeta, &carpeta.join("x.json"), "{}").is_err());
         fs::write(carpeta.join("no-es-zip.zip"), b"hola").unwrap();

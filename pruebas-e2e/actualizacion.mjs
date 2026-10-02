@@ -90,7 +90,7 @@ try {
 
   // ---------- 3. Comparación tabla por tabla ----------
   const despues = leerBase();
-  comprobar("CA-33: el programa nuevo aplicó sus migraciones", migraciones().startsWith("1,2,3,4,5"), migraciones());
+  comprobar("CA-33: el programa nuevo aplicó sus migraciones", migraciones().startsWith("1,2,3,4,5,6"), migraciones());
   const diferencias = [];
   for (const [tabla, filas] of Object.entries(antes)) {
     if (despues[tabla].length !== filas.length) diferencias.push(`${tabla}: ${filas.length} → ${despues[tabla].length}`);
@@ -105,6 +105,15 @@ try {
     .map(([t, f]) => `${t} ${f.length}`)
     .join(", ");
   comprobar("CA-33: ninguna fila ni ningún valor de la 0.1.0 se perdió ni cambió", diferencias.length === 0, diferencias.slice(0, 5).join("; ") || resumen);
+  comprobar(
+    "CA-33: los documentos emitidos con la 0.1.0 siguen en «certificado» (la tabla se reconstruyó en la migración 0006)",
+    despues.certificado.length === antes.certificado.length && despues.certificado.length > 0,
+    `${despues.certificado.length} documentos`,
+  );
+  comprobar(
+    "CA-33: los cinco libros recibieron su prefijo y ninguno tiene registros",
+    despues.libro.filter((l) => l.prefijo).length === 5 && despues.registro_genealogico.length === 0,
+  );
   comprobar(
     "CA-33: los animales existentes quedan «nacido_aqui»",
     despues.animal.every((a) => a.origen === "nacido_aqui"),

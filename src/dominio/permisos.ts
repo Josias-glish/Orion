@@ -15,13 +15,16 @@ export type Accion =
   | "editar_metas_peso"
   | "emitir_documento"
   | "ver_contactos"
-  | "editar_contactos";
+  | "editar_contactos"
+  | "ver_registros"
+  | "gestionar_registros";
 
 /**
  * R14. El operario puede ver las fichas y registrar leche, partos, pesos y tratamientos.
  * SUPOSICION: tampoco crea ni edita fichas de animales (R14 no lo incluye entre lo permitido).
  * R23 (especificación 2): ve las fichas de los animales de otras fincas, pero no los crea ni los edita, y no crea
  * ni edita contactos. SUPOSICION (R28, datos mínimos): tampoco ve la lista de contactos con teléfonos y correos.
+ * R23 y R31: el operario no ve la pantalla Registros ni crea, emite o anula registros genealógicos; solo el propietario.
  */
 const PERMITIDO_AL_OPERARIO: ReadonlySet<Accion> = new Set([
   "ver_fichas",

@@ -10,10 +10,11 @@ import { obtenerAnimal, type Animal } from "./animales";
 import { obtenerFinca } from "./finca";
 import { calcularConsanguinidad, consultarArbol } from "./genealogia";
 
-export type TipoDocumento = "propio" | "asociacion";
+export type TipoDocumento = "propio" | "asociacion" | "registro_propio";
 
 /** SUPOSICION: CI = certificado interno, EX = expediente; número correlativo por tipo y año (CI-2026-0001). */
-const PREFIJO: Record<TipoDocumento, string> = { propio: "CI", asociacion: "EX" };
+/** El «registro_propio» (Etapa 7) se numera con el libro del registro, no aquí. */
+const PREFIJO: Record<Exclude<TipoDocumento, "registro_propio">, string> = { propio: "CI", asociacion: "EX" };
 
 /** Camino en el árbol (P = padre, M = madre) de cada ancestro hasta abuelos. */
 const CAMINO: Record<CampoAscendencia, string> = {
@@ -123,7 +124,7 @@ export async function datosCertificado(conexion: Conexion, animalId: string, con
 }
 
 /** Número siguiente para un tipo de documento en el año de `fecha`. Cuenta también los retirados (no se reutilizan). */
-export async function siguienteNumero(conexion: Conexion, tipo: TipoDocumento, fecha: string): Promise<string> {
+export async function siguienteNumero(conexion: Conexion, tipo: Exclude<TipoDocumento, "registro_propio">, fecha: string): Promise<string> {
   const prefijo = `${PREFIJO[tipo]}-${fecha.slice(0, 4)}-`;
   const [{ ultimo }] = await conexion.consultar<{ ultimo: number | null }>(
     "SELECT max(CAST(substr(numero, ?) AS INTEGER)) AS ultimo FROM certificado WHERE numero LIKE ? || '%'",

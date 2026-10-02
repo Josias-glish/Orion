@@ -40,6 +40,16 @@ describe("CA-10: el programa no hace llamadas de red", () => {
     expect(importan).toEqual([]);
   });
 
+  it("la librería de Excel (write-excel-file) y la que usa (fflate) no hacen llamadas de red (D-046)", () => {
+    const prohibido = /\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon/;
+    const revisar = (carpeta: string) =>
+      readdirSync(new URL(`node_modules/${carpeta}/`, raiz))
+        .filter((nombre) => /\.(js|mjs|cjs)$/.test(nombre))
+        .filter((nombre) => prohibido.test(leer(`node_modules/${carpeta}/${nombre}`)))
+        .map((nombre) => `${carpeta}/${nombre}`);
+    expect([...revisar("write-excel-file/universal"), ...revisar("write-excel-file/browser"), ...revisar("fflate/esm")]).toEqual([]);
+  });
+
   it("la política de seguridad (CSP) de la ventana no permite conectarse a ningún servidor", () => {
     const { csp } = JSON.parse(leer("src-tauri/tauri.conf.json")).app.security;
     expect(csp["default-src"]).toBe("'self'");
@@ -63,6 +73,8 @@ describe("CA-10: el programa no hace llamadas de red", () => {
       "pdfmake",
       "react",
       "react-dom",
+      // Etapa 7 (D-046): archivos de Excel (.xlsx). MIT, una sola dependencia (fflate, MIT); no usa red (ver la prueba siguiente).
+      "write-excel-file",
     ]);
     const cargo = leer("src-tauri/Cargo.toml");
     const dependencias = cargo

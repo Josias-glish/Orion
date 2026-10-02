@@ -39,6 +39,7 @@ export const ESTILOS: StyleDictionary = {
   aviso: { fontSize: 11, bold: true, color: "#7a1c12" },
   etiqueta: { fontSize: 10, color: "#4a4a4a" },
   pequeno: { fontSize: 9, color: "#4a4a4a" },
+  diminuto: { fontSize: 7, color: "#4a4a4a" },
   desconocido: { italics: true, color: "#6b6b6b" },
   sinVerificar: { fontSize: 9, bold: true, color: "#8a5a00" },
   pie: { fontSize: 8, color: "#4a4a4a" },

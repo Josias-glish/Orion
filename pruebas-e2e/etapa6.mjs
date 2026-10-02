@@ -111,7 +111,7 @@ try {
   await p.clic('[data-pestana="hato"]');
   await p.escribir('[data-prueba="buscar"]', "");
   const inventario = await filas(p, '[data-prueba="tabla-animales"]');
-  comprobar("CA-13: Titán no está en el inventario del hato", inventario.length === 17 && !inventario.some((f) => f.includes("Titán")), `${inventario.length} animales`);
+  comprobar("CA-13: Titán no está en el inventario del hato", inventario.length === 21 && !inventario.some((f) => f.includes("Titán")), `${inventario.length} animales`);
 
   // ---------- Contactos (R28: solo el nombre es obligatorio) ----------
   await p.clic('[data-pestana="contactos"]');

@@ -6,6 +6,7 @@ import { archivosDeMigracion, crearBaseDePrueba, type ConexionMemoria } from "./
 import { ErrorDeRegistro } from "./errores";
 import { eliminarAnimal, listarAnimales } from "./repositorios/animales";
 import { cambiarPin } from "./repositorios/usuarios";
+import { anularRegistro, emitirRegistro, reemitirRegistro, registrarDocumentoDeRegistro } from "./repositorios/registros";
 import { registrarEventoSalud } from "./repositorios/salud";
 import { exportarRespaldo, leerRespaldo, restaurarRespaldo, TABLAS_RESPALDO, VERSION_ESQUEMA, type Respaldo } from "./respaldo";
 
@@ -31,7 +32,7 @@ const codigos = async (promesa: Promise<unknown>) => {
   }
 };
 
-/** Datos de ejemplo (16 animales, servicios, partos, lactancias, pesajes, salud…) más un PIN, un tratamiento y un animal retirado. */
+/** Datos de ejemplo (21 animales, servicios, partos, lactancias, pesajes, salud…) más un PIN, un tratamiento, un animal retirado y dos registros genealógicos. */
 async function finca(db: ConexionMemoria) {
   await cargarDatosDeEjemplo(db, HOY);
   const [{ id: usuario }] = await db.consultar<{ id: string }>("SELECT id FROM usuario LIMIT 1");
@@ -60,6 +61,15 @@ async function finca(db: ConexionMemoria) {
     },
     PROPIETARIO,
   );
+  // Etapa 7: Estrella se registra y se reemite (versión 2); Bruno se registra y se anula.
+  const [estrella] = await listarAnimales(db, { texto: "EJ-10" });
+  const [bruno] = await listarAnimales(db, { texto: "EJ-06" });
+  const emitido = await emitirRegistro(db, estrella.id, PROPIETARIO, { hoy: "2026-09-15" });
+  await registrarDocumentoDeRegistro(db, emitido.registroId, "documentos/PPE-0001-v1.pdf", PROPIETARIO, "2026-09-15");
+  await reemitirRegistro(db, emitido.registroId, PROPIETARIO, { hoy: "2026-09-16" });
+  await registrarDocumentoDeRegistro(db, emitido.registroId, "documentos/PPE-0001-v2.pdf", PROPIETARIO, "2026-09-16");
+  const segundo = await emitirRegistro(db, bruno.id, PROPIETARIO, { hoy: "2026-09-15" });
+  await anularRegistro(db, segundo.registroId, "Prueba de la copia de respaldo", PROPIETARIO);
 }
 
 describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
@@ -70,8 +80,14 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     const copia = await exportarRespaldo(destino, PROPIETARIO);
     expect(copia.tablas).toEqual(respaldo.tablas);
     // No es una comparación vacía: hay datos de verdad en las tablas grandes.
-    // 16 de la sección 12 más Titán (de otra finca) y su cría Roble (etapa 6), con el contacto de su propietario.
-    expect(respaldo.tablas.animal.length).toBe(18);
+    // 16 de la sección 12 más Titán (de otra finca) y su cría Roble (etapa 6), con el contacto de su propietario,
+    // y cuatro animales para probar los registros (etapa 7).
+    expect(respaldo.tablas.animal.length).toBe(22);
+    // Etapa 7: dos registros emitidos (uno reemitido y otro anulado) con su copia fija; también se restauran.
+    expect(respaldo.tablas.registro_genealogico).toHaveLength(2);
+    expect(respaldo.tablas.registro_genealogico.map((r) => r.estado).sort()).toEqual(["anulado", "emitido"]);
+    expect(respaldo.tablas.registro_genealogico.every((r) => typeof r.instantanea === "string" && String(r.instantanea).includes('"esquema":1'))).toBe(true);
+    expect(respaldo.tablas.certificado.filter((c) => c.tipo === "registro_propio")).toHaveLength(2);
     expect(respaldo.tablas.contacto).toHaveLength(1);
     expect(respaldo.tablas.animal.filter((a) => a.origen === "externo")).toHaveLength(1);
     expect(respaldo.tablas.pesaje_leche.length).toBe(670);

@@ -427,3 +427,153 @@ describe("migración 0005: sementales y montas de otras fincas (R29, R30)", () =
     await expect(db.ejecutar("DELETE FROM contacto")).rejects.toThrow(/borrado lógico/);
   });
 });
+
+describe("migración 0006: registro genealógico propio (R31)", () => {
+  let db: ConexionMemoria;
+  const PP = "0f42cb9a-2ddf-4c82-840b-547defbf17cd"; // Pureza por pedigrí
+  const MESTIZO = "057da2b3-6aa1-484a-94ae-88de113e8aff";
+  beforeEach(() => {
+    db = crearBaseDePrueba();
+  });
+  afterEach(() => db.cerrar());
+
+  const animal = async (datos: Record<string, string | number | null> = {}) => {
+    const fila = { id: nuevoId(), sexo: "hembra", creado_en: AHORA, modificado_en: AHORA, ...datos };
+    await db.ejecutar(`INSERT INTO animal (${Object.keys(fila).join(", ")}) VALUES (${Object.keys(fila).map(() => "?").join(", ")})`, Object.values(fila));
+    return fila.id;
+  };
+  /** Inserta un registro con los datos mínimos del estado pedido; `datos` pisa cualquier valor. */
+  const registro = async (animalId: string, datos: Record<string, string | number | null> = {}) => {
+    const emitido = (datos.estado ?? "emitido") !== "borrador";
+    const base: Record<string, string | number | null> = {
+      id: nuevoId(),
+      animal_id: animalId,
+      fecha_registro: "2026-10-02",
+      creado_en: AHORA,
+      modificado_en: AHORA,
+      ...(emitido ? { libro_id: PP, consecutivo: 1, numero: "PPE-0001", estado: "emitido", instantanea: "{}" } : { estado: "borrador" }),
+      ...datos,
+    };
+    await db.ejecutar(`INSERT INTO registro_genealogico (${Object.keys(base).join(", ")}) VALUES (${Object.keys(base).map(() => "?").join(", ")})`, Object.values(base));
+    return String(base.id);
+  };
+
+  it("los cinco libros precargados traen prefijo propio, formato PPE-0001 y empiezan en 1", async () => {
+    const libros = await db.consultar<{ nombre: string; prefijo: string; siguiente_numero: number; digitos_numero: number; separador_numero: string }>(
+      "SELECT nombre, prefijo, siguiente_numero, digitos_numero, separador_numero FROM libro ORDER BY nombre",
+    );
+    expect(libros.map((l) => [l.nombre, l.prefijo])).toEqual([
+      ["Fundadores", "FUN"],
+      ["Mestizo", "MES"],
+      ["Pureza de origen", "POR"],
+      ["Pureza por cruzamiento", "PCR"],
+      ["Pureza por pedigrí", "PPE"],
+    ]);
+    expect(libros.every((l) => l.siguiente_numero === 1 && l.digitos_numero === 4 && l.separador_numero === "-")).toBe(true);
+  });
+
+  it("el prefijo es de 1 a 8 letras o números, único entre libros sin importar mayúsculas; el formato tiene límites", async () => {
+    const libro = (id: string, cambio: string) => db.ejecutar(`UPDATE libro SET ${cambio} WHERE id = ?`, [id]);
+    await expect(libro(MESTIZO, "prefijo = 'ME S'")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "prefijo = 'ME-S'")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "prefijo = 'ABCDEFGHI'")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "prefijo = ''")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "prefijo = 'ppe'")).rejects.toThrow(/UNIQUE/);
+    await libro(MESTIZO, "prefijo = 'MZ1'");
+    await expect(libro(MESTIZO, "digitos_numero = 0")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "digitos_numero = 9")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "separador_numero = '/'")).rejects.toThrow(/CHECK/);
+    await expect(libro(MESTIZO, "siguiente_numero = 0")).rejects.toThrow(/CHECK/);
+    await libro(MESTIZO, "separador_numero = ''");
+  });
+
+  it("un registro es borrador (sin número), emitido (con número, libro e instantánea) o anulado (con motivo)", async () => {
+    const a = await animal();
+    await registro(a, { estado: "borrador" });
+    await expect(registro(await animal(), { estado: "borrador", numero: "PPE-0009" })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { estado: "borrador", instantanea: "{}" })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { numero: "PPE-0002", consecutivo: 2, instantanea: null })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { numero: "PPE-0002", consecutivo: 2, libro_id: null })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { numero: "PPE-0002", consecutivo: 2, instantanea: "no es json" })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { estado: "anulado", numero: "PPE-0002", consecutivo: 2 })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { numero: "PPE-0002", consecutivo: 2, motivo_anulacion: "x" })).rejects.toThrow(/CHECK/);
+    await expect(registro(await animal(), { estado: "otro" })).rejects.toThrow(/CHECK/);
+    await registro(await animal(), { estado: "anulado", numero: "PPE-0002", consecutivo: 2, motivo_anulacion: "Duplicado" });
+  });
+
+  it("un número nunca se reutiliza: ni entre libros, ni por un consecutivo repetido, ni aunque el registro se anule", async () => {
+    const primero = await registro(await animal());
+    await db.ejecutar("UPDATE registro_genealogico SET estado = 'anulado', motivo_anulacion = 'Error' WHERE id = ?", [primero]);
+    await expect(registro(await animal(), { numero: "PPE-0001", consecutivo: 2 })).rejects.toThrow(/UNIQUE/);
+    await expect(registro(await animal(), { numero: "PPE-0002", consecutivo: 1 })).rejects.toThrow(/UNIQUE|consecutivos/);
+    // Un libro distinto sí puede tener su propio consecutivo 1, pero no el mismo texto.
+    await expect(registro(await animal(), { libro_id: MESTIZO, numero: "PPE-0001", consecutivo: 1 })).rejects.toThrow(/UNIQUE/);
+    await registro(await animal(), { libro_id: MESTIZO, numero: "MES-0001", consecutivo: 1 });
+  });
+
+  it("los consecutivos de un libro no tienen saltos", async () => {
+    await registro(await animal());
+    await expect(registro(await animal(), { numero: "PPE-0003", consecutivo: 3 })).rejects.toThrow(/sin saltos/);
+    await registro(await animal(), { numero: "PPE-0002", consecutivo: 2 });
+    // El primero de un libro puede empezar donde el usuario quiera (número inicial configurado).
+    await registro(await animal(), { libro_id: MESTIZO, numero: "MES-0120", consecutivo: 120 });
+    await registro(await animal(), { libro_id: MESTIZO, numero: "MES-0121", consecutivo: 121 });
+    // Un borrador toma su número al emitirse: también debe ser el siguiente.
+    const borrador = await registro(await animal(), { estado: "borrador" });
+    await expect(
+      db.ejecutar("UPDATE registro_genealogico SET estado = 'emitido', libro_id = ?, consecutivo = 130, numero = 'PPE-0130', instantanea = '{}' WHERE id = ?", [PP, borrador]),
+    ).rejects.toThrow(/sin saltos/);
+    await db.ejecutar("UPDATE registro_genealogico SET estado = 'emitido', libro_id = ?, consecutivo = 3, numero = 'PPE-0003', instantanea = '{}' WHERE id = ?", [PP, borrador]);
+  });
+
+  it("un animal tiene un solo registro vigente; uno anulado deja de contar; un borrador descartado también", async () => {
+    const a = await animal();
+    const primero = await registro(a);
+    await expect(registro(a, { numero: "PPE-0002", consecutivo: 2 })).rejects.toThrow(/UNIQUE/);
+    await expect(registro(a, { estado: "borrador" })).rejects.toThrow(/UNIQUE/);
+    await db.ejecutar("UPDATE registro_genealogico SET estado = 'anulado', motivo_anulacion = 'Error' WHERE id = ?", [primero]);
+    const borrador = await registro(a, { estado: "borrador" });
+    await db.ejecutar("UPDATE registro_genealogico SET eliminado_en = ? WHERE id = ?", [AHORA, borrador]);
+    await registro(a, { numero: "PPE-0002", consecutivo: 2 });
+  });
+
+  it("el número, el libro y el animal de un registro con número no cambian; la versión no baja; lo anulado no se reactiva", async () => {
+    const a = await animal();
+    const id = await registro(a);
+    for (const cambio of ["numero = 'PPE-0099'", "consecutivo = 5", `libro_id = '${MESTIZO}'`, `animal_id = '${await animal()}'`]) {
+      await expect(db.ejecutar(`UPDATE registro_genealogico SET ${cambio} WHERE id = ?`, [id]), cambio).rejects.toThrow(/R31/);
+    }
+    await db.ejecutar("UPDATE registro_genealogico SET version = 2 WHERE id = ?", [id]);
+    await expect(db.ejecutar("UPDATE registro_genealogico SET version = 1 WHERE id = ?", [id])).rejects.toThrow(/versión/);
+    await expect(db.ejecutar("UPDATE registro_genealogico SET estado = 'borrador', numero = NULL, consecutivo = NULL, instantanea = NULL WHERE id = ?", [id])).rejects.toThrow(/R31/);
+    await db.ejecutar("UPDATE registro_genealogico SET estado = 'anulado', motivo_anulacion = 'Error' WHERE id = ?", [id]);
+    await expect(db.ejecutar("UPDATE registro_genealogico SET estado = 'emitido', motivo_anulacion = NULL WHERE id = ?", [id])).rejects.toThrow(/R31/);
+  });
+
+  it("un animal de otra finca no tiene registro propio (R29) y las filas no se borran", async () => {
+    const contacto = nuevoId();
+    await db.ejecutar("INSERT INTO contacto (id, nombre, creado_en, modificado_en) VALUES (?, 'Ramiro', ?, ?)", [contacto, AHORA, AHORA]);
+    const externo = await animal({ sexo: "macho", origen: "externo", en_hato: 0, contacto_id: contacto });
+    await expect(registro(externo)).rejects.toThrow(/R31/);
+    const id = await registro(await animal());
+    await expect(db.ejecutar("DELETE FROM registro_genealogico WHERE id = ?", [id])).rejects.toThrow(/borrado lógico/);
+  });
+
+  it("el certificado admite el tipo «registro_propio», sigue sin admitir otros y conserva su número único y su protección", async () => {
+    const a = await animal();
+    const certificado = (tipo: string, numero: string) =>
+      db.ejecutar("INSERT INTO certificado (id, animal_id, tipo, numero, fecha, creado_en, modificado_en) VALUES (?, ?, ?, ?, '2026-10-02', ?, ?)", [nuevoId(), a, tipo, numero, AHORA, AHORA]);
+    await certificado("registro_propio", "PPE-0001-v1");
+    await certificado("propio", "CI-2026-0001");
+    await certificado("asociacion", "EX-2026-0001");
+    await expect(certificado("otro", "X-1")).rejects.toThrow(/CHECK/);
+    await expect(certificado("registro_propio", "PPE-0001-v1")).rejects.toThrow(/UNIQUE/);
+    await expect(db.ejecutar("DELETE FROM certificado")).rejects.toThrow(/borrado lógico/);
+  });
+
+  it("los datos del criadero para el certificado son opcionales", async () => {
+    await db.ejecutar("INSERT INTO finca (id, nombre, creado_en, modificado_en) VALUES (?, 'F', ?, ?)", [nuevoId(), AHORA, AHORA]);
+    const [f] = await db.consultar<{ criador: string | null; propietario: string | null; responsable_registros: string | null }>("SELECT criador, propietario, responsable_registros FROM finca");
+    expect(f).toEqual({ criador: null, propietario: null, responsable_registros: null });
+  });
+});
