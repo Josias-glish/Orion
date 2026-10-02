@@ -117,12 +117,17 @@ try {
     despues.libro.filter((l) => l.prefijo).length === 5 && despues.registro_genealogico.length === 0,
   );
   comprobar(
-    "CA-33: los pesajes de leche de la 0.1.0 quedan sin calidad (nada inventado) y llegan las 6 categorías de Finanzas, sin movimientos",
+    "CA-33: los pesajes de leche de la 0.1.0 quedan sin calidad (nada inventado) y llegan las 7 categorías de Finanzas (6 de la 0.4.0 y «Compra de animales» de la 0.5.0), sin movimientos",
     despues.pesaje_leche.length === antes.pesaje_leche.length &&
       despues.pesaje_leche.every((x) => x.grasa_pct === null && x.proteina_pct === null && x.celulas_somaticas === null) &&
-      despues.categoria_economica.length === 6 &&
+      despues.categoria_economica.length === 7 &&
       despues.movimiento_economico.length === 0,
     `${despues.pesaje_leche.length} pesajes, ${despues.categoria_economica.length} categorías`,
+  );
+  comprobar(
+    "CA-33: la 0.1.0 no tenía compras ni ventas: la tabla de traspasos llega vacía (Etapa 9)",
+    Array.isArray(despues.traspaso) && despues.traspaso.length === 0,
+    `${despues.traspaso?.length} traspasos`,
   );
   comprobar(
     "CA-33: los animales existentes quedan «nacido_aqui»",
