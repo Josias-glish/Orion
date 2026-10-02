@@ -10,6 +10,9 @@ import { historialReproductivo, listarPartosProximos, listarServicios, resumenIn
 import { consultarArbol } from "../src/datos/repositorios/genealogia";
 import { PROPIETARIO } from "../src/datos/ayudas-pruebas";
 import { listarVerificaciones } from "../src/datos/repositorios/registros";
+import { listarCategorias, listarMovimientos, resumenFinanciero, serviciosConGasto } from "../src/datos/repositorios/finanzas";
+import { listarComparacionCalidad } from "../src/datos/repositorios/leche";
+import { cargarCalidadYFinanzasDeEjemplo } from "./calidad-y-finanzas-de-ejemplo";
 import { cargarExternosDeEjemplo } from "./externos-de-ejemplo";
 import { cargarRegistrosDeEjemplo } from "./registros-de-ejemplo";
 import { cargarDatosDeEjemplo, MARCA_EJEMPLO } from "./datos-de-ejemplo";
@@ -25,7 +28,7 @@ const porArete = async (arete: string) => (await listarAnimales(db, { texto: are
 
 describe("datos de ejemplo (sección 12)", () => {
   it("carga 12 animales en tres generaciones con la consanguinidad esperada, más las crías de los partos recientes", async () => {
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true, externos: true, registros: true });
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true, externos: true, registros: true, finanzas: true });
     // Más Roble, la cría de Titán (etapa 6), y cuatro animales para probar los registros (etapa 7).
     expect(await listarAnimales(db)).toHaveLength(21);
     const consanguinidad = async (arete: string) => (await calcularConsanguinidad(db, (await porArete(arete)).id)).coeficiente;
@@ -38,7 +41,7 @@ describe("datos de ejemplo (sección 12)", () => {
 
   it("no duplica nada si se ejecuta dos veces", async () => {
     await cargarDatosDeEjemplo(db, HOY);
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false, externos: false, registros: false });
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false, externos: false, registros: false, finanzas: false });
     expect(await listarAnimales(db)).toHaveLength(21);
     expect(await listarExternos(db)).toHaveLength(1);
   });
@@ -149,5 +152,66 @@ describe("registros genealógicos de ejemplo (etapa 7)", () => {
   it("también se carga en una base que ya tenía los demás datos, y no se repite", async () => {
     await cargarDatosDeEjemplo(db, HOY);
     expect(await cargarRegistrosDeEjemplo(db, () => PROPIETARIO)).toBe(false);
+  });
+});
+
+describe("calidad de la leche y finanzas de ejemplo (etapa 8)", () => {
+  it("deja muestras de calidad con los promedios del cálculo manual y datos vacíos que no cuentan (R18)", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    const filas = await listarComparacionCalidad(db);
+    const de = (hembra: string) => filas.find((f) => f.hembra === hembra)!.resumen;
+    // A mano: Abril (850 + 920 + 780 + 1100 + 870) mil / 5 = 904 000 células por ml.
+    expect(de("Abril").celulas).toEqual({ promedio: 904000, muestras: 5 });
+    expect(de("Abril").grasa.promedio).toBeCloseTo(3.14, 10);
+    expect(de("Abril").proteina.promedio).toBeCloseTo(2.98, 10);
+    // Bella: (340 + 410 + 380 + 450 + 360) mil / 5 = 388 000.
+    expect(de("Bella").celulas).toEqual({ promedio: 388000, muestras: 5 });
+    expect(de("Bella").grasa.promedio).toBeCloseTo(3.94, 10);
+    // Dalia tiene vacíos a propósito: solo cuentan las muestras que traen el dato.
+    expect(de("Dalia").celulas).toEqual({ promedio: 570000, muestras: 3 });
+    expect(de("Dalia").grasa.muestras).toBe(3);
+    expect(de("Dalia").grasa.promedio).toBeCloseTo(3.5, 10);
+    expect(de("Dalia").proteina.muestras).toBe(2);
+    expect(de("Dalia").proteina.promedio).toBeCloseTo(3.05, 10);
+  });
+
+  it("deja ingresos y gastos con el resumen del cálculo manual y los gastos generales aparte (R19)", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    expect((await listarCategorias(db)).length).toBe(6);
+    expect((await listarMovimientos(db)).length).toBe(8);
+    const { finca, lotes, animales } = await resumenFinanciero(db);
+    expect(finca).toMatchObject({
+      ingresos: 3_400_000,
+      gastos: 3_910_000,
+      rentabilidad: -510_000,
+      gastosGenerales: 2_700_000,
+      gastosDeLotes: 940_000,
+      gastosDeAnimales: 270_000,
+      ingresosGenerales: 2_300_000,
+    });
+    expect(lotes.map((l) => [l.nombre, l.ingresos, l.gastos, l.rentabilidad])).toEqual([
+      ["Levante", 0, 90_000, -90_000],
+      ["Ordeño", 1_100_000, 850_000, 250_000],
+    ]);
+    expect(animales.map((a) => [a.nombre, a.costo])).toEqual([
+      ["Canela", 150_000],
+      ["Bella", 120_000],
+    ]);
+  });
+
+  it("R30: la monta de Canela ya tiene su gasto y la de Dalia (con costo) queda sin él, lista para ofrecerlo", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    const [titan] = await listarExternos(db);
+    const { servicios } = await serviciosComoMacho(db, titan.id);
+    const conCosto = servicios.filter((s) => s.costo);
+    expect(conCosto.map((s) => s.hembra).sort()).toEqual(["Canela", "Dalia"]);
+    const conGasto = await serviciosConGasto(db, conCosto.map((s) => s.id));
+    expect(conCosto.filter((s) => conGasto.has(s.id)).map((s) => s.hembra)).toEqual(["Canela"]);
+  });
+
+  it("también se carga en una base que ya tenía los demás datos, y no se repite", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    expect(await cargarCalidadYFinanzasDeEjemplo(db, () => PROPIETARIO, HOY)).toBe(false);
+    expect((await listarMovimientos(db)).length).toBe(8);
   });
 });

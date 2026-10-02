@@ -3,6 +3,7 @@
 // Etapa 4: tratamiento con retiro vigente, vacunas, desparasitación y condición corporal.
 // Etapa 6: un semental de otra finca con su propietario, tres servicios y un parto con padre externo.
 // Etapa 7: animales listos para registrar y otros a los que les falta algún requisito (registros genealógicos).
+// Etapa 8: muestras de calidad de la leche e ingresos y gastos de ejemplo.
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import type { FormaConcepcion, Sexo } from "../src/dominio/tipos";
 import { completarAsistente, consultarArranque } from "../src/datos/arranque";
@@ -10,6 +11,7 @@ import type { Conexion, ContextoCambio } from "../src/datos/conexion";
 import { animalVacio, guardarAnimal, listarAnimales, obtenerAnimal } from "../src/datos/repositorios/animales";
 import { listarCatalogo } from "../src/datos/repositorios/catalogos";
 import { crearLote, listarLotes } from "../src/datos/repositorios/lotes";
+import { cargarCalidadYFinanzasDeEjemplo } from "./calidad-y-finanzas-de-ejemplo";
 import { cargarExternosDeEjemplo } from "./externos-de-ejemplo";
 import { cargarRegistrosDeEjemplo } from "./registros-de-ejemplo";
 import { cargarReproduccionDeEjemplo } from "./reproduccion-de-ejemplo";
@@ -67,6 +69,8 @@ export interface ResultadoSemillas {
   externos: boolean;
   /** Etapa 7: se cargaron ahora los animales para probar los registros (también en una base que ya tenía los demás datos). */
   registros: boolean;
+  /** Etapa 8: se cargaron ahora las muestras de calidad y los movimientos de ejemplo (también en una base que ya tenía los demás datos). */
+  finanzas: boolean;
 }
 
 /**
@@ -78,7 +82,8 @@ export async function cargarDatosDeEjemplo(conexion: Conexion, hoy = fechaLocal(
   if ((await listarAnimales(conexion, { texto: "EJ-01", incluirSoloGenealogia: true })).length > 0) {
     const { contexto } = await asegurarFinca(conexion);
     const externos = await cargarExternosDeEjemplo(conexion, contexto, hoy);
-    return { creados: 0, yaCargados: true, creoFinca: false, externos, registros: await cargarRegistrosDeEjemplo(conexion, contexto) };
+    const registros = await cargarRegistrosDeEjemplo(conexion, contexto);
+    return { creados: 0, yaCargados: true, creoFinca: false, externos, registros, finanzas: await cargarCalidadYFinanzasDeEjemplo(conexion, contexto, hoy) };
   }
   const { contexto, creoFinca } = await asegurarFinca(conexion);
 
@@ -126,7 +131,8 @@ export async function cargarDatosDeEjemplo(conexion: Conexion, hoy = fechaLocal(
   await cargarSaludDeEjemplo(conexion, ids, contexto, hoy);
   const externos = await cargarExternosDeEjemplo(conexion, contexto, hoy);
   const registros = await cargarRegistrosDeEjemplo(conexion, contexto);
-  return { creados: FICHAS.length + crias.length, yaCargados: false, creoFinca, externos, registros };
+  const finanzas = await cargarCalidadYFinanzasDeEjemplo(conexion, contexto, hoy);
+  return { creados: FICHAS.length + crias.length, yaCargados: false, creoFinca, externos, registros, finanzas };
 }
 
 /** Crea la finca y el propietario de ejemplo si el asistente no se ha completado. */

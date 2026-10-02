@@ -4,7 +4,7 @@ Programa de escritorio para **Windows y Mac** con el que un criador de cabras le
 internet**, la genealogía, la reproducción, la leche, los pesajes y la salud de cada animal, y prepara el expediente
 que pide ANCO. El primer usuario es el Aprisco El Paraíso.
 
-Versión actual: **0.3.0** (generador de registros genealógicos). La 0.2.0 trajo los sementales y las montas de otras fincas; la 0.1.0 fue la primera versión para el aprisco.
+Versión actual: **0.4.0** (calidad de la leche y finanzas). La 0.3.0 trajo el generador de registros genealógicos; la 0.2.0, los sementales y las montas de otras fincas; la 0.1.0 fue la primera versión para el aprisco.
 
 ## Qué hace
 
@@ -21,7 +21,13 @@ Versión actual: **0.3.0** (generador de registros genealógicos). La 0.2.0 traj
 - **Reproducción**: servicios (monta o inseminación, con un macho del hato, de otra finca o solo la pajilla, y el costo
   acordado con su dueño), aviso de paternidad incierta, diagnóstico de preñez, fecha probable de parto, partos con una
   ficha por cría, abortos e intervalo entre partos.
-- **Leche**: ordeño en lote con teclado numérico y Enter, lactancias, curva y proyección.
+- **Leche**: ordeño en lote con teclado numérico y Enter, lactancias, curva y proyección. Desde la 0.4.0, la grasa, la
+  proteína y las células somáticas de la leche se pueden anotar junto al ordeño (todo es opcional) y una pantalla
+  compara las cabras por lactancia con una tabla ordenable y un gráfico; los datos vacíos no cuentan en los promedios.
+- **Finanzas** (0.4.0, solo el propietario): ingresos y gastos con categoría (editable), animal o lote opcional y filtro
+  por periodo; resumen por finca, por lote y por animal con la rentabilidad; los gastos sin asignar salen aparte como
+  «gastos generales», y repartirlos entre los animales es una opción rotulada como suposición. Al guardar una monta con
+  costo, el programa ofrece anotarlo como gasto.
 - **Pesos**: peso corporal, ganancia diaria y metas por edad que define el aprisco.
 - **Salud**: vacunas y desparasitaciones con calendario, tratamientos con los campos del Registro de Tratamientos del
   ICA, condición corporal y alertas de retiro de leche y carne (en el Inicio, el ordeño y la ficha).

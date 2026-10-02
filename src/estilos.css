@@ -1057,3 +1057,67 @@ fieldset.opciones legend {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ---------- Etapa 8: calidad de la leche y finanzas ---------- */
+
+/* Tablas con muchas columnas: se desplazan hacia el lado en lugar de cortarse. */
+.tabla-ancha {
+  overflow-x: auto;
+}
+
+/* Casillas de calidad del ordeño: más angostas que los kilos, para que la fila entre en la ventana. */
+.ordeno__calidad {
+  width: 5.6rem;
+  font-size: 1.1rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ordeno th,
+.ordeno td {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* Un botón pequeño dentro de una tabla no parte su texto en varias líneas. */
+.tabla td .boton--pequeno {
+  white-space: nowrap;
+}
+
+/* Título de columna que ordena la tabla. */
+.tabla th > .orden {
+  all: unset;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-primario);
+  text-decoration: underline;
+}
+
+.tabla th > .orden:focus-visible {
+  outline: 3px solid var(--color-foco);
+  outline-offset: 2px;
+}
+
+.tabla th.numero > .orden {
+  text-align: right;
+}
+
+/* Gráfico de barras de la comparación de calidad (mismo verde que la curva de lactancia). */
+.barras__barra {
+  fill: #2f7d4a;
+}
+
+/* Ingresos y gastos: se distinguen por el texto de la insignia, no solo por el color. */
+.insignia--ingreso {
+  background: var(--color-exito-fondo);
+  border-color: var(--color-exito-borde);
+}
+
+.insignia--gasto {
+  background: var(--color-info-fondo);
+  border-color: var(--color-info-borde);
+}
+
+.tarjeta > h3:first-child {
+  margin-top: 0;
+}

@@ -5,6 +5,7 @@ import { OPERARIO, PROPIETARIO } from "./ayudas-pruebas";
 import { archivosDeMigracion, crearBaseDePrueba, type ConexionMemoria } from "./conexion-memoria";
 import { ErrorDeRegistro } from "./errores";
 import { eliminarAnimal, listarAnimales } from "./repositorios/animales";
+import { actualizarCategoria, listarCategorias, listarMovimientos } from "./repositorios/finanzas";
 import { cambiarPin } from "./repositorios/usuarios";
 import { anularRegistro, emitirRegistro, reemitirRegistro, registrarDocumentoDeRegistro } from "./repositorios/registros";
 import { registrarEventoSalud } from "./repositorios/salud";
@@ -95,6 +96,31 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
     expect(respaldo.tablas.evento_salud.length).toBe(14); // 13 de las semillas + 1 de esta prueba
     expect(respaldo.tablas.usuario[0].pin_hash).toMatch(/^pbkdf2-sha256\$/);
     expect(respaldo.tablas.animal.filter((a) => a.eliminado_en !== null)).toHaveLength(1);
+  });
+
+  it("Etapa 8: la calidad de la leche, las categorías y los movimientos se restauran tal cual", async () => {
+    await finca(origen);
+    const respaldo = await exportarRespaldo(origen, PROPIETARIO);
+    await restaurarRespaldo(destino, leerRespaldo(JSON.stringify(respaldo)));
+    expect(respaldo.tablas.categoria_economica.length).toBeGreaterThanOrEqual(6);
+    expect(respaldo.tablas.movimiento_economico.length).toBeGreaterThan(0);
+    expect(respaldo.tablas.pesaje_leche.some((p) => p.celulas_somaticas !== null)).toBe(true);
+    expect(respaldo.tablas.pesaje_leche.some((p) => p.grasa_pct === null && p.celulas_somaticas === null)).toBe(true);
+    expect((await listarMovimientos(destino)).length).toBe(respaldo.tablas.movimiento_economico.filter((m) => m.eliminado_en === null).length);
+  });
+
+  it("una categoría precargada renombrada se restaura aunque otra nueva use su nombre original", async () => {
+    const ALIMENTO = "cc5e2353-d7bc-4c1a-bf4d-446ae292c429";
+    await actualizarCategoria(origen, ALIMENTO, { nombre: "Concentrado", activo: true }, PROPIETARIO);
+    // El id nuevo va antes que el precargado en el orden del respaldo: sin cuidado, chocaría con «Alimento».
+    await origen.ejecutar(
+      "INSERT INTO categoria_economica (id, nombre, tipo, creado_en, modificado_en) VALUES ('00000000-0000-4000-8000-000000000000', 'Alimento', 'gasto', ?, ?)",
+      ["2026-09-15T12:00:00.000Z", "2026-09-15T12:00:00.000Z"],
+    );
+    const respaldo = await exportarRespaldo(origen, PROPIETARIO);
+    await restaurarRespaldo(destino, leerRespaldo(JSON.stringify(respaldo)));
+    expect((await exportarRespaldo(destino, PROPIETARIO)).tablas.categoria_economica).toEqual(respaldo.tablas.categoria_economica);
+    expect((await listarCategorias(destino, { tipo: "gasto" })).map((c) => c.nombre)).toEqual(["Alimento", "Concentrado", "Mano de obra", "Medicamentos", "Montas y pajillas"]);
   });
 
   it("el respaldo dice qué es, de qué versión del esquema y cuándo se hizo", async () => {

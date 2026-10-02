@@ -11,7 +11,8 @@ import { guardarContacto, contactoVacio } from "./repositorios/contactos";
 import { calcularConsanguinidad } from "./repositorios/genealogia";
 import { listarDocumentos } from "./repositorios/documentos";
 import { emitirRegistro, listarConfigLibros, listarRegistros } from "./repositorios/registros";
-import { listarLactancias } from "./repositorios/leche";
+import { listarCategorias, listarMovimientos, registrarMovimiento, resumenFinanciero } from "./repositorios/finanzas";
+import { guardarPesajeLeche, listarComparacionCalidad, listarLactancias, listarOrdeno } from "./repositorios/leche";
 import { listarServicios } from "./repositorios/reproduccion";
 import { comprobarPin, listarUsuarios } from "./repositorios/usuarios";
 
@@ -26,6 +27,7 @@ const VALORES_NUEVOS: Record<string, Record<string, unknown>> = {
   evento_reproductivo: { costo: null, condiciones: null },
   finca: { margen_gestacion: 10, criador: null, propietario: null, responsable_registros: null },
   libro: { siguiente_numero: 1, digitos_numero: 4, separador_numero: "-" },
+  pesaje_leche: { grasa_pct: null, proteina_pct: null, celulas_somaticas: null },
 };
 
 /** Inserta las filas tal como están (como las dejó la 0.1.0), en el orden de su respaldo. */
@@ -111,6 +113,39 @@ describe("CA-33: actualizar desde la versión 0.1.0", () => {
     const { numero } = await emitirRegistro(db, estrella.id, PROPIETARIO, { hoy: "2026-10-02" });
     expect(numero).toBe("PPE-0001");
     expect((await listarRegistros(db, {})).map((x) => x.numero)).toEqual(["PPE-0001"]);
+  });
+
+  it("Etapa 8: los pesajes de la 0.1.0 quedan sin calidad, llegan las categorías y se pueden anotar la calidad y los gastos", async () => {
+    const pesajesAntes = r.tablas.pesaje_leche.length;
+    const kilosAntes = r.tablas.pesaje_leche.reduce((s, p) => s + Number(p.kilos), 0);
+    for (const archivo of archivosDeMigracion().filter((a) => !DE_LA_0_1_0(a))) db.ejecutarScript(leerMigracion(archivo));
+    // Nada de lo anterior cambia: mismos pesajes, mismos kilos, y sin ningún dato de calidad inventado.
+    const [{ n, kilos, conCalidad }] = await db.consultar<{ n: number; kilos: number; conCalidad: number }>(
+      `SELECT count(*) AS n, sum(kilos) AS kilos,
+              sum(grasa_pct IS NOT NULL OR proteina_pct IS NOT NULL OR celulas_somaticas IS NOT NULL) AS conCalidad
+       FROM pesaje_leche`,
+    );
+    expect([n, kilos, conCalidad]).toEqual([pesajesAntes, kilosAntes, 0]);
+    expect((await listarComparacionCalidad(db, { soloAbiertas: false })).every((f) => f.resumen.celulas.promedio === null)).toBe(true);
+    expect((await listarCategorias(db)).map((c) => c.nombre)).toEqual(["Alimento", "Mano de obra", "Medicamentos", "Montas y pajillas", "Venta de animales", "Venta de leche"]);
+    expect(await listarMovimientos(db)).toEqual([]);
+
+    // Se puede anotar la calidad en un pesaje que ya existía (se corrige, no se duplica) y registrar un gasto.
+    const [lactancia] = await db.consultar<{ lactancia_id: string; fecha: string; jornada: "manana" | "tarde"; kilos: number }>(
+      `SELECT p.lactancia_id, p.fecha, p.jornada, p.kilos
+       FROM pesaje_leche AS p
+       JOIN lactancia AS l ON l.id = p.lactancia_id
+       JOIN animal AS a ON a.id = l.hembra_id
+       WHERE p.eliminado_en IS NULL AND a.estado = 'activo' AND a.en_hato = 1 AND a.eliminado_en IS NULL
+       ORDER BY p.fecha DESC LIMIT 1`,
+    );
+    await guardarPesajeLeche(db, { lactanciaId: lactancia.lactancia_id, fecha: lactancia.fecha, jornada: lactancia.jornada, kilos: lactancia.kilos, celulasSomaticas: 480000 }, PROPIETARIO);
+    const [despues] = await db.consultar<{ n: number }>("SELECT count(*) AS n FROM pesaje_leche");
+    expect(despues.n).toBe(pesajesAntes);
+    const categorias = await listarCategorias(db, { tipo: "gasto" });
+    await registrarMovimiento(db, { fecha: "2026-09-01", tipo: "gasto", categoriaId: categorias[0].id, valor: 250000, animalId: null, loteId: null, descripcion: "Gasto de prueba" }, PROPIETARIO);
+    expect((await resumenFinanciero(db)).finca.gastosGenerales).toBe(250000);
+    expect(await listarOrdeno(db, lactancia.fecha, lactancia.jornada)).toBeInstanceOf(Array);
   });
 });
 

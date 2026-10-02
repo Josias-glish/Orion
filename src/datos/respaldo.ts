@@ -9,7 +9,7 @@ import { obtenerFinca } from "./repositorios/finca";
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
 /** Número de migraciones que conoce esta versión del programa (una prueba lo compara con la carpeta). */
-export const VERSION_ESQUEMA = 6;
+export const VERSION_ESQUEMA = 7;
 
 /** Todas las tablas de datos, en un orden en que cada tabla va después de las que referencia. */
 export const TABLAS_RESPALDO = [
@@ -18,6 +18,7 @@ export const TABLAS_RESPALDO = [
   "raza",
   "libro",
   "lote",
+  "categoria_economica",
   "contacto",
   "animal",
   "identificador",
@@ -31,12 +32,13 @@ export const TABLAS_RESPALDO = [
   "evento_salud",
   "certificado",
   "registro_genealogico",
+  "movimiento_economico",
   "historial_cambios",
 ] as const;
 export type TablaRespaldo = (typeof TABLAS_RESPALDO)[number];
 
-/** Catálogos que la migración 0001 precarga con id fijos: al restaurar se actualizan en lugar de chocar. */
-const PRECARGADAS: ReadonlySet<TablaRespaldo> = new Set(["raza", "libro"]);
+/** Catálogos que las migraciones 0001 y 0007 precargan con id fijos: al restaurar se actualizan en lugar de chocar. */
+const PRECARGADAS: ReadonlySet<TablaRespaldo> = new Set(["raza", "libro", "categoria_economica"]);
 
 export type Fila = Record<string, ValorSql>;
 
@@ -170,7 +172,13 @@ export async function restaurarRespaldo(conexion: Conexion, r: Respaldo): Promis
   const sentencias: Sentencia[] = [];
   for (const tabla of TABLAS_RESPALDO) {
     const crudas = r.tablas[tabla] ?? [];
-    const filas = tabla === "animal" ? animalesEnOrden(crudas) : tabla === "registro_genealogico" ? registrosEnOrden(crudas) : crudas;
+    let filas = tabla === "animal" ? animalesEnOrden(crudas) : tabla === "registro_genealogico" ? registrosEnOrden(crudas) : crudas;
+    if (PRECARGADAS.has(tabla)) {
+      // Primero se actualizan los que la instalación ya trae: así un nombre que el usuario le quitó a uno precargado
+      // y volvió a usar en otro nuevo no choca con el índice de nombres únicos.
+      const existentes = new Set((await conexion.consultar<{ id: string }>(`SELECT id FROM ${tabla}`)).map((f) => f.id));
+      filas = [...filas.filter((f) => existentes.has(String(f.id))), ...filas.filter((f) => !existentes.has(String(f.id)))];
+    }
     if (filas.length === 0) continue;
     const columnas = Object.keys(filas[0]);
     if (filas.some((f) => Object.keys(f).length !== columnas.length || columnas.some((c) => !(c in f)))) throw danado();

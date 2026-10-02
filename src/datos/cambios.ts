@@ -22,7 +22,9 @@ export type Tabla =
   | "meta_peso"
   | "evento_salud"
   | "certificado"
-  | "registro_genealogico";
+  | "registro_genealogico"
+  | "categoria_economica"
+  | "movimiento_economico";
 
 /** Campos que no se anotan uno por uno: el id va en registro_id y las fechas comunes se deducen. */
 const CAMPOS_NO_ANOTADOS = new Set(["id", "creado_en", "modificado_en"]);

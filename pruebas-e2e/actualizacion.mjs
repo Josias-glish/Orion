@@ -84,13 +84,15 @@ try {
   await p.clic('[data-pestana="externos"]');
   const externos = (await p.buscar("main")).texto;
   comprobar("Las funciones nuevas están disponibles («De otras fincas»)", externos.includes("Registrar animal de otra finca"));
+  const menu = await p.js("return [...document.querySelectorAll('[data-pantalla]')].map((b) => b.dataset.pantalla)");
+  comprobar("Etapa 8: aparece «Finanzas» en el menú del propietario", menu.includes("finanzas"), menu.join(", "));
   await p.captura("ca33-02-version-nueva");
   await p.cerrar();
   await esperar(1000);
 
   // ---------- 3. Comparación tabla por tabla ----------
   const despues = leerBase();
-  comprobar("CA-33: el programa nuevo aplicó sus migraciones", migraciones().startsWith("1,2,3,4,5,6"), migraciones());
+  comprobar("CA-33: el programa nuevo aplicó sus migraciones", migraciones().startsWith("1,2,3,4,5,6,7"), migraciones());
   const diferencias = [];
   for (const [tabla, filas] of Object.entries(antes)) {
     if (despues[tabla].length !== filas.length) diferencias.push(`${tabla}: ${filas.length} → ${despues[tabla].length}`);
@@ -113,6 +115,14 @@ try {
   comprobar(
     "CA-33: los cinco libros recibieron su prefijo y ninguno tiene registros",
     despues.libro.filter((l) => l.prefijo).length === 5 && despues.registro_genealogico.length === 0,
+  );
+  comprobar(
+    "CA-33: los pesajes de leche de la 0.1.0 quedan sin calidad (nada inventado) y llegan las 6 categorías de Finanzas, sin movimientos",
+    despues.pesaje_leche.length === antes.pesaje_leche.length &&
+      despues.pesaje_leche.every((x) => x.grasa_pct === null && x.proteina_pct === null && x.celulas_somaticas === null) &&
+      despues.categoria_economica.length === 6 &&
+      despues.movimiento_economico.length === 0,
+    `${despues.pesaje_leche.length} pesajes, ${despues.categoria_economica.length} categorías`,
   );
   comprobar(
     "CA-33: los animales existentes quedan «nacido_aqui»",
