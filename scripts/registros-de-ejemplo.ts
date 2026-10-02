@@ -8,7 +8,7 @@ import { listarCatalogo } from "../src/datos/repositorios/catalogos";
 import { listarLotes } from "../src/datos/repositorios/lotes";
 
 const MARCA = "Dato de ejemplo (npm run semillas)";
-export const ARETE_NUBE = "EJ-18";
+export const ARETE_NUBE = "EJ-30";
 
 /**
  * Agrega a Nube (lista para registrar) y a tres animales a los que les falta algo:
@@ -53,7 +53,7 @@ export async function cargarRegistrosDeEjemplo(conexion: Conexion, contexto: () 
       colorSenas: "Café con blanco",
       libroId: libros.get("Pureza por cruzamiento") ?? null,
       madreId: brisa,
-      identificadores: [arete("EJ-19")],
+      identificadores: [arete("EJ-31")],
       composicion: [{ razaId: razas.get("Alpina")!, fraccion: 1 }],
     }),
     base({
@@ -72,7 +72,7 @@ export async function cargarRegistrosDeEjemplo(conexion: Conexion, contexto: () 
       libroId: libros.get("Mestizo") ?? null,
       padreId: cacique,
       madreId: dalia,
-      identificadores: [arete("EJ-20")],
+      identificadores: [arete("EJ-32")],
     }),
   ];
   for (const datos of nuevos) await guardarAnimal(conexion, datos, contexto());

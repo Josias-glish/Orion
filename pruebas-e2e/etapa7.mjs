@@ -167,7 +167,7 @@ try {
   await p.buscar('[data-prueba="tabla-verificacion"]', { condicion: (t) => t.includes("Perla") });
   await p.clic('[data-prueba="seleccionar-listos"]');
   await p.buscar('[data-prueba="emitir-lote"]', { condicion: (t) => t.includes("(12)") });
-  await p.js(`document.querySelector('[data-animal="EJ-19"] [data-prueba="elegir-animal"]').click();`); // Perla: incompleta, la elijo a propósito
+  await p.js(`document.querySelector('[data-animal="EJ-31"] [data-prueba="elegir-animal"]').click();`); // Perla: incompleta, la elijo a propósito
   await p.buscar('[data-prueba="emitir-lote"]', { condicion: (t) => t.includes("(13)") });
   await p.clic('[data-prueba="emitir-lote"]');
   await p.buscar('[data-prueba="confirmar-lote"]');
