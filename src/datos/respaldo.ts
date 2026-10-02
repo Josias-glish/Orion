@@ -9,7 +9,7 @@ import { obtenerFinca } from "./repositorios/finca";
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
 /** Número de migraciones que conoce esta versión del programa (una prueba lo compara con la carpeta). */
-export const VERSION_ESQUEMA = 8;
+export const VERSION_ESQUEMA = 9;
 
 /** Todas las tablas de datos, en un orden en que cada tabla va después de las que referencia. */
 export const TABLAS_RESPALDO = [
@@ -37,6 +37,13 @@ export const TABLAS_RESPALDO = [
   "historial_cambios",
 ] as const;
 export type TablaRespaldo = (typeof TABLAS_RESPALDO)[number];
+
+/**
+ * Tablas técnicas de la sincronización (migración 0009) que NO van en la copia de respaldo: describen el vínculo de este equipo
+ * con el servidor (cola, marcas, avisos, equipos), no los datos de la finca. Restaurar un respaldo no se permite en un equipo
+ * vinculado. Una prueba exige que cada tabla de la base esté en una lista o en la otra.
+ */
+export const TABLAS_LOCALES = ["dispositivo", "sincronizacion_estado", "cola_cambios", "marca_registro", "aviso_sincronizacion", "archivo_sincronizado"] as const;
 
 /** Catálogos que las migraciones 0001 y 0007 precargan con id fijos: al restaurar se actualizan en lugar de chocar. */
 const PRECARGADAS: ReadonlySet<TablaRespaldo> = new Set(["raza", "libro", "categoria_economica"]);

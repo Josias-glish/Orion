@@ -2,6 +2,7 @@ import type { Usuario } from "../datos/repositorios/usuarios";
 import { puede } from "../dominio/permisos";
 import { textos } from "../textos/es";
 import type { Ruta } from "./contextos";
+import { IndicadorSincronizacion } from "./IndicadorSincronizacion";
 
 type Seccion = "inicio" | "animales" | "reproduccion" | "leche" | "pesos" | "salud" | "documentos" | "registros" | "finanzas" | "traspasos" | "ajustes";
 
@@ -79,6 +80,7 @@ export function BarraLateral({ ruta, usuario, version, alNavegar, alCambiarUsuar
         ))}
       </ul>
       <div className="barra-lateral__pie">
+        <IndicadorSincronizacion rol={usuario.rol} />
         <div className="barra-lateral__usuario" data-prueba="usuario-actual">
           {textos.sesion.usuarioActual(usuario.nombre, usuario.rol)}
         </div>

@@ -6,5 +6,6 @@
   "0005_sementales_externos.sql": "7f8bf055697d385855aaeaa489c44dabaf3855904ac6c05dd161a063a86e6fe2",
   "0006_registro_genealogico.sql": "f2a3f71da2d75ccdba3ef6754f7b328fed7e9ba65c94e1bd0e38a916f630dfa5",
   "0007_calidad_y_finanzas.sql": "2bbf67440d74d40278a9bd9645b305804e822138375a968a3206e5033c1d6223",
-  "0008_compra_venta.sql": "6e3e695a81689da269b58e9fc797a8e9c59b31e8dfe3031686d6b21a1f7f67cc"
+  "0008_compra_venta.sql": "6e3e695a81689da269b58e9fc797a8e9c59b31e8dfe3031686d6b21a1f7f67cc",
+  "0009_sincronizacion.sql": "b7f92c642d51a10ad8b9430328886426e558f3404172daff6983332f6c3b41a9"
 }

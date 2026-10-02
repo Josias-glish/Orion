@@ -1,6 +1,7 @@
 // RF-49 y R31: registro genealógico propio. Configuración de los libros (prefijo y formato del número), lista de
 // verificación, borradores, emisión (sola o en lote), reemisión, anulación y los datos del libro genealógico.
 import { esFechaValida, fechaLocal } from "../../dominio/fechas";
+import { nuevoId } from "../../dominio/identidad";
 import { descendientesDe, validarGenealogia, type AnimalGenealogico } from "../../dominio/genealogia";
 import { esDelHato } from "../../dominio/externos";
 import type { RegistroDeLibro } from "../../dominio/libro-genealogico";
@@ -32,9 +33,25 @@ import type { OrigenAnimal, Sexo } from "../../dominio/tipos";
 import { Cambios, exigirPermiso } from "../cambios";
 import type { Conexion, ContextoCambio } from "../conexion";
 import { ErrorDeRegistro, rechazarSi, type Motivo } from "../errores";
+import { leerVinculo } from "../sincronizacion/estado";
+import { servidorDeRegistros, type RegistroParaEmitir, type ServidorDeRegistros } from "../sincronizacion/servidor-registros";
 import { obtenerAnimal } from "./animales";
 import { calcularConsanguinidad, consultarArbol } from "./genealogia";
 import { listarHistorialEntidad, type EntradaHistorial } from "./historial";
+
+// ---------------------------------------------------------------- Equipo vinculado
+
+/**
+ * En un equipo vinculado a un servidor (Etapa 10) el número de un registro lo asigna el servidor (R31, S-87). Devuelve ese
+ * servidor, o null si el equipo no está vinculado y numera solo, como en la 0.5.0. Si está vinculado y no hay servidor
+ * disponible, falla con `requiere_servidor`.
+ */
+async function servidorSiHayVinculo(conexion: Conexion): Promise<ServidorDeRegistros | null> {
+  if ((await leerVinculo(conexion)) === null) return null;
+  const servidor = servidorDeRegistros(conexion);
+  if (!servidor) throw new ErrorDeRegistro([{ codigo: "requiere_servidor" }]);
+  return servidor;
+}
 
 // ---------------------------------------------------------------- Configuración
 
@@ -120,14 +137,20 @@ export async function guardarConfigLibro(conexion: Conexion, libroId: string, da
   if (sinCambios) return;
   if (actual.registros > 0) throw new ErrorDeRegistro([{ codigo: "libro_con_registros" }]);
 
+  const servidor = await servidorSiHayVinculo(conexion);
   const cambios = new Cambios(contexto);
+  // En un equipo vinculado el contador lo cambia el servidor (columna reservada): aquí solo el formato.
   cambios.actualizar(
     "libro",
     libroId,
-    { prefijo: actual.prefijo, separador_numero: actual.separador, digitos_numero: actual.digitos, siguiente_numero: actual.siguienteNumero },
-    { prefijo, separador_numero: datos.separador, digitos_numero: datos.digitos, siguiente_numero: datos.siguienteNumero },
+    { prefijo: actual.prefijo, separador_numero: actual.separador, digitos_numero: actual.digitos, ...(servidor ? {} : { siguiente_numero: actual.siguienteNumero }) },
+    { prefijo, separador_numero: datos.separador, digitos_numero: datos.digitos, ...(servidor ? {} : { siguiente_numero: datos.siguienteNumero }) },
   );
   await cambios.aplicar(conexion);
+  if (servidor && datos.siguienteNumero !== actual.siguienteNumero) {
+    await servidor.alDia();
+    await servidor.fijarSiguienteNumero(libroId, datos.siguienteNumero);
+  }
 }
 
 /** Datos del criadero para el certificado de registro propio. */
@@ -664,6 +687,9 @@ export async function emitirEnLote(conexion: Conexion, animalIds: readonly strin
   exigirPermiso(contexto, "gestionar_registros");
   const hoy = opciones.hoy ?? fechaLocal();
   validarFechaRegistro(opciones.fechaRegistro, hoy);
+  const servidor = await servidorSiHayVinculo(conexion);
+  // Con servidor: primero se recibe lo último, para emitir con los datos y el contador al día.
+  if (servidor) await servidor.alDia();
   const base = await cargarBase(conexion);
   const responsable = base.datos.responsable ?? (await nombreDelUsuario(conexion, contexto));
   const emitidoPor = await nombreDelUsuario(conexion, contexto);
@@ -703,6 +729,8 @@ export async function emitirEnLote(conexion: Conexion, animalIds: readonly strin
   }
   // Los rechazados salen en el orden en que se eligieron.
   const rechazados = unicos.filter((id) => rechazadosPorId.has(id)).map((id) => rechazadosPorId.get(id)!);
+
+  if (servidor) return emitirConServidor(conexion, servidor, base, plan.emitir, rechazados, { hoy, responsable, emitidoPor, opciones, nombreDe });
 
   // Todo lo que puede fallar se calcula antes de escribir.
   const cambios = new Cambios(contexto);
@@ -751,6 +779,62 @@ export async function emitirEnLote(conexion: Conexion, animalIds: readonly strin
     cambios.actualizar("libro", libroId, { siguiente_numero: base.libros.get(libroId)!.contador }, { siguiente_numero: siguiente });
   }
   await cambios.aplicar(conexion);
+  return { emitidos, rechazados };
+}
+
+interface ContextoEmisionRemota {
+  hoy: string;
+  responsable: string | null;
+  emitidoPor: string | null;
+  opciones: OpcionesEmision;
+  nombreDe: (animalId: string) => string;
+}
+
+/**
+ * Emisión en un equipo vinculado: el servidor asigna los números en el orden recibido y los devuelve; este equipo los
+ * recibe como cualquier otro cambio. La instantánea lleva el número local solo como marcador: el servidor lo reemplaza.
+ */
+async function emitirConServidor(
+  conexion: Conexion,
+  servidor: ServidorDeRegistros,
+  base: BaseDeVerificacion,
+  emitir: readonly { animalId: string; libroId: string; numero: string }[],
+  rechazados: RechazadoEnLote[],
+  c: ContextoEmisionRemota,
+): Promise<ResultadoLote> {
+  const pedidos: RegistroParaEmitir[] = [];
+  for (const n of emitir) {
+    const borrador = (await registroVigenteDe(conexion, n.animalId)) ?? null;
+    const fechaRegistro = c.opciones.fechaRegistro ?? borrador?.fechaRegistro ?? c.hoy;
+    const observaciones = c.opciones.observaciones !== undefined ? c.opciones.observaciones : (borrador?.observaciones ?? null);
+    const instantanea = await construirInstantanea(conexion, base, n.animalId, {
+      numero: n.numero,
+      version: 1,
+      fechaRegistro,
+      fechaEmision: c.hoy,
+      responsable: c.responsable,
+      emitidoPor: c.emitidoPor,
+      observaciones,
+    });
+    pedidos.push({
+      registro_id: borrador?.id ?? nuevoId(),
+      animal_id: n.animalId,
+      libro_id: n.libroId,
+      fecha_registro: fechaRegistro,
+      instantanea: JSON.stringify(instantanea),
+      responsable: c.responsable,
+      observaciones,
+    });
+  }
+  if (pedidos.length === 0) return { emitidos: [], rechazados };
+  const resultados = await servidor.emitir(pedidos);
+  const porId = new Map(resultados.map((r) => [r.registro_id, r]));
+  const emitidos: EmitidoEnLote[] = pedidos.map((p) => ({
+    animalId: p.animal_id,
+    nombre: c.nombreDe(p.animal_id),
+    registroId: p.registro_id,
+    numero: porId.get(p.registro_id)?.numero ?? "",
+  }));
   return { emitidos, rechazados };
 }
 
@@ -850,6 +934,8 @@ export async function reemitirRegistro(
   opciones: { hoy?: string; observaciones?: string | null } = {},
 ): Promise<ResultadoEmision> {
   exigirPermiso(contexto, "gestionar_registros");
+  const servidor = await servidorSiHayVinculo(conexion);
+  if (servidor) await servidor.alDia();
   const registro = await registroExistente(conexion, registroId, "reemitir");
   const base = await cargarBase(conexion);
   const v = verificarConBase(base, registro.animalId);
@@ -871,6 +957,10 @@ export async function reemitirRegistro(
     emitidoPor: await nombreDelUsuario(conexion, contexto),
     observaciones,
   });
+  if (servidor) {
+    const resultado = await servidor.reemitir(registroId, registro.version, { instantanea: JSON.stringify(instantanea), responsable, observaciones });
+    return { registroId, numero: resultado.numero, version: resultado.version };
+  }
   const cambios = new Cambios(contexto);
   cambios.actualizar(
     "registro_genealogico",
@@ -887,6 +977,12 @@ export async function anularRegistro(conexion: Conexion, registroId: string, mot
   exigirPermiso(contexto, "gestionar_registros");
   await registroExistente(conexion, registroId, "anular");
   rechazar(validarMotivoAnulacion(motivo));
+  const servidor = await servidorSiHayVinculo(conexion);
+  if (servidor) {
+    await servidor.alDia();
+    await servidor.anular(registroId, motivo.trim());
+    return;
+  }
   const cambios = new Cambios(contexto);
   cambios.actualizar("registro_genealogico", registroId, { estado: "emitido", motivo_anulacion: null }, { estado: "anulado", motivo_anulacion: motivo.trim() });
   await cambios.aplicar(conexion);

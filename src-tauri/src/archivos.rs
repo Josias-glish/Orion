@@ -69,6 +69,49 @@ pub fn guardar_copia(destino: &Path, contenido: &[u8]) -> Result<(), String> {
     }
 }
 
+/// Extensiones de los archivos que viajan entre equipos (Etapa 10): fotos, PDF y CSV de documentos, adjuntos.
+const EXTENSIONES_SINCRONIZADAS: [&str; 7] = ["jpg", "jpeg", "png", "webp", "pdf", "csv", "xlsx"];
+/// Tope de un archivo que se sincroniza (el almacenamiento del servidor también tiene el suyo).
+const MAXIMO_ARCHIVO_SINCRONIZADO: u64 = 50 << 20;
+
+/// Separa `fotos/<nombre>` o `documentos/<nombre>` y la comprueba: solo esas dos carpetas, un nombre simple y una extensión conocida.
+fn ruta_sincronizable(ruta: &str) -> Result<(&str, &str), String> {
+    let (carpeta, nombre) = ruta.split_once('/').ok_or("ruta de archivo no válida")?;
+    let ext = extension(Path::new(nombre));
+    let ext_valida = matches!(&ext, Some(e) if EXTENSIONES_SINCRONIZADAS.contains(&e.as_str()));
+    if !matches!(carpeta, "fotos" | "documentos") || !nombre_seguro(nombre) || !ext_valida {
+        return Err("ruta de archivo no válida".into());
+    }
+    Ok((carpeta, nombre))
+}
+
+/// Lee un archivo de datos del programa (foto, documento o adjunto). `None` si no existe en este equipo.
+pub fn leer_archivo_de_datos(carpeta_datos: &Path, ruta: &str) -> Result<Option<Vec<u8>>, String> {
+    let (carpeta, nombre) = ruta_sincronizable(ruta)?;
+    let archivo = carpeta_datos.join(carpeta).join(nombre);
+    match fs::metadata(&archivo) {
+        Ok(m) if m.is_file() && m.len() <= MAXIMO_ARCHIVO_SINCRONIZADO => fs::read(&archivo).map(Some).map_err(|e| e.to_string()),
+        Ok(m) if m.is_file() => Err("el archivo es demasiado grande para sincronizarlo".into()),
+        _ => Ok(None),
+    }
+}
+
+/// Guarda un archivo recibido de otro equipo en su lugar. No pisa uno que ya existe (los archivos no cambian).
+pub fn escribir_archivo_de_datos(carpeta_datos: &Path, ruta: &str, contenido: &[u8]) -> Result<bool, String> {
+    let (carpeta, nombre) = ruta_sincronizable(ruta)?;
+    if contenido.len() as u64 > MAXIMO_ARCHIVO_SINCRONIZADO {
+        return Err("el archivo es demasiado grande para sincronizarlo".into());
+    }
+    let carpeta = carpeta_datos.join(carpeta);
+    fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    let destino = carpeta.join(nombre);
+    if destino.exists() {
+        return Ok(false);
+    }
+    escribir_completo(&destino, |f| f.write_all(contenido).map_err(|e| e.to_string()))?;
+    Ok(true)
+}
+
 /// ¿Es una ruta relativa de adjunto, `documentos/adjunto-<uuid>.<extensión>`, como las que guarda `copiar_adjunto`?
 fn nombre_de_adjunto(ruta: &str) -> Option<&str> {
     let nombre = ruta.strip_prefix("documentos/")?;
@@ -187,6 +230,23 @@ mod pruebas {
         let _ = fs::remove_dir_all(&ruta);
         fs::create_dir_all(&ruta).unwrap();
         ruta
+    }
+
+    #[test]
+    fn archivos_de_sincronizacion_solo_en_fotos_y_documentos() {
+        let carpeta = carpeta_temporal("sincronizacion");
+        assert_eq!(leer_archivo_de_datos(&carpeta, "fotos/a1.jpg").unwrap(), None);
+        assert!(escribir_archivo_de_datos(&carpeta, "fotos/a1.jpg", b"abc").unwrap());
+        assert_eq!(leer_archivo_de_datos(&carpeta, "fotos/a1.jpg").unwrap(), Some(b"abc".to_vec()));
+        // No pisa uno que ya está.
+        assert!(!escribir_archivo_de_datos(&carpeta, "fotos/a1.jpg", b"otro").unwrap());
+        assert_eq!(leer_archivo_de_datos(&carpeta, "fotos/a1.jpg").unwrap(), Some(b"abc".to_vec()));
+        assert!(escribir_archivo_de_datos(&carpeta, "documentos/CP-2026-0001-B.pdf", b"%PDF").unwrap());
+        for mala in ["../fuera.pdf", "fotos/../x.jpg", "datos/a.jpg", "fotos/a.exe", "fotos/a/b.jpg", "fotos", "/etc/passwd", "documentos/a b.pdf"] {
+            assert!(leer_archivo_de_datos(&carpeta, mala).is_err(), "{mala}");
+            assert!(escribir_archivo_de_datos(&carpeta, mala, b"x").is_err(), "{mala}");
+        }
+        let _ = fs::remove_dir_all(&carpeta);
     }
 
     #[test]

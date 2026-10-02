@@ -38,6 +38,11 @@
       }
     }
   },
+  "plugins": {
+    "http": {
+      "scopeRedirects": true
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -2,7 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Aviso } from "./componentes/Aviso";
 import { BarraLateral } from "./componentes/BarraLateral";
-import { ConexionContexto, NavegacionContexto, SesionContexto, type Ruta, type Sesion } from "./componentes/contextos";
+import { ConexionContexto, NavegacionContexto, SesionContexto, SincronizacionContexto, type Ruta, type Sesion } from "./componentes/contextos";
 import { consultarArranque, type EstadoArranque } from "./datos/arranque";
 import type { Conexion } from "./datos/conexion";
 import { abrirConexionTauri } from "./datos/conexion-tauri";
@@ -28,6 +28,7 @@ import { Pesos } from "./pantallas/pesos/Pesos";
 import { Salud } from "./pantallas/salud/Salud";
 import { RegistrarParto } from "./pantallas/reproduccion/RegistrarParto";
 import { Reproduccion } from "./pantallas/reproduccion/Reproduccion";
+import { crearSincronizacion, type Sincronizacion } from "./sincronizacion/ensamblaje";
 import { textos } from "./textos/es";
 
 /** Permiso que exige cada pantalla (R14). */
@@ -93,6 +94,7 @@ export default function App() {
   const [ruta, setRuta] = useState<Ruta>({ pantalla: "inicio" });
   const [version, setVersion] = useState<string | null>(null);
   const [avisoArranque, setAvisoArranque] = useState<string | null>(null);
+  const [sincronizacion, setSincronizacion] = useState<Sincronizacion | null>(null);
 
   const cargarArranque = useCallback(async (c: Conexion) => {
     const estado = await consultarArranque(c);
@@ -104,12 +106,28 @@ export default function App() {
   useEffect(() => {
     abrirConexionTauri()
       .then(async (c) => {
+        // Etapa 10: la sincronización corre en segundo plano y nunca hace esperar a la pantalla (RF-40).
+        const s = crearSincronizacion(c);
+        setSincronizacion(s);
+        if (s.configurada) void s.servicio.iniciar();
         setConexion(c);
         await cargarArranque(c);
       })
       .catch((error: unknown) => setErrorAlAbrir(String(error)));
     getVersion().then(setVersion, () => setVersion(null));
   }, [cargarArranque]);
+
+  useEffect(() => {
+    if (!sincronizacion) return;
+    const alCambiarRed = () => sincronizacion.servicio.redCambio(navigator.onLine);
+    window.addEventListener("online", alCambiarRed);
+    window.addEventListener("offline", alCambiarRed);
+    return () => {
+      window.removeEventListener("online", alCambiarRed);
+      window.removeEventListener("offline", alCambiarRed);
+      sincronizacion.servicio.detener();
+    };
+  }, [sincronizacion]);
 
   const navegar = useCallback((nueva: Ruta) => {
     setRuta(nueva);
@@ -143,22 +161,28 @@ export default function App() {
       </main>
     );
   }
-  if (!conexion || !arranque) return <p className="centrado">{textos.comun.cargando}</p>;
+  if (!conexion || !arranque || !sincronizacion) return <p className="centrado">{textos.comun.cargando}</p>;
 
   if (arranque.necesitaAsistente) {
     return (
       <ConexionContexto.Provider value={conexion}>
-        <Asistente
-          fincaExistente={arranque.finca}
-          alTerminar={async (creado) => {
-            await cargarArranque(conexion);
-            setUsuario(creado);
-          }}
-          alRestaurar={async (mensaje) => {
-            setAvisoArranque(mensaje);
-            await cargarArranque(conexion);
-          }}
-        />
+        <SincronizacionContexto.Provider value={sincronizacion}>
+          <Asistente
+            fincaExistente={arranque.finca}
+            alTerminar={async (creado) => {
+              await cargarArranque(conexion);
+              setUsuario(creado);
+            }}
+            alRestaurar={async (mensaje) => {
+              setAvisoArranque(mensaje);
+              await cargarArranque(conexion);
+            }}
+            alUnirse={async () => {
+              await cargarArranque(conexion);
+              await sincronizacion.servicio.refrescar();
+            }}
+          />
+        </SincronizacionContexto.Provider>
       </ConexionContexto.Provider>
     );
   }
@@ -171,7 +195,7 @@ export default function App() {
             <Aviso tipo="exito">{avisoArranque}</Aviso>
           </div>
         )}
-        <ElegirUsuario usuarios={arranque.usuarios} alEntrar={setUsuario} />
+        <ElegirUsuario usuarios={arranque.usuarios} alEntrar={setUsuario} alDefinirPin={() => cargarArranque(conexion)} />
       </ConexionContexto.Provider>
     );
   }
@@ -179,26 +203,28 @@ export default function App() {
   const permiso = PERMISO_DE[ruta.pantalla];
   return (
     <ConexionContexto.Provider value={conexion}>
-      <SesionContexto.Provider value={sesion}>
-        <NavegacionContexto.Provider value={navegar}>
-          <div className="marco">
-            <BarraLateral
-              ruta={ruta}
-              usuario={sesion.usuario}
-              version={version}
-              alNavegar={navegar}
-              alCambiarUsuario={sesion.cerrarSesion}
-            />
-            <main className="contenido">
-              {permiso && !puede(sesion.usuario.rol, permiso) ? (
-                <Aviso tipo="error">{textos.errores.motivo({ codigo: "sin_permiso" })}</Aviso>
-              ) : (
-                <PantallaActual ruta={ruta} />
-              )}
-            </main>
-          </div>
-        </NavegacionContexto.Provider>
-      </SesionContexto.Provider>
+      <SincronizacionContexto.Provider value={sincronizacion}>
+        <SesionContexto.Provider value={sesion}>
+          <NavegacionContexto.Provider value={navegar}>
+            <div className="marco">
+              <BarraLateral
+                ruta={ruta}
+                usuario={sesion.usuario}
+                version={version}
+                alNavegar={navegar}
+                alCambiarUsuario={sesion.cerrarSesion}
+              />
+              <main className="contenido">
+                {permiso && !puede(sesion.usuario.rol, permiso) ? (
+                  <Aviso tipo="error">{textos.errores.motivo({ codigo: "sin_permiso" })}</Aviso>
+                ) : (
+                  <PantallaActual ruta={ruta} />
+                )}
+              </main>
+            </div>
+          </NavegacionContexto.Provider>
+        </SesionContexto.Provider>
+      </SincronizacionContexto.Provider>
     </ConexionContexto.Provider>
   );
 }

@@ -2,6 +2,9 @@ import { nuevoId } from "../dominio/identidad";
 import { puede, type Accion } from "../dominio/permisos";
 import type { Conexion, ContextoCambio, Sentencia, ValorSql } from "./conexion";
 import { ErrorDeRegistro } from "./errores";
+import { prepararCaptura, type OperacionLocal } from "./sincronizacion/captura";
+import { avisarGuardado, conCandado } from "./sincronizacion/contexto";
+import { leerVinculo } from "./sincronizacion/estado";
 
 /** Tablas que se pueden modificar. Los nombres van dentro del SQL, así que solo se aceptan estos. */
 export type Tabla =
@@ -28,10 +31,10 @@ export type Tabla =
   | "traspaso";
 
 /** Campos que no se anotan uno por uno: el id va en registro_id y las fechas comunes se deducen. */
-const CAMPOS_NO_ANOTADOS = new Set(["id", "creado_en", "modificado_en"]);
+export const CAMPOS_NO_ANOTADOS: ReadonlySet<string> = new Set(["id", "creado_en", "modificado_en"]);
 /** Campos cuyo valor no se copia al historial. */
-const CAMPOS_PROTEGIDOS = new Set(["pin_hash"]);
-const VALOR_PROTEGIDO = "[protegido]";
+export const CAMPOS_PROTEGIDOS: ReadonlySet<string> = new Set(["pin_hash"]);
+export const VALOR_PROTEGIDO = "[protegido]";
 const FILAS_POR_SENTENCIA = 200;
 
 /** R14: lanza un error si el rol del contexto no puede hacer la acción. */
@@ -45,7 +48,10 @@ export function exigirPermiso(contexto: ContextoCambio, accion: Accion): void {
  */
 export class Cambios {
   private readonly sentencias: Sentencia[] = [];
-  private readonly historial: ValorSql[][] = [];
+  /** Cada fila del historial y la operación (posición en `operaciones`) a la que pertenece. */
+  private readonly historial: { fila: ValorSql[]; operacion: number }[] = [];
+  /** Qué se hizo, para la cola de sincronización (R15). Solo se usa en un equipo vinculado. */
+  private readonly operaciones: OperacionLocal[] = [];
   private readonly contexto: ContextoCambio;
 
   constructor(contexto: ContextoCambio) {
@@ -65,8 +71,9 @@ export class Cambios {
       sql: `INSERT INTO ${tabla} (${columnas.join(", ")}) VALUES (${columnas.map(() => "?").join(", ")})`,
       parametros: Object.values(fila),
     });
+    const operacion = this.operaciones.push({ tabla, id, tipo: "crear", campos: fila }) - 1;
     for (const [campo, valor] of Object.entries(fila)) {
-      if (valor !== null) this.anotar(tabla, id, campo, null, valor);
+      if (valor !== null) this.anotar(tabla, id, campo, null, valor, operacion);
     }
     return id;
   }
@@ -79,7 +86,9 @@ export class Cambios {
       sql: `UPDATE ${tabla} SET ${cambiados.map((c) => `${c} = ?`).join(", ")}, modificado_en = ? WHERE id = ?`,
       parametros: [...cambiados.map((c) => despues[c]), this.contexto.marcaTiempo, id],
     });
-    for (const campo of cambiados) this.anotar(tabla, id, campo, antes[campo] ?? null, despues[campo]);
+    const operacion =
+      this.operaciones.push({ tabla, id, tipo: "modificar", campos: Object.fromEntries(cambiados.map((c) => [c, despues[c]])) }) - 1;
+    for (const campo of cambiados) this.anotar(tabla, id, campo, antes[campo] ?? null, despues[campo], operacion);
     return true;
   }
 
@@ -89,30 +98,55 @@ export class Cambios {
       sql: `UPDATE ${tabla} SET eliminado_en = ?, modificado_en = ? WHERE id = ? AND eliminado_en IS NULL`,
       parametros: [this.contexto.marcaTiempo, this.contexto.marcaTiempo, id],
     });
-    this.anotar(tabla, id, "eliminado_en", null, this.contexto.marcaTiempo);
+    const operacion = this.operaciones.push({ tabla, id, tipo: "eliminar", campos: { eliminado_en: this.contexto.marcaTiempo } }) - 1;
+    this.anotar(tabla, id, "eliminado_en", null, this.contexto.marcaTiempo, operacion);
   }
 
+  /**
+   * Aplica todo en una sola transacción. En un equipo vinculado a un servidor (Etapa 10) el mismo lote lleva también la cola
+   * de cambios por enviar, las marcas de cada campo y el reloj híbrido: o se guarda todo junto o nada.
+   */
   async aplicar(conexion: Conexion): Promise<void> {
     if (this.vacio) return;
-    await conexion.ejecutarLote([...this.sentencias, ...this.sentenciasDeHistorial()]);
+    await this.guardar(conexion);
+    avisarGuardado(conexion);
   }
 
-  private anotar(tabla: Tabla, id: string, campo: string, anterior: ValorSql, nuevo: ValorSql): void {
+  private async guardar(conexion: Conexion): Promise<void> {
+    if ((await leerVinculo(conexion)) === null) {
+      await conexion.ejecutarLote([...this.sentencias, ...this.sentenciasDeHistorial(null, null)]);
+      return;
+    }
+    await conCandado(conexion, async () => {
+      // Se vuelve a leer dentro del candado: el reloj guardado pudo cambiar mientras esperaba su turno.
+      const vinculo = await leerVinculo(conexion);
+      if (!vinculo) {
+        await conexion.ejecutarLote([...this.sentencias, ...this.sentenciasDeHistorial(null, null)]);
+        return;
+      }
+      const captura = await prepararCaptura(conexion, vinculo, this.contexto, this.operaciones);
+      await conexion.ejecutarLote([...this.sentencias, ...this.sentenciasDeHistorial(captura.marcas, vinculo.dispositivoId), ...captura.sentencias]);
+    });
+  }
+
+  private anotar(tabla: Tabla, id: string, campo: string, anterior: ValorSql, nuevo: ValorSql, operacion: number): void {
     if (CAMPOS_NO_ANOTADOS.has(campo)) return;
     const comoTexto = (v: ValorSql) => (v === null ? null : CAMPOS_PROTEGIDOS.has(campo) ? VALOR_PROTEGIDO : String(v));
     const t = this.contexto.marcaTiempo;
-    this.historial.push([nuevoId(), tabla, id, campo, comoTexto(anterior), comoTexto(nuevo), t, this.contexto.usuarioId, t, t]);
+    this.historial.push({ fila: [nuevoId(), tabla, id, campo, comoTexto(anterior), comoTexto(nuevo), t, this.contexto.usuarioId, t, t], operacion });
   }
 
-  private sentenciasDeHistorial(): Sentencia[] {
+  /** En un equipo vinculado cada fila lleva además la marca de su operación y el equipo que la hizo (R16). */
+  private sentenciasDeHistorial(marcas: readonly (string | null)[] | null, dispositivoId: string | null): Sentencia[] {
     const resultado: Sentencia[] = [];
+    const vinculado = marcas !== null;
+    const columnas = `id, entidad, registro_id, campo, valor_anterior, valor_nuevo, marca_tiempo, usuario_id, creado_en, modificado_en${vinculado ? ", marca, dispositivo_id" : ""}`;
+    const huecos = vinculado ? "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" : "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     for (let i = 0; i < this.historial.length; i += FILAS_POR_SENTENCIA) {
       const filas = this.historial.slice(i, i + FILAS_POR_SENTENCIA);
       resultado.push({
-        sql: `INSERT INTO historial_cambios
-                (id, entidad, registro_id, campo, valor_anterior, valor_nuevo, marca_tiempo, usuario_id, creado_en, modificado_en)
-              VALUES ${filas.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
-        parametros: filas.flat(),
+        sql: `INSERT INTO historial_cambios (${columnas}) VALUES ${filas.map(() => huecos).join(", ")}`,
+        parametros: filas.flatMap(({ fila, operacion }) => (vinculado ? [...fila, marcas[operacion] ?? null, dispositivoId] : fila)),
       });
     }
     return resultado;
