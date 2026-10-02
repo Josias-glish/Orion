@@ -309,8 +309,8 @@ try {
   const gastosIniciales = await p.js(`return [...document.querySelectorAll('[data-prueba="tabla-categorias-gasto"] tr')].map((r) => r.dataset.categoria)`);
   const ingresosIniciales = await p.js(`return [...document.querySelectorAll('[data-prueba="tabla-categorias-ingreso"] tr')].map((r) => r.dataset.categoria)`);
   comprobar(
-    "RF-33: vienen precargadas las categorías: alimento, medicamentos, mano de obra y montas (gastos), venta de leche y de animales (ingresos)",
-    gastosIniciales.join() === "Alimento,Mano de obra,Medicamentos,Montas y pajillas" && ingresosIniciales.join() === "Venta de animales,Venta de leche",
+    "RF-33: vienen precargadas las categorías: alimento, compra de animales (la agrega la Etapa 9), medicamentos, mano de obra y montas (gastos), venta de leche y de animales (ingresos)",
+    gastosIniciales.join() === "Alimento,Compra de animales,Mano de obra,Medicamentos,Montas y pajillas" && ingresosIniciales.join() === "Venta de animales,Venta de leche",
     `${gastosIniciales.join(", ")} | ${ingresosIniciales.join(", ")}`,
   );
   await p.escribir('[data-prueba="categoria-nombre"]', "Veterinario (prueba)");

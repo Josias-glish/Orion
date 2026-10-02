@@ -623,6 +623,7 @@ describe("migración 0007: calidad de la leche y finanzas (RF-32, RF-33, R18, R1
     const filas = await db.consultar<{ id: string; nombre: string; tipo: string; activo: number }>("SELECT id, nombre, tipo, activo FROM categoria_economica ORDER BY nombre");
     expect(filas.map((f) => [f.nombre, f.tipo, f.activo])).toEqual([
       ["Alimento", "gasto", 1],
+      ["Compra de animales", "gasto", 1], // la agrega la 0008 (Etapa 9)
       ["Mano de obra", "gasto", 1],
       ["Medicamentos", "gasto", 1],
       ["Montas y pajillas", "gasto", 1],
@@ -664,5 +665,75 @@ describe("migración 0007: calidad de la leche y finanzas (RF-32, RF-33, R18, R1
     await expect(db.ejecutar("UPDATE movimiento_economico SET tipo = 'ingreso'")).rejects.toThrow(/tipo del movimiento/);
     await expect(db.ejecutar("DELETE FROM movimiento_economico")).rejects.toThrow(/borrado lógico/);
     await expect(db.ejecutar("DELETE FROM categoria_economica")).rejects.toThrow(/borrado lógico/);
+  });
+});
+
+describe("migración 0008: compra y venta de animales (RF-50, RF-16, R32, R20)", () => {
+  let db: ConexionMemoria;
+  let animal: string;
+  let contacto: string;
+  beforeEach(async () => {
+    db = crearBaseDePrueba();
+    animal = nuevoId();
+    contacto = nuevoId();
+    await db.ejecutar("INSERT INTO animal (id, sexo, creado_en, modificado_en) VALUES (?, 'hembra', ?, ?)", [animal, AHORA, AHORA]);
+    await db.ejecutar("INSERT INTO contacto (id, nombre, creado_en, modificado_en) VALUES (?, 'Ramiro', ?, ?)", [contacto, AHORA, AHORA]);
+  });
+  afterEach(() => db.cerrar());
+
+  const traspaso = (datos: Record<string, string | number | null> = {}) => {
+    const fila = { id: nuevoId(), animal_id: animal, tipo: "compra", contacto_id: contacto, fecha: "2026-10-01", creado_en: AHORA, modificado_en: AHORA, ...datos };
+    return db.ejecutar(`INSERT INTO traspaso (${Object.keys(fila).join(", ")}) VALUES (${Object.keys(fila).map(() => "?").join(", ")})`, Object.values(fila));
+  };
+
+  it("guarda una compra y una venta con fecha válida; el precio y los adjuntos son opcionales", async () => {
+    await traspaso();
+    await traspaso({ tipo: "venta", precio: 900000, adjuntos: JSON.stringify(["documentos/adjunto-a.pdf"]), observaciones: "Pagó en dos partes" });
+    const filas = await db.consultar<{ tipo: string; precio: number | null; adjuntos: string | null }>("SELECT tipo, precio, adjuntos FROM traspaso ORDER BY tipo");
+    expect(filas).toEqual([
+      { tipo: "compra", precio: null, adjuntos: null },
+      { tipo: "venta", precio: 900000, adjuntos: '["documentos/adjunto-a.pdf"]' },
+    ]);
+  });
+
+  it("rechaza un tipo desconocido, una fecha imposible, un precio de cero o con decimales y adjuntos que no son JSON", async () => {
+    await expect(traspaso({ tipo: "regalo" })).rejects.toThrow(/CHECK/);
+    await expect(traspaso({ fecha: "2026-02-30" })).rejects.toThrow(/CHECK/);
+    await expect(traspaso({ precio: 0 })).rejects.toThrow(/CHECK/);
+    await expect(traspaso({ precio: -5 })).rejects.toThrow(/CHECK/);
+    await expect(traspaso({ precio: 10.5 })).rejects.toThrow();
+    await expect(traspaso({ adjuntos: "no es json" })).rejects.toThrow(/CHECK/);
+  });
+
+  it("exige un animal y un contacto que existan", async () => {
+    await expect(traspaso({ animal_id: nuevoId() })).rejects.toThrow(/FOREIGN KEY/);
+    await expect(traspaso({ contacto_id: nuevoId() })).rejects.toThrow(/FOREIGN KEY/);
+  });
+
+  it("el animal, el tipo y el contacto no cambian una vez guardado el traspaso; el precio y las observaciones sí", async () => {
+    const id = nuevoId();
+    await traspaso({ id });
+    const otro = nuevoId();
+    await db.ejecutar("INSERT INTO animal (id, sexo, creado_en, modificado_en) VALUES (?, 'macho', ?, ?)", [otro, AHORA, AHORA]);
+    await expect(db.ejecutar("UPDATE traspaso SET animal_id = ? WHERE id = ?", [otro, id])).rejects.toThrow(/no cambia de animal/);
+    await expect(db.ejecutar("UPDATE traspaso SET tipo = 'venta' WHERE id = ?", [id])).rejects.toThrow(/no cambia de animal/);
+    await expect(db.ejecutar("UPDATE traspaso SET contacto_id = ? WHERE id = ?", [nuevoId(), id])).rejects.toThrow();
+    await db.ejecutar("UPDATE traspaso SET precio = 1200000, observaciones = 'Con factura' WHERE id = ?", [id]);
+    const [fila] = await db.consultar<{ precio: number }>("SELECT precio FROM traspaso WHERE id = ?", [id]);
+    expect(fila.precio).toBe(1200000);
+  });
+
+  it("un movimiento de Finanzas nace de un solo traspaso vigente, y nada se borra de forma física", async () => {
+    const categoria = (await db.consultar<{ id: string }>("SELECT id FROM categoria_economica WHERE nombre = 'Compra de animales'"))[0].id;
+    const movimiento = nuevoId();
+    await db.ejecutar("INSERT INTO movimiento_economico (id, fecha, tipo, categoria_id, valor, creado_en, modificado_en) VALUES (?, '2026-10-01', 'gasto', ?, 1500000, ?, ?)", [movimiento, categoria, AHORA, AHORA]);
+    await traspaso({ movimiento_id: movimiento });
+    await expect(traspaso({ movimiento_id: movimiento })).rejects.toThrow(/UNIQUE/);
+    await expect(db.ejecutar("DELETE FROM traspaso")).rejects.toThrow(/borrado lógico/);
+  });
+
+  it("la categoría «Compra de animales» queda precargada como gasto con el id fijo de la migración", async () => {
+    const [fila] = await db.consultar<{ id: string; tipo: string; activo: number }>("SELECT id, tipo, activo FROM categoria_economica WHERE nombre = 'Compra de animales'");
+    expect(fila).toEqual({ id: "f9cb4789-f088-469e-af6e-7ffb94db497b", tipo: "gasto", activo: 1 });
   });
 });

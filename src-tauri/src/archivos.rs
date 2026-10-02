@@ -14,6 +14,8 @@ pub const DATOS_RESPALDO: &str = "datos.json";
 pub const CARPETAS_RESPALDO: [&str; 2] = ["fotos", "documentos"];
 /// Formatos que el programa puede escribir donde elija el usuario.
 pub const EXTENSIONES_COPIA: [&str; 4] = ["pdf", "csv", "xlsx", "zip"];
+/// Formatos que se aceptan como adjunto de una compra: PDF o imagen (Etapa 9, R32). SUPOSICION (S-79): sin límite de tamaño.
+pub const EXTENSIONES_ADJUNTO: [&str; 5] = ["pdf", "jpg", "jpeg", "png", "webp"];
 /// Tope para datos.json (evita llenar la memoria con un archivo dañado o ajeno).
 const MAXIMO_DATOS: u64 = 1 << 30;
 
@@ -65,6 +67,47 @@ pub fn guardar_copia(destino: &Path, contenido: &[u8]) -> Result<(), String> {
         }
         _ => Err("solo se guardan archivos PDF, CSV, XLSX o ZIP".into()),
     }
+}
+
+/// ¿Es una ruta relativa de adjunto, `documentos/adjunto-<uuid>.<extensión>`, como las que guarda `copiar_adjunto`?
+fn nombre_de_adjunto(ruta: &str) -> Option<&str> {
+    let nombre = ruta.strip_prefix("documentos/")?;
+    let (base, ext) = nombre.rsplit_once('.')?;
+    let uuid = base.strip_prefix("adjunto-")?;
+    let formato_uuid = uuid.len() == 36
+        && uuid.chars().enumerate().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_hexdigit(),
+        });
+    (formato_uuid && EXTENSIONES_ADJUNTO.contains(&ext.to_ascii_lowercase().as_str())).then_some(nombre)
+}
+
+/// R32: copia un PDF o una imagen elegidos por el usuario a `<datos>/documentos/adjunto-<uuid>.<ext>` y devuelve la
+/// ruta relativa que se anota en `traspaso.adjuntos`. Quedan en la carpeta «documentos», así viajan en el respaldo.
+pub fn copiar_adjunto(carpeta_datos: &Path, origen: &Path, uuid: &str) -> Result<String, String> {
+    let ext = extension(origen)
+        .filter(|e| EXTENSIONES_ADJUNTO.contains(&e.as_str()))
+        .ok_or("solo se adjuntan archivos PDF o imágenes (JPG, PNG o WEBP)")?;
+    let ruta = format!("documentos/adjunto-{uuid}.{ext}");
+    if nombre_de_adjunto(&ruta).is_none() {
+        return Err("nombre de adjunto no válido".into());
+    }
+    let contenido = fs::read(origen).map_err(|e| e.to_string())?;
+    let carpeta = carpeta_datos.join("documentos");
+    fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    escribir_completo(&carpeta_datos.join(&ruta), |f| f.write_all(&contenido).map_err(|e| e.to_string()))?;
+    Ok(ruta)
+}
+
+/// Guarda una copia de un adjunto donde eligió el usuario. Solo acepta rutas de adjunto como las de `copiar_adjunto`
+/// y un destino con la misma extensión del adjunto.
+pub fn guardar_copia_de_adjunto(carpeta_datos: &Path, ruta: &str, destino: &Path) -> Result<(), String> {
+    let nombre = nombre_de_adjunto(ruta).ok_or("adjunto no válido")?;
+    if extension(destino) != extension(Path::new(nombre)) {
+        return Err("el archivo de destino debe tener la misma extensión que el adjunto".into());
+    }
+    let contenido = fs::read(carpeta_datos.join("documentos").join(nombre)).map_err(|_| "no se encontró el adjunto".to_string())?;
+    escribir_completo(destino, |f| f.write_all(&contenido).map_err(|e| e.to_string()))
 }
 
 /// RF-43: crea el .zip con datos.json y las carpetas de fotos y documentos. Devuelve su tamaño en bytes.
@@ -212,5 +255,56 @@ mod pruebas {
         assert_eq!(extraer_archivos(&destino, &ruta).unwrap(), 1);
         assert!(destino.join("fotos").join("bien.jpg").exists());
         assert!(!carpeta.join("fuera.txt").exists());
+    }
+
+    #[test]
+    fn copia_adjuntos_pdf_o_imagen_a_documentos_y_viajan_en_el_respaldo() {
+        let origen = carpeta_temporal("adjunto-origen");
+        let datos = carpeta_temporal("adjunto-datos");
+        let uuid = "1b2c3d4e-0000-4000-8000-123456789abc";
+        for (archivo, ext) in [("factura.pdf", "pdf"), ("foto.JPG", "jpg"), ("sello.png", "png"), ("pose.webp", "webp"), ("otra.jpeg", "jpeg")] {
+            fs::write(origen.join(archivo), format!("contenido de {archivo}")).unwrap();
+            let ruta = copiar_adjunto(&datos, &origen.join(archivo), uuid).unwrap();
+            assert_eq!(ruta, format!("documentos/adjunto-{uuid}.{ext}"));
+            assert_eq!(fs::read(datos.join(&ruta)).unwrap(), format!("contenido de {archivo}").into_bytes());
+        }
+        // Un adjunto copiado a la carpeta de datos entra al .zip del respaldo y sale de él.
+        let ruta = copiar_adjunto(&datos, &origen.join("factura.pdf"), uuid).unwrap();
+        let zip = origen.join("respaldo.zip");
+        crear_respaldo(&datos, &zip, "{}").unwrap();
+        let otro = carpeta_temporal("adjunto-restaurado");
+        extraer_archivos(&otro, &zip).unwrap();
+        assert_eq!(fs::read(otro.join(&ruta)).unwrap(), b"contenido de factura.pdf");
+    }
+
+    #[test]
+    fn rechaza_adjuntos_de_otro_formato_o_con_nombre_raro() {
+        let origen = carpeta_temporal("adjunto-malo");
+        let datos = carpeta_temporal("adjunto-malo-datos");
+        fs::write(origen.join("programa.exe"), b"x").unwrap();
+        fs::write(origen.join("bien.pdf"), b"x").unwrap();
+        let uuid = "1b2c3d4e-0000-4000-8000-123456789abc";
+        assert!(copiar_adjunto(&datos, &origen.join("programa.exe"), uuid).is_err());
+        assert!(copiar_adjunto(&datos, &origen.join("no-existe.pdf"), uuid).is_err());
+        for malo in ["../x", "a/b", "1b2c3d4e", "", "1b2c3d4e-0000-4000-8000-123456789abc.pdf"] {
+            assert!(copiar_adjunto(&datos, &origen.join("bien.pdf"), malo).is_err(), "{malo}");
+        }
+        assert!(!datos.join("documentos").exists() || fs::read_dir(datos.join("documentos")).unwrap().count() == 0);
+    }
+
+    #[test]
+    fn guarda_copia_de_un_adjunto_solo_con_rutas_de_adjunto() {
+        let origen = carpeta_temporal("adjunto-copia");
+        let datos = carpeta_temporal("adjunto-copia-datos");
+        let uuid = "1b2c3d4e-0000-4000-8000-123456789abc";
+        fs::write(origen.join("scan.png"), b"imagen").unwrap();
+        let ruta = copiar_adjunto(&datos, &origen.join("scan.png"), uuid).unwrap();
+        guardar_copia_de_adjunto(&datos, &ruta, &origen.join("mi-copia.png")).unwrap();
+        assert_eq!(fs::read(origen.join("mi-copia.png")).unwrap(), b"imagen");
+        // La extensión de destino debe coincidir, y no se leen archivos que no sean adjuntos.
+        assert!(guardar_copia_de_adjunto(&datos, &ruta, &origen.join("mi-copia.exe")).is_err());
+        assert!(guardar_copia_de_adjunto(&datos, "../../etc/passwd", &origen.join("x.pdf")).is_err());
+        assert!(guardar_copia_de_adjunto(&datos, "documentos/CI-2026-0001.pdf", &origen.join("x.pdf")).is_err());
+        assert!(guardar_copia_de_adjunto(&datos, &format!("documentos/adjunto-{uuid}.pdf"), &origen.join("x.pdf")).is_err());
     }
 }

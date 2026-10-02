@@ -11,7 +11,7 @@
 7. Las reglas del dominio son funciones puras en `src/dominio`, probadas con Vitest.
 8. Los textos de la interfaz viven solo en `src/textos/es.ts`; el código usa los nombres del dominio en español.
 9. Funciona completo sin red (la red solo se usa como dice la regla de red), no borra filas (borrado lógico) y registra cada cambio en `historial_cambios`.
-10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md` (hecha hasta la 8, versión 0.4.0). Instaladores con GitHub Actions y `tauri-action`.
+10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md` (hecha hasta la 9, versión 0.5.0). Instaladores con GitHub Actions y `tauri-action`.
 
 ## Regla principal
 
@@ -52,6 +52,7 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Revisar tipos de TypeScript | `npm run tipos` |
 | Cargar los datos de ejemplo en la base de desarrollo (abrir antes `npm run tauri dev` una vez) | `npm run semillas` |
 | Además, 500 animales de prueba y la medición de CA-09 | `npm run semillas -- --rendimiento` |
+| (`npm run semillas` también carga una compra y una venta de ejemplo: Aurora, comprada, y Cacique, vendido) | — |
 | Generar ejemplos de los documentos (certificado interno, expediente, certificado de registro propio, libro genealógico en PDF y Excel, pedigrí) sin abrir el programa | `npm run documentos-de-ejemplo` (los de `docs/ejemplos/`: `npm run documentos-de-ejemplo -- docs/ejemplos`) |
 | Pruebas de la parte en Rust (documentos y respaldo .zip) | `cd src-tauri && cargo test` |
 | Construir el instalador en el propio equipo | `npm run tauri build` |
@@ -63,8 +64,9 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Lo mismo para la Etapa 6, sin red (R29, R30, CA-13 a CA-15, R23) | ver el encabezado de `pruebas-e2e/etapa6.mjs` |
 | Lo mismo para la Etapa 7, sin red (R31, CA-16 a CA-20, R23; necesita `pdftotext` y `pdfimages`) | ver el encabezado de `pruebas-e2e/etapa7.mjs` |
 | Lo mismo para la Etapa 8, sin red (R18, R19, CA-21, CA-22, R30, R23) | ver el encabezado de `pruebas-e2e/etapa8.mjs` |
+| Lo mismo para la Etapa 9, sin red (R32, R20, R21, CA-23 a CA-25, R23; necesita `pdftotext`) | ver el encabezado de `pruebas-e2e/etapa9.mjs` |
 | CA-33 con los programas reales: base creada por la 0.1.0, abierta con la versión nueva | ver el encabezado de `pruebas-e2e/actualizacion.mjs` |
-| CA-10: las pruebas del programa real (etapas 2, 3, 4, 6, 7 y 8) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
+| CA-10: las pruebas del programa real (etapas 2, 3, 4, 6, 7, 8 y 9) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
 ## Mapa del código
 
@@ -78,12 +80,14 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   `analizarPaternidad` y `elegirPadre` (paternidad incierta). `calidad-leche.ts` (R18: leer y validar la muestra, promedios que
   ignoran los vacíos, comparación entre lactancias y su orden), `finanzas.ts` (R19: validar un movimiento, periodo y
   `resumirFinanzas`: costo por cabra y por lote, rentabilidad, gastos generales aparte y prorrateo opcional) y `orden.ts`
-  (`ordenarFilas`, con los vacíos siempre al final).
+  (`ordenarFilas`, con los vacíos siempre al final). `traspasos.ts` (R32 y R20: `validarCompra`, `validarVenta`, el gasto
+  o ingreso que se ofrece y los totales del historial), `inventario.ts` (RF-36: quién cuenta y los totales) y
+  `hoja-venta.ts` (R21: qué lleva la hoja de venta, igual para el PDF y el Excel).
 - `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
   y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
   anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
   `repositorios/` (finca, usuarios, catálogos, lotes, contactos, animales, genealogía, historial, reproducción, leche,
-  pesos, salud, documentos, registros, finanzas), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
+  pesos, salud, documentos, registros, finanzas, traspasos), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
   respaldo), `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
 - R29: «del hato» = `en_hato = 1` (y `origen` distinto de `externo`); un externo siempre tiene `en_hato = 0`
   (disparador de la 0005), así que todas las listas de trabajo que ya filtraban `en_hato = 1` lo ignoran.
@@ -102,6 +106,13 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   (`ver_finanzas`, `gestionar_finanzas`). `resumenFinanciero` carga los movimientos y delega todo el cálculo en
   `resumirFinanzas`. Un gasto de una monta con costo se enlaza por `evento_reproductivo_id` (un gasto vigente por servicio).
   Al restaurar un respaldo, los catálogos precargados (razas, libros y categorías) se actualizan antes de insertar los nuevos.
+- R32 y R20: `traspaso` (migración 0008) guarda cada compra y cada venta: animal, contacto, fecha, precio opcional,
+  observaciones, adjuntos (JSON con rutas `documentos/adjunto-<uuid>.<ext>`) y el `movimiento_id` del gasto o ingreso
+  creado. `registrarCompra` promueve a «comprado» (conservando el id y la genealogía) a un animal de otra finca o crea
+  uno nuevo, y carga padre y madre como externos; `registrarVenta` solo cambia el estado a «vendido» (R11). Los dos validan
+  todo antes de escribir y las compras y ventas las ve y registra solo el propietario (`ver_traspasos`,
+  `gestionar_traspasos`). El gasto «Compra de animales» lo agrega la 0008 con id fijo. `datosInventario` y
+  `datosHojaVenta` reúnen los datos; el cálculo vive en el dominio.
 - CA-33: `src/datos/actualizacion.test.ts` aplica las migraciones nuevas sobre `src/datos/muestras/respaldo-0.1.0-ejemplo.json`
   (hecha por el código de la 0.1.0; no se edita a mano) y `pruebas-e2e/actualizacion.mjs` lo hace con los programas reales.
 - `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
@@ -109,18 +120,20 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 - `src/documentos/`: PDF, CSV y Excel. `certificado.ts` (R12), `expediente.ts` (R13), `registro-propio.ts` (R31: certificado
   de registro propio, solo desde la instantánea), `pedigri.ts` (tabla del pedigrí y pedigrí imprimible), `libro.ts` (libro
   genealógico en PDF y hoja de Excel), `excel.ts` (`generarXlsx`, con `write-excel-file`, D-046), `comun.ts` (formato y
-  estilos), `pdf-navegador.ts` (pdfmake en la ventana, con las fuentes incluidas) y `pdf-node.ts` (solo pruebas y scripts).
-- `src-tauri/src/archivos.rs`: escribir documentos en `<datos>/documentos/`, copias donde elija el usuario y el
-  `.zip` del respaldo (`datos.json` + `fotos/` + `documentos/`), con sus pruebas en Rust.
+  estilos), `inventario.ts` (RF-36: inventario del hato en PDF y Excel), `hoja-venta.ts` (R21: hoja de venta con pedigrí en
+  PDF y Excel), `pdf-navegador.ts` (pdfmake en la ventana, con las fuentes incluidas) y `pdf-node.ts` (solo pruebas y scripts).
+- `src-tauri/src/archivos.rs`: escribir documentos en `<datos>/documentos/`, copiar los adjuntos de una compra (PDF o
+  imagen), copias donde elija el usuario y el `.zip` del respaldo (`datos.json` + `fotos/` + `documentos/`), con sus pruebas en Rust.
 - `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `reproduccion/`, `leche/`, `pesos/`, `salud/`,
   `documentos/`, `registros/` (solo propietario: lista, lista de verificación y emisión en lote, libro, configuración, pestaña
   «Registro» de la ficha), `finanzas/` (solo propietario: movimientos, resumen, categorías y la oferta de gasto de una
-  monta), `ajustes/`), `src/componentes/`
+  monta), `traspasos/` (solo propietario: registrar compra, registrar venta e historial de compras y ventas; el inventario y la
+  hoja de venta son pestañas de `documentos/`), `ajustes/`), `src/componentes/`
   (contextos de conexión, sesión y navegación; campos reutilizables), `src/textos/es.ts` (todos los textos y los
   mensajes de cada motivo de rechazo), `src/estilos.css`.
 - `scripts/`: `semillas.ts`, `datos-de-ejemplo.ts`, `reproduccion-de-ejemplo.ts`, `salud-de-ejemplo.ts`,
   `calidad-y-finanzas-de-ejemplo.ts` (muestras de calidad y movimientos; sus promedios y totales están en el encabezado),
-  `datos-de-rendimiento.ts` (CA-09) y `documentos-de-ejemplo.ts` (fuera de `src`, nunca entran al instalador).
+  `traspasos-de-ejemplo.ts` (una compra y una venta, solo desde `semillas.ts`), `datos-de-rendimiento.ts` (CA-09) y `documentos-de-ejemplo.ts` (fuera de `src`, nunca entran al instalador).
 - `pruebas-e2e/`: pruebas con el programa real en Linux (`tauri-driver`); `cargar-datos.ts` carga los datos de ejemplo
   en la base que se le indique; `dialogo.py` responde los diálogos «Guardar» y «Abrir» de GTK con el teclado.
 - `docs/ejemplos/`: PDF y CSV de ejemplo generados por el programa real (para revisarlos a ojo).
@@ -185,3 +198,7 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-047** · 2026-10-02 · Etapa 7 · Vigente. Registros genealógicos (R31): una fila por número, con estado `borrador` (sin número), `emitido` o `anulado`; la reemisión sube `version` y deja la instantánea anterior en `historial_cambios`; el número se asigna al emitir y la base impide saltos, repeticiones y cambios de número, libro o animal (migración 0006, que también reconstruye `certificado` para admitir el tipo `registro_propio` copiando todas sus filas). La emisión (sola o en lote) es la misma función: valida a todos antes de escribir, asigna los consecutivos a los que cumplen y escribe todo junto. Versión 0.3.0 publicada con el mismo flujo de la D-041.
 - **D-048** · 2026-10-02 · Etapa 8 · Vigente. Calidad de la leche (R18): tres columnas opcionales en `pesaje_leche` (una muestra por cabra y jornada, no una tabla aparte, porque la muestra se toma al ordeñar). La captura en el ordeño es una casilla opcional que agrega las columnas: sin marcarla, la pantalla es la de siempre (CA-09 y el flujo 2 no cambian). La comparación es una tabla ordenable (`ordenarFilas`: vacíos siempre al final, empates en el orden original) y un gráfico de barras en SVG propio, sin librería de gráficos, como la curva de lactancia (D-031); la tabla es su vista accesible. Los promedios son simples y se calculan en el dominio; SQLite solo trae los pesajes que tienen algún dato.
 - **D-049** · 2026-10-02 · Etapa 8 · Vigente. Finanzas (R19): costo por cabra = gastos asignados al animal y costo por lote = gastos asignados al lote (sin sumar lo de sus animales, para no contar dos veces); los gastos sin animal ni lote salen siempre aparte; el prorrateo entre animales es opcional, está apagado por defecto y se rotula como suposición (S-71). El valor es un entero de pesos (S-70). El gasto de una monta con costo (R30) se crea desde el servicio, asignado a la hembra servida, con un enlace único para no ofrecerlo dos veces. Restaurar un respaldo actualiza primero los catálogos precargados para que un nombre reutilizado no choque con el índice de nombres únicos. Versión 0.4.0 publicada con el mismo flujo de la D-041.
+- **D-050** · 2026-10-02 · Etapa 9 · Vigente. Compra y venta (R32 y R20) en una sola tabla `traspaso` (migración 0008) con tipo `compra` o `venta`, animal, contacto (vendedor o comprador), fecha, precio entero de pesos opcional, observaciones, adjuntos y el `movimiento_id` del gasto o ingreso que se haya creado. Una compra promueve a «comprado» al animal que ya existe como externo (misma fila, mismo id, así su genealogía y sus montas no se tocan) o crea uno nuevo, y carga padre y madre como externos en el mismo lote de escrituras; una venta solo cambia el estado a «vendido» (R11) y no toca la genealogía ni el registro propio. Se validan todas las reglas antes de escribir (D-019). Motivo: una sola lista para el historial y para filtrar por periodo, tipo y contacto, y una promoción que no copia nada.
+- **D-051** · 2026-10-02 · Etapa 9 · Vigente. Adjuntos de una compra: el comando Rust `copiar_adjunto` copia el PDF o la imagen elegidos a `<datos>/documentos/adjunto-<uuid>.<ext>` y la base solo admite esas rutas (`esRutaDeAdjunto`), así viajan en el respaldo .zip y una ruta escrita a mano no puede apuntar a otro lugar del equipo; `guardar_copia_de_adjunto` guarda una copia donde el usuario elija. No hay permisos de Tauri nuevos (son comandos propios, como `copiar_foto`).
+- **D-052** · 2026-10-02 · Etapa 9 · Vigente. Inventario (RF-36) y hoja de venta (R21): las reglas son funciones puras (`src/dominio/inventario.ts`, `hoja-venta.ts`) y los documentos salen de ellas, con los mismos datos en el PDF y en el Excel (CA-25) y la librería de la D-046. Se generan en el momento y no se anotan en `certificado`; el certificado de registro propio acompaña la hoja como otro PDF (`generarCertificadoDeRegistro`). La hoja no lleva precios ni datos de contactos (R28).
+- **D-053** · 2026-10-02 · Etapa 9 · Vigente. La versión 0.4.0 (Etapa 8, PR #4) no se publicó: la rama de la Etapa 9 parte de la de la Etapa 8 y publica la 0.5.0, la versión siguiente a la última numerada. Motivo: la regla de D-041 (cada etapa publica la versión siguiente) y no repetir un número que ya está en los archivos de versión de la rama anterior.

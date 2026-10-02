@@ -19,7 +19,9 @@ export type Accion =
   | "ver_registros"
   | "gestionar_registros"
   | "ver_finanzas"
-  | "gestionar_finanzas";
+  | "gestionar_finanzas"
+  | "ver_traspasos"
+  | "gestionar_traspasos";
 
 /**
  * R14. El operario puede ver las fichas y registrar leche, partos, pesos y tratamientos.
@@ -29,6 +31,9 @@ export type Accion =
  * R23 y R31: el operario no ve la pantalla Registros ni crea, emite o anula registros genealógicos; solo el propietario.
  * R23: el operario tampoco ve Finanzas ni registra ingresos o gastos; solo el propietario. La calidad de la leche (R18)
  * se anota junto al ordeño, así que la registra quien registra leche.
+ * R23 (Etapa 9): el operario tampoco ve compras ni ventas (el historial de traspasos) ni las registra; solo el propietario.
+ * El inventario y la hoja de venta son documentos: los emite quien puede emitir documentos (`emitir_documento`).
+ * SUPOSICION (S-82): hoy eso es solo el propietario.
  */
 const PERMITIDO_AL_OPERARIO: ReadonlySet<Accion> = new Set([
   "ver_fichas",
