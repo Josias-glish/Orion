@@ -20,7 +20,8 @@ export interface Conexion {
   consultar<T>(sql: string, parametros?: readonly ValorSql[]): Promise<T[]>;
   /**
    * Ejecuta varias sentencias que forman un solo cambio (por ejemplo, un animal con sus identificadores
-   * y su historial). En memoria van en una transacción. En el programa, ver la decisión D-004.
+   * y su historial). Va en una sola transacción: o se escribe todo o no se escribe nada (en memoria con BEGIN/COMMIT y en el
+   * programa con el comando Rust `ejecutar_lote`; decisiones D-004 y D-054).
    */
   ejecutarLote(sentencias: readonly Sentencia[]): Promise<void>;
 }

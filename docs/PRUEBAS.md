@@ -53,9 +53,14 @@ se queda sin prueba o si estas tablas dejan de nombrar alguno.
   copia de respaldo), sin telemetría, permisos mínimos de Tauri, datos en la carpeta del usuario.
 - Usabilidad medible (`src/aceptacion.test.ts`): contraste WCAG AA de 17 combinaciones de colores, letra de 18 px y
   campos de 48 px de alto.
-- Rust (`cd src-tauri && cargo test`): archivos de documentos y respaldo `.zip`. También corre en Windows y macOS
-  dentro del flujo de instaladores.
-- Etapa 1 (`pruebas-e2e/transacciones.mjs`): el experimento que dio origen a la decisión D-004.
+- Rust (`cd src-tauri && cargo test`): archivos de documentos y respaldo `.zip`, y los lotes de escrituras en una sola
+  transacción (`src-tauri/src/lote.rs`, D-054: lote correcto, lote que falla a mitad, lote vacío, parámetros no admitidos,
+  enlace de enteros y tildes, y 20 rondas con consultas simultáneas). También corre en Windows y macOS dentro del flujo de instaladores.
+- Conexión del programa (`src/datos/conexion-tauri.test.ts`, con la API de Tauri simulada): un lote va entero a `ejecutar_lote`,
+  un lote vacío no llama a Rust, el error llega a quien lo pidió y lo suelto sigue por el plugin SQL.
+- Transacciones con el programa real (`pruebas-e2e/transacciones.mjs`): nació en la Etapa 1 como el experimento que dio origen a
+  la decisión D-004 (sin transacción, 19 de 20 rondas fallaban). Desde D-054 comprueba que los lotes son transacciones reales: 0 de 20
+  rondas con filas colgadas, un lote correcto deja sus filas y 4 lotes simultáneos no se bloquean.
 
 ## Cómo ejecutarlas
 
@@ -68,6 +73,28 @@ cd src-tauri && cargo test       # Rust
 npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
+
+## Resultado de D-004 / D-054: transacciones reales (2026-10-02, sobre el código de la 0.5.0)
+
+Sin versión nueva: el cambio llega a los instaladores con la siguiente publicación.
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 700 de 700 (695 + 5 de `conexion-tauri.test.ts`) |
+| Tipos (`npm run tipos`) | sin errores |
+| Rust | 14 de 14 (8 + 6 de `lote.rs`, entre ellas las 20 rondas con consultas simultáneas) |
+| Transacciones con el programa real (`pruebas-e2e/transacciones.mjs`) | 4 de 4: 0 de 20 rondas con filas colgadas (antes, sin transacción: 19 de 20 con fallos); lote correcto deja sus 2 filas; 4 lotes simultáneos dejan sus 8 filas |
+| Programa real sin red, Etapa 2 (Flujo 0) | 25 de 25 |
+| Programa real sin red, Etapa 3 (Flujos 1 y 2, CA-09) | 24 de 24 |
+| Programa real sin red, Etapa 4 (Flujos 3 y 5, CA-11, permisos) | 28 de 28 |
+| Programa real sin red, Etapa 6 (R29, R30, CA-13 a CA-15, R23) | 23 de 23 |
+| Programa real sin red, Etapa 7 (R31, CA-16 a CA-20, R23) | 51 de 51 |
+| Programa real sin red, Etapa 8 (R18, R19, CA-21, CA-22, R30, R23) | 56 de 56 |
+| Programa real sin red, Etapa 9 (R32, R20, R21, CA-23 a CA-25, R23) | 65 de 65 |
+| CA-33 con los programas reales (base de la 0.1.0 abierta con el programa nuevo) | 13 de 13 |
+
+Las siete suites del programa real dan los mismos conteos que antes del cambio, ahora con todas las escrituras
+pasando por `ejecutar_lote`. CA-12 sigue pendiente: lo hace el aprisco con [PRUEBA_CA12.md](PRUEBA_CA12.md).
 
 ## Resultado de la versión 0.5.0 (2026-10-02)
 
