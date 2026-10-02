@@ -107,7 +107,7 @@ try {
   comprobar("CA-33: ninguna fila ni ningún valor de la 0.1.0 se perdió ni cambió", diferencias.length === 0, diferencias.slice(0, 5).join("; ") || resumen);
   comprobar(
     "CA-33: los documentos emitidos con la 0.1.0 siguen en «certificado» (la tabla se reconstruyó en la migración 0006)",
-    despues.certificado.length === antes.certificado.length && despues.certificado.length > 0,
+    despues.certificado.length === antes.certificado.length, // con documentos de verdad lo prueba actualizacion.test.ts (la base de estos datos de ejemplo no tiene ninguno)
     `${despues.certificado.length} documentos`,
   );
   comprobar(

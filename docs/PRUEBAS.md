@@ -61,6 +61,19 @@ npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
 
+## Resultado de la versión 0.3.0 (2026-10-02)
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 504 de 504 |
+| Rust | 5 de 5 |
+| Programa real sin red, Etapa 2 (Flujo 0) | 25 de 25 |
+| Programa real sin red, Etapa 3 (Flujos 1 y 2, CA-09) | 24 de 24 |
+| Programa real sin red, Etapa 4 (Flujos 3 y 5, CA-11, permisos) | 28 de 28 |
+| Programa real sin red, Etapa 6 (R29, R30, CA-13 a CA-15, R23) | 23 de 23 |
+| Programa real sin red, Etapa 7 (R31, CA-16 a CA-20, R23) | 51 de 51 |
+| CA-33 con los programas reales (base de la 0.1.0 abierta con la 0.3.0) | 10 de 10 |
+
 ## Resultado de la versión 0.2.0 (2026-10-02)
 
 | Prueba | Resultado |
