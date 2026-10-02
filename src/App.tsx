@@ -19,6 +19,7 @@ import { Inicio } from "./pantallas/Inicio";
 import { DetalleLactancia } from "./pantallas/leche/DetalleLactancia";
 import { Leche } from "./pantallas/leche/Leche";
 import { Documentos } from "./pantallas/documentos/Documentos";
+import { Registros } from "./pantallas/registros/Registros";
 import { Pesos } from "./pantallas/pesos/Pesos";
 import { Salud } from "./pantallas/salud/Salud";
 import { RegistrarParto } from "./pantallas/reproduccion/RegistrarParto";
@@ -31,6 +32,7 @@ const PERMISO_DE: Partial<Record<Ruta["pantalla"], Accion>> = {
   editarAnimal: "editar_animal",
   registrarParto: "registrar_parto",
   ajustes: "ver_ajustes",
+  registros: "ver_registros",
 };
 
 function PantallaActual({ ruta }: { ruta: Ruta }) {
@@ -59,6 +61,8 @@ function PantallaActual({ ruta }: { ruta: Ruta }) {
       return <Salud key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
     case "documentos":
       return <Documentos key={ruta.animalId ?? ""} seccion={ruta.seccion} animalId={ruta.animalId ?? null} />;
+    case "registros":
+      return <Registros key={ruta.registroId ?? ""} seccion={ruta.seccion} registroId={ruta.registroId ?? null} />;
     case "ajustes":
       return <Ajustes seccion={ruta.seccion} />;
   }

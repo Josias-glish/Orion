@@ -1,6 +1,6 @@
 [package]
 name = "registro-caprino"
-version = "0.2.0"
+version = "0.3.0"
 description = "Registro Caprino: genealogía, reproducción, leche, pesos y salud de cabras lecheras"
 edition = "2021"
 # El plugin SQL exige Rust 1.90 o superior.

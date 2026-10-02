@@ -9,6 +9,8 @@ import { animalesEnOrden, exportarRespaldo, leerRespaldo, restaurarRespaldo, typ
 import { animalExternoVacio, contarAnimales, guardarAnimal, listarAnimales, listarExternos } from "./repositorios/animales";
 import { guardarContacto, contactoVacio } from "./repositorios/contactos";
 import { calcularConsanguinidad } from "./repositorios/genealogia";
+import { listarDocumentos } from "./repositorios/documentos";
+import { emitirRegistro, listarConfigLibros, listarRegistros } from "./repositorios/registros";
 import { listarLactancias } from "./repositorios/leche";
 import { listarServicios } from "./repositorios/reproduccion";
 import { comprobarPin, listarUsuarios } from "./repositorios/usuarios";
@@ -22,7 +24,8 @@ const DE_LA_0_1_0 = (archivo: string) => Number(archivo.slice(0, 4)) <= 4;
 const VALORES_NUEVOS: Record<string, Record<string, unknown>> = {
   animal: { origen: "nacido_aqui", contacto_id: null, fecha_ingreso: null },
   evento_reproductivo: { costo: null, condiciones: null },
-  finca: { margen_gestacion: 10 },
+  finca: { margen_gestacion: 10, criador: null, propietario: null, responsable_registros: null },
+  libro: { siguiente_numero: 1, digitos_numero: 4, separador_numero: "-" },
 };
 
 /** Inserta las filas tal como están (como las dejó la 0.1.0), en el orden de su respaldo. */
@@ -95,6 +98,19 @@ describe("CA-33: actualizar desde la versión 0.1.0", () => {
     const contacto = await guardarContacto(db, { ...contactoVacio(), nombre: "Ramiro Ejemplo" }, PROPIETARIO);
     await guardarAnimal(db, { ...animalExternoVacio(), nombre: "Titán", sexo: "macho", contactoId: contacto }, PROPIETARIO);
     expect((await listarExternos(db)).map((a) => a.nombre)).toEqual(["Abuelo de pajilla", "Titán"]);
+  });
+
+  it("Etapa 7: los libros reciben su prefijo, los documentos emitidos con la 0.1.0 siguen ahí y se puede emitir un registro", async () => {
+    const antes = (await listarDocumentos(db, {})).map((d) => [d.tipo, d.numero]);
+    expect(antes.length).toBeGreaterThan(0);
+    for (const archivo of archivosDeMigracion().filter((a) => !DE_LA_0_1_0(a))) db.ejecutarScript(leerMigracion(archivo));
+    expect((await listarDocumentos(db, {})).map((d) => [d.tipo, d.numero])).toEqual(antes);
+    expect((await listarConfigLibros(db)).map((l) => l.prefijo).sort()).toEqual(["FUN", "MES", "PCR", "POR", "PPE"]);
+    // Estrella (EJ-10) ya cumplía con todo en la 0.1.0: se puede registrar sin tocar nada.
+    const estrella = (await listarAnimales(db, { texto: "EJ-10" }))[0];
+    const { numero } = await emitirRegistro(db, estrella.id, PROPIETARIO, { hoy: "2026-10-02" });
+    expect(numero).toBe("PPE-0001");
+    expect((await listarRegistros(db, {})).map((x) => x.numero)).toEqual(["PPE-0001"]);
   });
 });
 

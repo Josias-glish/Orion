@@ -9,7 +9,9 @@ import { listarAlertasRetiro, listarProximasAplicaciones } from "../src/datos/re
 import { historialReproductivo, listarPartosProximos, listarServicios, resumenIntervalos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
 import { consultarArbol } from "../src/datos/repositorios/genealogia";
 import { PROPIETARIO } from "../src/datos/ayudas-pruebas";
+import { listarVerificaciones } from "../src/datos/repositorios/registros";
 import { cargarExternosDeEjemplo } from "./externos-de-ejemplo";
+import { cargarRegistrosDeEjemplo } from "./registros-de-ejemplo";
 import { cargarDatosDeEjemplo, MARCA_EJEMPLO } from "./datos-de-ejemplo";
 
 let db: ConexionMemoria;
@@ -23,9 +25,9 @@ const porArete = async (arete: string) => (await listarAnimales(db, { texto: are
 
 describe("datos de ejemplo (sección 12)", () => {
   it("carga 12 animales en tres generaciones con la consanguinidad esperada, más las crías de los partos recientes", async () => {
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true, externos: true });
-    // Más Roble, la cría de Titán (etapa 6).
-    expect(await listarAnimales(db)).toHaveLength(17);
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 16, yaCargados: false, creoFinca: true, externos: true, registros: true });
+    // Más Roble, la cría de Titán (etapa 6), y cuatro animales para probar los registros (etapa 7).
+    expect(await listarAnimales(db)).toHaveLength(21);
     const consanguinidad = async (arete: string) => (await calcularConsanguinidad(db, (await porArete(arete)).id)).coeficiente;
     expect(await consanguinidad("EJ-10")).toBeCloseTo(0.25, 10); // hijos de hermanos completos
     expect(await consanguinidad("EJ-11")).toBeCloseTo(0.125, 10); // hijos de medios hermanos
@@ -36,8 +38,8 @@ describe("datos de ejemplo (sección 12)", () => {
 
   it("no duplica nada si se ejecuta dos veces", async () => {
     await cargarDatosDeEjemplo(db, HOY);
-    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false, externos: false });
-    expect(await listarAnimales(db)).toHaveLength(17);
+    expect(await cargarDatosDeEjemplo(db, HOY)).toEqual({ creados: 0, yaCargados: true, creoFinca: false, externos: false, registros: false });
+    expect(await listarAnimales(db)).toHaveLength(21);
     expect(await listarExternos(db)).toHaveLength(1);
   });
 
@@ -122,5 +124,30 @@ describe("datos de ejemplo (sección 12)", () => {
     await cargarDatosDeEjemplo(db, HOY);
     expect(await cargarExternosDeEjemplo(db, () => PROPIETARIO, HOY)).toBe(false);
     expect(await listarExternos(db)).toHaveLength(1);
+  });
+});
+
+describe("registros genealógicos de ejemplo (etapa 7)", () => {
+  it("deja animales listos para registrar y otros a los que les falta algún requisito, sin ningún registro emitido", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    const lista = await listarVerificaciones(db);
+    const faltantes = Object.fromEntries(lista.map((v) => [v.nombre, v.lista.faltantes]));
+    // Listos: los doce de las etapas anteriores (los fundadores sin padres están exentos) y Nube.
+    for (const nombre of ["Zeus", "Abril", "Brisa", "Canela", "Duque", "Bruno", "Bella", "Cacique", "Dalia", "Estrella", "Faro", "Gema", "Nube"]) {
+      expect(faltantes[nombre], nombre).toEqual([]);
+    }
+    // Con algo pendiente.
+    expect(faltantes["Perla"]).toEqual(["padre"]);
+    expect(faltantes["Chispa"]).toEqual(["identificador"]);
+    expect(faltantes["Ciro"]).toEqual(["nacimiento", "composicion"]);
+    // Las crías recién nacidas no tienen libro todavía (R5).
+    expect(lista.filter((v) => v.lista.faltantes.includes("libro"))).toHaveLength(5);
+    expect(lista.filter((v) => v.lista.cumple)).toHaveLength(13);
+    expect(lista.every((v) => v.registro === null)).toBe(true);
+  });
+
+  it("también se carga en una base que ya tenía los demás datos, y no se repite", async () => {
+    await cargarDatosDeEjemplo(db, HOY);
+    expect(await cargarRegistrosDeEjemplo(db, () => PROPIETARIO)).toBe(false);
   });
 });

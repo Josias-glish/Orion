@@ -9,7 +9,7 @@ import { obtenerFinca } from "./repositorios/finca";
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
 /** Número de migraciones que conoce esta versión del programa (una prueba lo compara con la carpeta). */
-export const VERSION_ESQUEMA = 5;
+export const VERSION_ESQUEMA = 6;
 
 /** Todas las tablas de datos, en un orden en que cada tabla va después de las que referencia. */
 export const TABLAS_RESPALDO = [
@@ -30,6 +30,7 @@ export const TABLAS_RESPALDO = [
   "meta_peso",
   "evento_salud",
   "certificado",
+  "registro_genealogico",
   "historial_cambios",
 ] as const;
 export type TablaRespaldo = (typeof TABLAS_RESPALDO)[number];
@@ -125,6 +126,15 @@ export function animalesEnOrden(filas: Fila[]): Fila[] {
   return resultado;
 }
 
+/**
+ * Ordena los registros genealógicos por libro y por número, para que cada número se inserte después del anterior
+ * (la base vigila que los números de un libro sean consecutivos, R31). Los borradores, que no tienen número, van al final.
+ */
+export function registrosEnOrden(filas: Fila[]): Fila[] {
+  const numero = (f: Fila) => (typeof f.consecutivo === "number" ? f.consecutivo : Number.POSITIVE_INFINITY);
+  return [...filas].sort((a, b) => String(a.libro_id ?? "").localeCompare(String(b.libro_id ?? "")) || numero(a) - numero(b));
+}
+
 const MAX_VARIABLES = 30000;
 
 /**
@@ -159,7 +169,8 @@ export async function restaurarRespaldo(conexion: Conexion, r: Respaldo): Promis
   // 3. Un INSERT de varias filas por cada grupo; ON CONFLICT solo ocurre en los catálogos precargados.
   const sentencias: Sentencia[] = [];
   for (const tabla of TABLAS_RESPALDO) {
-    const filas = tabla === "animal" ? animalesEnOrden(r.tablas[tabla] ?? []) : (r.tablas[tabla] ?? []);
+    const crudas = r.tablas[tabla] ?? [];
+    const filas = tabla === "animal" ? animalesEnOrden(crudas) : tabla === "registro_genealogico" ? registrosEnOrden(crudas) : crudas;
     if (filas.length === 0) continue;
     const columnas = Object.keys(filas[0]);
     if (filas.some((f) => Object.keys(f).length !== columnas.length || columnas.some((c) => !(c in f)))) throw danado();

@@ -9,6 +9,7 @@ import { Aviso } from "../../componentes/Aviso";
 import { FotoAnimal } from "../../componentes/FotoAnimal";
 import { ListaMotivos } from "../../componentes/ListaMotivos";
 import { Pestanas } from "../../componentes/Pestanas";
+import { RegistroAnimal } from "../registros/RegistroAnimal";
 import { useCarga } from "../../componentes/useCarga";
 import { eliminarAnimal, obtenerAnimal, type Animal, type Pariente } from "../../datos/repositorios/animales";
 import { consultarHijos } from "../../datos/repositorios/genealogia";
@@ -29,6 +30,7 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
   // RF-24: alertas de retiro vigentes de este animal, visibles en todas las pestañas de la ficha.
   const { datos: alertas } = useCarga(async () => (await listarAlertasRetiro(conexion, hoy)).filter((a) => a.animalId === id), [conexion, hoy, id]);
   const t = textos.ficha;
+  const puedeVerRegistros = usePermiso("ver_registros");
 
   if (error) return <ListaMotivos error={error} />;
   if (animal === null) return <p>{textos.comun.cargando}</p>;
@@ -85,6 +87,8 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
                 { valor: "documentos" as const, texto: t.pestanas.documentos },
               ]
             : []),
+          // R31: el registro genealógico propio es del hato y solo lo ve el propietario (R23).
+          ...(animal.enHato && animal.origen !== "externo" && puedeVerRegistros ? [{ valor: "registro" as const, texto: t.pestanas.registro }] : []),
           { valor: "historial", texto: t.pestanas.historial },
         ]}
         actual={pestana}
@@ -97,6 +101,7 @@ export function FichaAnimal({ id, pestana }: { id: string; pestana: PestanaAnima
       {pestana === "pesos" && <PesosAnimal animalId={id} />}
       {pestana === "salud" && <SaludAnimal animalId={id} disponible={animal.estado === "activo" && animal.enHato} />}
       {pestana === "documentos" && <DocumentosAnimal animalId={id} />}
+      {pestana === "registro" && puedeVerRegistros && <RegistroAnimal animalId={id} />}
       {pestana === "historial" && <HistorialAnimal animalId={id} />}
     </section>
   );

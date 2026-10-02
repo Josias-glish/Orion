@@ -21,7 +21,8 @@ export type Tabla =
   | "pesaje_corporal"
   | "meta_peso"
   | "evento_salud"
-  | "certificado";
+  | "certificado"
+  | "registro_genealogico";
 
 /** Campos que no se anotan uno por uno: el id va en registro_id y las fechas comunes se deducen. */
 const CAMPOS_NO_ANOTADOS = new Set(["id", "creado_en", "modificado_en"]);

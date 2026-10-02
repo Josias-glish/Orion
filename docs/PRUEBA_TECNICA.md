@@ -172,3 +172,20 @@ sudo sh pruebas-e2e/todas.sh capturas
 Resultado (2026-10-01): Etapa 2, **25 de 25**; Etapa 3, **24 de 24**; Etapa 4, **28 de 28**. «CA-10: los flujos 0, 1,
 2, 3 y 5 funcionan sin red.»
 
+
+### Etapa 7: registros genealógicos (R31)
+
+`pruebas-e2e/etapa7.mjs` comprueba con el programa real: la lista de verificación (qué le falta a cada animal) y que no se
+emite lo incompleto, con el enlace «Corregir» (CA-16); la configuración de los libros; la emisión desde la ficha y en
+lote, la anulación y una nueva emisión, con números consecutivos sin saltos (CA-17); el cambio del padre después de
+emitir y la reemisión, con la versión 1 conservada en el historial y su PDF intacto (CA-18); el certificado en PDF
+revisado con `pdftotext` y `pdfimages` (rótulo, pedigrí, sin imágenes ni CRG, CA-19); el libro exportado a PDF y a Excel
+(el .xlsx se lee celda por celda y se compara con la base, CA-20); el pedigrí imprimible de un animal sin registro con un
+ancestro de otra finca; y que el operario no ve Registros (R23). Los diálogos «Guardar» son los reales de GTK.
+Necesita `poppler-utils`, como la Etapa 4.
+
+```bash
+npx tauri build --debug --no-bundle
+rm -rf ~/.config/co.registrocaprino.escritorio/{registro-caprino.db*,documentos,fotos}
+sudo unshare -n sh -c 'ip link set lo up; xvfb-run -a node pruebas-e2e/etapa7.mjs "$PWD/src-tauri/target/debug/registro-caprino" capturas'
+```

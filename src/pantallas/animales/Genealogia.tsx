@@ -3,6 +3,7 @@ import { useCarga } from "../../componentes/useCarga";
 import { calcularConsanguinidad, consultarArbol, consultarHijos, type NodoArbol } from "../../datos/repositorios/genealogia";
 import { formatearFecha } from "../../dominio/fechas";
 import { textos } from "../../textos/es";
+import { PedigriImprimible } from "./PedigriImprimible";
 
 /** Generaciones de ancestros que muestra el árbol (RF-09 pide tres como mínimo). */
 const GENERACIONES_ARBOL = 3;
@@ -35,6 +36,7 @@ export function Genealogia({ animalId }: { animalId: string }) {
 
   return (
     <div>
+      <PedigriImprimible animalId={animalId} />
       <div className="tarjeta">
         <h2>{t.consanguinidadTitulo}</h2>
         <p className="cifra-grande" data-prueba="consanguinidad">

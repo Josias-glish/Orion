@@ -27,8 +27,13 @@ ejecutar las pruebas y el resultado de cada versión.
 | **CA-13** (R29) | Un externo aparece en el pedigrí, pero no en el inventario, el ordeño, los servicios propios, las alertas ni el conteo del tope; no se retira si es ancestro de un animal propio | `src/dominio/externos.test.ts`, `src/datos/repositorios/externos.test.ts` | `pruebas-e2e/etapa6.mjs` |
 | **CA-14** (R30) | El parto de una hembra servida por un macho externo crea la cría con ese padre, y el pedigrí muestra su nombre y su propietario | `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` (monta, parto y pedigrí) |
 | **CA-15** (R30) | Dos servicios con machos distintos en la ventana de gestación: avisa, deja elegir al padre y marcarlo «sin verificar» | `src/dominio/reproduccion.test.ts`, `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` |
+| **CA-16** (R31) | No se emite un registro al que le falta un requisito, y el programa muestra cuál | `src/dominio/registros.test.ts`, `src/datos/repositorios/registros.test.ts` | `pruebas-e2e/etapa7.mjs` (lista de verificación, botón desactivado y enlace «Corregir») |
+| **CA-17** (R31) | Números consecutivos por libro; el anulado conserva su número y no se reutiliza; el lote no deja saltos | `src/dominio/registros.test.ts`, `src/datos/repositorios/registros.test.ts`, `src/datos/migraciones.test.ts` (disparadores de la base) | `etapa7.mjs` (emisión sola y en lote, anulación y nueva emisión) |
+| **CA-18** (R31) | Cambiar el padre después de emitir no altera el certificado emitido; reemitir crea la versión 2 con el mismo número | `src/dominio/registros.test.ts`, `src/datos/repositorios/registros.test.ts` | `etapa7.mjs` (cambia el padre, reemite y compara los dos PDF) |
+| **CA-19** (R31) | El certificado de registro propio trae el rótulo obligatorio y el pedigrí correcto de tres generaciones, sin el nombre ni el diseño del certificado de ANCO | `src/documentos/registros.test.ts`, `src/dominio/pedigri.test.ts` | `etapa7.mjs` (PDF real revisado con `pdftotext` y `pdfimages`) |
+| **CA-20** (R31) | El libro genealógico exportado coincide con los registros emitidos | `src/dominio/libro-genealogico.test.ts`, `src/documentos/registros.test.ts` (Excel leído celda por celda), `src/datos/repositorios/registros.test.ts` | `etapa7.mjs` (PDF y Excel exportados contra la base) |
 | **CA-33** | Instalar una versión nueva sobre la 0.1.0 conserva todos los datos (con datos de ejemplo) | `src/datos/actualizacion.test.ts` (muestra hecha por la 0.1.0: `src/datos/muestras/`) | `pruebas-e2e/actualizacion.mjs` (programa 0.1.0 → programa nuevo) |
-| R23 (roles) | El operario ve los externos, pero no crea ni edita externos ni contactos | `src/dominio/permisos.test.ts`, `src/datos/repositorios/externos.test.ts` | `etapa6.mjs` |
+| R23 (roles) | El operario ve los externos, pero no crea ni edita externos ni contactos; tampoco ve Registros | `src/dominio/permisos.test.ts`, `src/datos/repositorios/externos.test.ts`, `src/datos/repositorios/registros.test.ts` | `etapa6.mjs`, `etapa7.mjs` |
 
 `src/aceptacion.test.ts` falla si algún criterio de CA-01 a CA-11 (o de los ya implementados de la especificación 2)
 se queda sin prueba o si estas tablas dejan de nombrar alguno.
@@ -55,6 +60,19 @@ cd src-tauri && cargo test       # Rust
 npx tauri build --debug --no-bundle
 sudo sh pruebas-e2e/todas.sh capturas
 ```
+
+## Resultado de la versión 0.3.0 (2026-10-02)
+
+| Prueba | Resultado |
+| --- | --- |
+| Vitest | 504 de 504 |
+| Rust | 5 de 5 |
+| Programa real sin red, Etapa 2 (Flujo 0) | 25 de 25 |
+| Programa real sin red, Etapa 3 (Flujos 1 y 2, CA-09) | 24 de 24 |
+| Programa real sin red, Etapa 4 (Flujos 3 y 5, CA-11, permisos) | 28 de 28 |
+| Programa real sin red, Etapa 6 (R29, R30, CA-13 a CA-15, R23) | 23 de 23 |
+| Programa real sin red, Etapa 7 (R31, CA-16 a CA-20, R23) | 51 de 51 |
+| CA-33 con los programas reales (base de la 0.1.0 abierta con la 0.3.0) | 10 de 10 |
 
 ## Resultado de la versión 0.2.0 (2026-10-02)
 

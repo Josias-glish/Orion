@@ -11,7 +11,7 @@
 7. Las reglas del dominio son funciones puras en `src/dominio`, probadas con Vitest.
 8. Los textos de la interfaz viven solo en `src/textos/es.ts`; el código usa los nombres del dominio en español.
 9. Funciona completo sin red (la red solo se usa como dice la regla de red), no borra filas (borrado lógico) y registra cada cambio en `historial_cambios`.
-10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md`. Instaladores con GitHub Actions y `tauri-action`.
+10. Se construye por etapas autorizadas: 0 a 5 = MVP (versión 0.1.0); 6 a 15 en `docs/ESPECIFICACION_2.md` (hecha hasta la 7, versión 0.3.0). Instaladores con GitHub Actions y `tauri-action`.
 
 ## Regla principal
 
@@ -52,7 +52,7 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Revisar tipos de TypeScript | `npm run tipos` |
 | Cargar los datos de ejemplo en la base de desarrollo (abrir antes `npm run tauri dev` una vez) | `npm run semillas` |
 | Además, 500 animales de prueba y la medición de CA-09 | `npm run semillas -- --rendimiento` |
-| Generar ejemplos del certificado interno y del expediente (PDF y CSV) sin abrir el programa | `npm run documentos-de-ejemplo` |
+| Generar ejemplos de los documentos (certificado interno, expediente, certificado de registro propio, libro genealógico en PDF y Excel, pedigrí) sin abrir el programa | `npm run documentos-de-ejemplo` (los de `docs/ejemplos/`: `npm run documentos-de-ejemplo -- docs/ejemplos`) |
 | Pruebas de la parte en Rust (documentos y respaldo .zip) | `cd src-tauri && cargo test` |
 | Construir el instalador en el propio equipo | `npm run tauri build` |
 | Publicar instaladores (borrador de release) desde GitHub Actions | subir la versión en `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` y `package.json`; luego `git tag v0.1.0` y `git push origin v0.1.0`, o en GitHub: Actions → Instaladores → «Run workflow» (ver D-041) |
@@ -61,8 +61,9 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Lo mismo para la Etapa 3, sin red (Flujos 1 y 2, R11, CA-09) | ver el encabezado de `pruebas-e2e/etapa3.mjs` |
 | Lo mismo para la Etapa 4, sin red (Flujos 3 y 5, R12, CA-11) | ver el encabezado de `pruebas-e2e/etapa4.mjs` |
 | Lo mismo para la Etapa 6, sin red (R29, R30, CA-13 a CA-15, R23) | ver el encabezado de `pruebas-e2e/etapa6.mjs` |
+| Lo mismo para la Etapa 7, sin red (R31, CA-16 a CA-20, R23; necesita `pdftotext` y `pdfimages`) | ver el encabezado de `pruebas-e2e/etapa7.mjs` |
 | CA-33 con los programas reales: base creada por la 0.1.0, abierta con la versión nueva | ver el encabezado de `pruebas-e2e/actualizacion.mjs` |
-| CA-10: las pruebas del programa real (etapas 2, 3, 4 y 6) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
+| CA-10: las pruebas del programa real (etapas 2, 3, 4, 6 y 7) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
 ## Mapa del código
 
@@ -70,27 +71,37 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
   `composicion.ts` (R3), `consanguinidad.ts` (R6), `permisos.ts` (R14), `pin.ts`, `usuarios.ts`, `fechas.ts`, `tipos.ts`,
   `reproduccion.ts` (R4, R5, R9), `leche.ts` (R8: la fórmula vive solo en `calcularProyeccion`), `pesos.ts` (R10, metas),
   `salud.ts` (R7, calendario, validaciones), `expediente.ts` (R13: campos, faltantes y avisos), `externos.ts` (R29:
-  animales de otras fincas), `contactos.ts`. En `reproduccion.ts` también R30: `validarServicio`, `ventanaDeGestacion`,
+  animales de otras fincas), `contactos.ts`, `registros.ts` (R31: formato del número, lista de verificación, numeración por
+  libro, estados, instantánea y lote), `pedigri.ts` (columnas del pedigrí a partir de la instantánea) y
+  `libro-genealogico.ts` (filas del libro por libro, raza y periodo). En `reproduccion.ts` también R30: `validarServicio`, `ventanaDeGestacion`,
   `analizarPaternidad` y `elegirPadre` (paternidad incierta).
 - `src/datos/`: `conexion.ts` (interfaz), `conexion-tauri.ts` (plugin SQL), `conexion-memoria.ts` (node:sqlite, pruebas
   y scripts), `bases.ts` (nombres de las bases, sin Vite), `cambios.ts` (**toda escritura pasa por `Cambios`**, que
   anota el historial y revisa permisos), `errores.ts` (`ErrorDeRegistro` con motivos), `arranque.ts`, `fotos.ts`,
   `repositorios/` (finca, usuarios, catálogos, lotes, contactos, animales, genealogía, historial, reproducción, leche,
-  pesos, salud, documentos), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
+  pesos, salud, documentos, registros), `respaldo.ts` (RF-43: exportar y restaurar), `archivos.ts` (comandos Rust de documentos y
   respaldo), `migraciones/`. R11 (vendido o muerto fuera del ordeño y los servicios) se aplica en las consultas y al guardar.
 - R29: «del hato» = `en_hato = 1` (y `origen` distinto de `externo`); un externo siempre tiene `en_hato = 0`
   (disparador de la 0005), así que todas las listas de trabajo que ya filtraban `en_hato = 1` lo ignoran.
   `listarExternos` trae los de otras fincas y los «solo genealogía» de la 0.1.0.
+- R31: un registro (`registro_genealogico`) es un número del libro del criadero. El número se asigna al emitir (el borrador
+  no tiene), la base vigila que los consecutivos de un libro no tengan saltos ni se repitan (disparadores e índices
+  únicos de la 0006) y `libro.siguiente_numero` es el contador. Reemitir sube `version` y reemplaza la instantánea (JSON);
+  la anterior queda en `historial_cambios`. Cada versión emitida tiene su fila en `certificado` (`PPE-0001-v2`). El PDF sale
+  siempre de la instantánea, nunca de los datos de hoy. Al restaurar un respaldo los registros se insertan en orden de número.
 - CA-33: `src/datos/actualizacion.test.ts` aplica las migraciones nuevas sobre `src/datos/muestras/respaldo-0.1.0-ejemplo.json`
   (hecha por el código de la 0.1.0; no se edita a mano) y `pruebas-e2e/actualizacion.mjs` lo hace con los programas reales.
 - `src/datos/migraciones/`: `NNNN_nombre.sql` + `huellas.json` (SHA-256). Una migración nueva necesita: el archivo, su
   huella y su registro en `src-tauri/src/lib.rs`; las pruebas fallan si falta algo.
-- `src/documentos/`: PDF y CSV. `certificado.ts` (R12), `expediente.ts` (R13), `comun.ts` (formato y estilos),
-  `pdf-navegador.ts` (pdfmake en la ventana, con las fuentes incluidas) y `pdf-node.ts` (solo pruebas y scripts).
+- `src/documentos/`: PDF, CSV y Excel. `certificado.ts` (R12), `expediente.ts` (R13), `registro-propio.ts` (R31: certificado
+  de registro propio, solo desde la instantánea), `pedigri.ts` (tabla del pedigrí y pedigrí imprimible), `libro.ts` (libro
+  genealógico en PDF y hoja de Excel), `excel.ts` (`generarXlsx`, con `write-excel-file`, D-046), `comun.ts` (formato y
+  estilos), `pdf-navegador.ts` (pdfmake en la ventana, con las fuentes incluidas) y `pdf-node.ts` (solo pruebas y scripts).
 - `src-tauri/src/archivos.rs`: escribir documentos en `<datos>/documentos/`, copias donde elija el usuario y el
   `.zip` del respaldo (`datos.json` + `fotos/` + `documentos/`), con sus pruebas en Rust.
 - `src/pantallas/` (Asistente, ElegirUsuario, Inicio, `animales/`, `reproduccion/`, `leche/`, `pesos/`, `salud/`,
-  `documentos/`, `ajustes/`), `src/componentes/`
+  `documentos/`, `registros/` (solo propietario: lista, lista de verificación y emisión en lote, libro, configuración, pestaña
+  «Registro» de la ficha), `ajustes/`), `src/componentes/`
   (contextos de conexión, sesión y navegación; campos reutilizables), `src/textos/es.ts` (todos los textos y los
   mensajes de cada motivo de rechazo), `src/estilos.css`.
 - `scripts/`: `semillas.ts`, `datos-de-ejemplo.ts`, `reproduccion-de-ejemplo.ts`, `salud-de-ejemplo.ts`,
@@ -155,3 +166,5 @@ Formato: número, fecha, etapa, decisión y motivo. Estado: **Vigente**, **Propu
 - **D-043** · 2026-10-02 · Etapa 6 · Vigente. Animales de otras fincas (R29) en la misma tabla `animal`, con `origen = 'externo'`, `contacto_id` y siempre `en_hato = 0`: así todas las consultas de trabajo que ya filtraban `en_hato = 1` (inventario, ordeño, servicios, alertas, salud, pesos) los ignoran sin cambios, y la genealogía y la consanguinidad los incluyen. Los animales «solo genealogía» de la 0.1.0 quedan `nacido_aqui` como pide la especificación 2 (S-55) y se muestran en «De otras fincas».
 - **D-044** · 2026-10-02 · Etapa 6 · Vigente. Paternidad incierta (R30): el margen de la ventana de gestación es un dato de la finca (`finca.margen_gestacion`, 10 días, S-52). Si hay dos o más padres posibles, `registrarParto` no guarda sin una elección explícita (motivo `elegir_padre`); la pantalla propone el último servicio «preñada» marcado «sin verificar». R5 deja de usar servicios anteriores al parto previo de la hembra.
 - **D-045** · 2026-10-02 · Etapa 6 · Vigente. CA-33 se prueba en cada versión con una copia de respaldo de los datos de ejemplo hecha por el código de la etiqueta `v0.1.0` (`src/datos/muestras/`, con su receta en `LEEME.md`), en Vitest, y con los programas reales 0.1.0 y nuevo (`pruebas-e2e/actualizacion.mjs`). La versión 0.2.0 se publica con el mismo flujo que la 0.1.0 (D-041).
+- **D-046** · 2026-10-02 · Etapa 7 · Vigente. Librería de Excel: `write-excel-file` 4.1.1 (MIT; una sola dependencia, `fflate`, MIT; 25 versiones en 2026, la última el 2026-06-08; funciona igual en la ventana y en Node; sin red). Comparadas el 2026-10-02 en el registro de npm: `xlsx` (SheetJS) está estancada en la 0.18.5 de npm (2022) y sus versiones nuevas solo se publican en el sitio del autor; `exceljs` es MIT pero su última versión es de diciembre de 2024, ocupa 21 MB y arrastra nueve dependencias; `xlsx-populate` pesa 15 MB y edita plantillas, que no necesitamos; `rust_xlsxwriter` es buena, pero obligaría a pasar los datos por un comando Rust nuevo y a mantener otra dependencia de Rust. `write-excel-file` escribe varias hojas, anchos, negrita, fechas reales y encabezado fijo, que es lo que pedirán la hoja de venta (Etapa 9) y las finanzas. `src/seguridad.test.ts` la admite en la lista cerrada de dependencias y revisa que ni ella ni `fflate` usen red. El diálogo «Guardar» y `guardar_copia` (Rust) aceptan ahora `.xlsx`.
+- **D-047** · 2026-10-02 · Etapa 7 · Vigente. Registros genealógicos (R31): una fila por número, con estado `borrador` (sin número), `emitido` o `anulado`; la reemisión sube `version` y deja la instantánea anterior en `historial_cambios`; el número se asigna al emitir y la base impide saltos, repeticiones y cambios de número, libro o animal (migración 0006, que también reconstruye `certificado` para admitir el tipo `registro_propio` copiando todas sus filas). La emisión (sola o en lote) es la misma función: valida a todos antes de escribir, asigna los consecutivos a los que cumplen y escribe todo junto. Versión 0.3.0 publicada con el mismo flujo de la D-041.

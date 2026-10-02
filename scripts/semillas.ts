@@ -1,6 +1,7 @@
 // npm run semillas: carga los datos de ejemplo en la base de DESARROLLO (la de `npm run tauri dev`).
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
-//   npm run semillas                    animales de ejemplo con reproducción, leche, pesos, salud y un semental de otra finca
+//   npm run semillas                    animales de ejemplo con reproducción, leche, pesos, salud, un semental de otra finca
+//                                       y animales para probar los registros genealógicos (listos y con requisitos pendientes)
 //   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
 //   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
@@ -12,6 +13,7 @@ import { calcularConsanguinidad } from "../src/datos/repositorios/genealogia";
 import { listarAnimales, listarExternos } from "../src/datos/repositorios/animales";
 import { listarLactancias } from "../src/datos/repositorios/leche";
 import { listarPartosProximos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
+import { listarVerificaciones } from "../src/datos/repositorios/registros";
 import { listarAlertasRetiro } from "../src/datos/repositorios/salud";
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import { formatearPorcentaje } from "../src/textos/es";
@@ -79,6 +81,15 @@ async function principal() {
           `De otras fincas: ${externo.nombre} (${externo.propietario}), ${resumen.servicios} servicios, ` +
             `${resumen.partos} parto con ${resumen.crias} cría.`,
         );
+      }
+    }
+
+    if (resultado.registros) {
+      const lista = await listarVerificaciones(conexion);
+      const listos = lista.filter((v) => v.lista.cumple);
+      console.log(`Registros genealógicos: ${listos.length} animales listos para registrar y ${lista.length - listos.length} con requisitos pendientes:`);
+      for (const v of lista.filter((x) => !x.lista.cumple)) {
+        console.log(`  ${v.nombre ?? v.identificador}: falta ${v.lista.faltantes.join(", ")}`);
       }
     }
 

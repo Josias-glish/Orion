@@ -61,3 +61,12 @@ describe("R23 (especificación 2): animales de otras fincas y contactos (Etapa 6
     expect(puede("propietario", "editar_contactos")).toBe(true);
   });
 });
+
+describe("R23 y R31: registros genealógicos (Etapa 7)", () => {
+  it("solo el propietario ve la pantalla Registros y crea, emite o anula registros", () => {
+    for (const accion of ["ver_registros", "gestionar_registros"] as const) {
+      expect(puede("propietario", accion), accion).toBe(true);
+      expect(puede("operario", accion), accion).toBe(false);
+    }
+  });
+});

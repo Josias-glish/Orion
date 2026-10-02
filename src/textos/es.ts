@@ -5,6 +5,7 @@ import type { Jornada } from "../dominio/leche";
 import type { CampoExpediente } from "../dominio/expediente";
 import type { TipoPesaje } from "../dominio/pesos";
 import type { TipoRetiro, TipoSalud } from "../dominio/salud";
+import type { Requisito } from "../dominio/registros";
 import type { ResultadoServicio, TipoServicio } from "../dominio/reproduccion";
 import type { EstadoAnimal, FormaConcepcion, OrigenAnimal, Rol, Sexo, TipoIdentificador } from "../dominio/tipos";
 
@@ -60,6 +61,20 @@ const campos: Record<string, string> = {
   nombre: "nombre",
   fechaNacimiento: "fecha de nacimiento",
   fecha_nacimiento: "fecha de nacimiento",
+  fechaRegistro: "fecha de registro",
+  fecha_registro: "fecha de registro",
+  consecutivo: "consecutivo",
+  version: "versión",
+  motivo_anulacion: "motivo de la anulación",
+  responsable: "responsable",
+  responsable_registros: "responsable que firma",
+  criador: "criador",
+  propietario: "propietario",
+  instantanea: "copia fija de lo emitido",
+  prefijo: "prefijo",
+  siguiente_numero: "número siguiente",
+  digitos_numero: "dígitos del número",
+  separador_numero: "separador del número",
   identificador: "fecha de un identificador",
   diasGestacion: "días de gestación",
   diasLactancia: "días de lactancia",
@@ -267,6 +282,34 @@ function motivo(m: Motivo): string {
       return `Este contacto es propietario de ${m.cantidad === 1 ? "1 animal" : `${m.cantidad} animales`}. Cámbielos de propietario antes de retirarlo.`;
     case "margen_invalido":
       return "El margen de la ventana de gestación debe ser un número entero de 0 a 60 días.";
+    case "registro_incompleto":
+      return `No se puede emitir el registro. Falta: ${m.faltantes.map((f) => textos.registros.requisitos[f].toLowerCase()).join(", ")}.`;
+    case "animal_no_elegible":
+      return "Solo los animales del hato tienen registro propio. Uno de otra finca, o registrado solo para la genealogía, no.";
+    case "registro_ya_vigente":
+      return "Este animal ya tiene un registro vigente. Para corregirlo, reemítalo; para empezar de nuevo, anúlelo primero.";
+    case "registro_no_emitido":
+      return "Ese registro todavía no está emitido.";
+    case "registro_no_borrador":
+      return "Un registro emitido no se edita. Para corregirlo, reemítalo.";
+    case "registro_anulado":
+      return "Ese registro está anulado y ya no cambia. Su número no se vuelve a usar.";
+    case "registro_libro_distinto":
+      return "El animal ahora está en otro libro. Anule este registro y emita uno nuevo en ese libro: el número pertenece al libro donde se emitió.";
+    case "motivo_anulacion_obligatorio":
+      return "Escriba el motivo de la anulación.";
+    case "formato_numero_invalido":
+      return m.campo === "prefijo"
+        ? "El prefijo debe tener de 1 a 8 letras o números, sin espacios ni símbolos."
+        : m.campo === "digitos"
+          ? "La cantidad de dígitos del número debe ser un entero de 1 a 8."
+          : "El separador solo puede ser un guion o ninguno.";
+    case "prefijo_repetido":
+      return `El prefijo ${m.prefijo} ya lo usa otro libro. Elija uno distinto.`;
+    case "libro_con_registros":
+      return "Este libro ya tiene registros: su prefijo y su formato no se pueden cambiar. Los números emitidos no se modifican.";
+    case "numero_inicial_invalido":
+      return "El número inicial debe ser un entero mayor que cero, y solo se puede cambiar mientras el libro no tenga registros.";
   }
 }
 
@@ -285,6 +328,7 @@ export const textos = {
     pesos: "Pesos",
     salud: "Salud",
     documentos: "Documentos",
+    registros: "Registros",
     ajustes: "Ajustes",
     cambiarUsuario: "Cambiar de usuario",
   },
@@ -744,11 +788,271 @@ export const textos = {
     sinCopia: "No eligió dónde guardar una copia; el documento queda en la carpeta de datos del programa.",
     emitidosVacio: "Todavía no se ha emitido ningún documento.",
     emitidosColumnas: { fecha: "Fecha", numero: "Número", tipo: "Tipo", animal: "Animal", archivo: "Archivo" },
-    tipoDocumento: { propio: "Certificado interno", asociacion: "Expediente para ANCO" } as Record<"propio" | "asociacion", string>,
+    tipoDocumento: { propio: "Certificado interno", asociacion: "Expediente para ANCO", registro_propio: "Certificado de registro propio" } as Record<"propio" | "asociacion" | "registro_propio", string>,
     soloPropietario: "Solo el propietario puede emitir documentos.",
     guardarCopia: (formato: string) => `Guardar una copia del ${formato}…`,
     filtroPdf: "Documento PDF",
     filtroCsv: "Hoja de cálculo CSV",
+  },
+
+  registros: {
+    pantalla: {
+      titulo: "Registros",
+      soloPropietario: "Solo el propietario ve y maneja los registros genealógicos.",
+      secciones: { registros: "Registros", verificacion: "Lista de verificación", libro: "Libro genealógico", configuracion: "Configuración" } as Record<
+        "registros" | "verificacion" | "libro" | "configuracion",
+        string
+      >,
+      ayuda:
+        "El libro propio del criadero. Cada registro emitido recibe un número consecutivo de su libro y una copia fija de los datos del animal y de su pedigrí. El número nunca se vuelve a usar, ni siquiera si el registro se anula.",
+      filtros: {
+        buscar: "Buscar por nombre, identificador o número",
+        libro: "Libro",
+        raza: "Raza",
+        desde: "Registrados desde",
+        hasta: "Hasta",
+        estado: "Estado",
+      },
+      columnas: {
+        numero: "Número",
+        animal: "Animal",
+        libro: "Libro",
+        estado: "Estado",
+        version: "Versión",
+        fecha: "Fecha de registro",
+        registro: "Registro",
+        requisitos: "Requisitos",
+      },
+      sinNumero: "Sin número",
+      cantidad: (n: number) => (n === 1 ? "1 registro" : `${n} registros`),
+      vacio: "Todavía no hay registros. Emita el primero desde la lista de verificación o desde la ficha de un animal.",
+      vacioFiltro: "Ningún registro coincide con esos filtros.",
+      cumple: "cumple",
+      exento: "no se exige",
+      falta: "Falta",
+      cumpleTodo: "Cumple todo",
+      corregir: "Corregir",
+      detalle: {
+        titulo: (numero?: string) => (numero ? `Registro ${numero}` : "Borrador de registro"),
+        animal: "Animal",
+        libro: "Libro",
+        fechaRegistro: "Fecha de registro",
+        responsable: "Responsable que firma",
+        observaciones: "Observaciones",
+        motivo: "Motivo de la anulación",
+        borradorAyuda: "Un borrador todavía no tiene número: lo recibe al emitirse, y descartarlo no deja ningún hueco en la numeración.",
+        borradorGuardado: "Borrador guardado.",
+        guardarBorrador: "Guardar borrador",
+        descartar: "Descartar borrador",
+        descartarConfirmar: "¿Descartar este borrador?",
+        borradorDescartado: "Borrador descartado.",
+        emitir: "Emitir registro",
+        trabajando: "Trabajando…",
+        editar: "Editar borrador",
+        certificadoTitulo: "Certificado de registro propio",
+        certificadoAyuda:
+          "El certificado se arma con la copia fija de lo emitido, no con los datos de hoy. Para corregirlo, reemita el registro.",
+        cuatroGeneraciones: "Pedigrí de cuatro generaciones (en lugar de tres)",
+        generarCertificado: "Generar certificado en PDF",
+        certificadoGuardado: (numero: string, version: number) => `Certificado ${numero} (versión ${version}) guardado en la carpeta de datos del programa.`,
+        emitido: (numero: string) => `Se emitió el registro ${numero} y se guardó su certificado.`,
+        reemitir: "Reemitir (versión nueva)",
+        reemitido: (numero: string, version: number) => `Se reemitió el registro ${numero}: ahora está en la versión ${version}.`,
+        reemitirAyuda:
+          "Reemitir crea una versión nueva con el mismo número y los datos de hoy; la versión anterior queda en el historial. Si el animal cambió de libro, se anula y se emite uno nuevo.",
+        anular: "Anular registro",
+        anularAyuda: "El registro queda anulado con su número y su historial. Ese número no se vuelve a usar.",
+        motivoAnulacion: "Motivo de la anulación",
+        confirmarAnular: "Confirmar anulación",
+        anulado: (numero: string) => `Se anuló el registro ${numero}.`,
+        documentosTitulo: "Certificados guardados",
+        sinDocumentos: "Todavía no se ha guardado ningún certificado de este registro.",
+        historialTitulo: "Historial del registro",
+        copiaAnterior: "Versión anterior (conservada)",
+        copiaNueva: "Versión nueva",
+        valor: (campo: string, valor?: string) => {
+          if (!valor) return "—";
+          if (campo === "estado") return textos.registros.estados[valor as "borrador" | "emitido" | "anulado"] ?? valor;
+          if (campo === "fecha_registro") return valor.split("-").reverse().join("/");
+          return valor;
+        },
+      },
+      verificacion: {
+        ayuda:
+          "Todos los animales del hato y lo que le falta a cada uno para emitir su registro. Los animales de otras fincas no tienen registro propio.",
+        buscar: "Buscar por nombre o identificador",
+        libro: "Libro",
+        mostrar: "Mostrar",
+        situaciones: {
+          listos: "Listos para registrar",
+          faltantes: "Con requisitos pendientes",
+          con_registro: "Con registro",
+          sin_registro: "Sin registro",
+        } as Record<"listos" | "faltantes" | "con_registro" | "sin_registro", string>,
+        vacio: "No hay animales con esos filtros.",
+        seleccionarListos: (n: number) => `Elegir los que cumplen (${n})`,
+        quitarSeleccion: "Quitar la selección",
+        emitirSeleccionados: (n: number) => `Emitir los elegidos (${n})`,
+        confirmar: (n: number) =>
+          `Se emitirán los registros de los ${n} animales elegidos que cumplan, con su número consecutivo. Los que no cumplan se mostrarán con lo que les falta, sin gastar números. Un número emitido no se puede cambiar después. ¿Continuar?`,
+        si: "Sí, emitir",
+        emitiendo: "Emitiendo…",
+        cantidad: (n: number, listos: number) => `${n} animales, ${listos} listos para emitir.`,
+        elegir: "Elegir",
+        columnas: { animal: "Animal", libro: "Libro", registro: "Registro", requisitos: "Requisitos" },
+        sinRegistro: "Sin registro",
+        yaEmitido: "Ya tiene registro emitido",
+        resultado: {
+          emitidos: (n: number, certificados: number) => `Se emitieron ${n} registros y se guardaron ${certificados} certificados.`,
+          ninguno: "No se emitió ningún registro: nadie de los elegidos cumple todos los requisitos.",
+          rechazados: (n: number) => `${n} sin emitir:`,
+          motivos: { ya_registrado: "ya tiene un registro vigente", no_elegible: "no es un animal del hato" } as Record<"ya_registrado" | "no_elegible", string>,
+        },
+      },
+      libro: {
+        ayuda:
+          "El libro sale de los registros emitidos, con los datos del momento en que se emitieron. Puede filtrarlo y exportarlo a PDF o a Excel.",
+        incluirAnulados: "Incluir los registros anulados (marcados como tales)",
+        exportarPdf: "Exportar a PDF…",
+        exportarExcel: "Exportar a Excel…",
+        filtroExcel: "Hoja de cálculo de Excel",
+      },
+      configuracion: {
+        certificadoTitulo: "Datos del certificado",
+        certificadoAyuda: "Lo que aparece en el certificado de registro propio. Los cambios valen para los registros que se emitan o reemitan desde ahora.",
+        criador: "Criador",
+        criadorAyuda: "Por defecto, el propietario de la finca.",
+        propietario: "Propietario",
+        propietarioAyuda: "Por defecto, el propietario de la finca.",
+        responsable: "Responsable que firma",
+        responsableAyuda: "Su nombre sale debajo de la línea de firma. Si lo deja vacío, sale el de quien emite.",
+        criaderoActual: (finca: string, criadero?: string, municipio?: string) =>
+          `Finca: ${finca}. Criadero: ${criadero ?? "sin escribir"}${municipio ? `. Municipio: ${municipio}` : ""}.`,
+        cambiarCriadero: "Cambiar en Ajustes → Finca",
+        guardado: "Guardado.",
+        librosTitulo: "Números de cada libro",
+        librosAyuda:
+          "Cada libro tiene su prefijo y su numeración. El número es el prefijo, un separador y el consecutivo, por ejemplo PPE-0001. Mientras un libro no tenga registros puede cambiar su prefijo, su formato y el número desde el que empieza; después, los números emitidos no se tocan.",
+        bloqueado: (n: number) => `Este libro ya tiene ${n === 1 ? "1 registro" : `${n} registros`} con número: su formato no se puede cambiar.`,
+        prefijo: "Prefijo",
+        prefijoAyuda: "De 1 a 8 letras o números, sin espacios.",
+        separador: "Separador",
+        conGuion: "Con guion (PPE-0001)",
+        sinSeparador: "Sin separador (PPE0001)",
+        digitos: "Dígitos del número",
+        digitosAyuda: "Ceros a la izquierda (1 a 8).",
+        inicio: "Empieza en el número",
+        inicioAyuda: "Útil si ya llevaba un libro en papel.",
+        siguienteEs: "Es el siguiente que se asignará.",
+        ejemplo: (numero: string) => `Así se verá el próximo número: ${numero}`,
+        sinPrefijo: "Escriba un prefijo para poder emitir registros en este libro.",
+      },
+      animal: {
+        noElegible: "Solo los animales del hato tienen registro propio.",
+        ayuda: "Registro genealógico propio de este animal. Para emitirlo debe cumplir todos los requisitos de la lista.",
+        verificacionTitulo: "Lista de verificación",
+        todoListo: "Cumple todos los requisitos: se puede emitir su registro.",
+        faltaAlgo: "Todavía no se puede emitir: corrija lo que falta.",
+        emitir: "Emitir registro",
+        trabajando: "Emitiendo…",
+        emitido: (numero: string) => `Se emitió el registro ${numero} y se guardó su certificado.`,
+        crearBorrador: "Crear borrador",
+        borradorCreado: "Borrador creado. Todavía no tiene número.",
+        anuladosTitulo: "Registros anulados de este animal",
+      },
+    },
+    // Certificado de registro propio (R31). No usa el nombre, el logo ni el diseño del certificado de ANCO.
+    certificado: "Certificado de registro propio",
+    aviso: "Registro propio del criadero. No es el certificado oficial de ANCO.",
+    numero: "Número de registro",
+    version: (n: number) => `Versión ${n}`,
+    reemplaza: (anterior: number) => `Reemplaza a la versión ${anterior}.`,
+    fechaRegistro: "Fecha de registro",
+    fechaEmision: "Fecha de emisión",
+    libro: "Libro",
+    datosTitulo: "Datos del animal",
+    criador: "Criador",
+    propietario: "Propietario",
+    criadero: "Criadero",
+    finca: "Finca",
+    municipio: "Municipio",
+    observaciones: "Observaciones",
+    pedigriTitulo: (generaciones: number) => `Pedigrí de ${generaciones === 4 ? "cuatro" : "tres"} generaciones`,
+    firma: "Firma del responsable",
+    responsable: "Responsable",
+    emitidoPor: "Emitido por",
+    registroAsociacion: "Registro de asociación",
+    otraFinca: (propietario: string) => `Otra finca: ${propietario}`,
+    sinVerificar: "Sin verificar",
+    desconocido: "Desconocido",
+    identificadores: "Identificadores",
+    consanguinidad: "Consanguinidad (Wright)",
+    pagina: (actual: number, total: number) => `Página ${actual} de ${total}`,
+    generadoCon: "Generado con Registro Caprino",
+    generaciones: { 3: "Tres generaciones", 4: "Cuatro generaciones" },
+    animal: "Animal",
+    padres: "Padres",
+    abuelos: "Abuelos",
+    bisabuelos: "Bisabuelos",
+    tatarabuelos: "Tatarabuelos",
+    estados: { borrador: "Borrador", emitido: "Emitido", anulado: "Anulado" } as Record<"borrador" | "emitido" | "anulado", string>,
+    // Pedigrí imprimible de cualquier animal.
+    pedigri: {
+      titulo: "Pedigrí",
+      aviso: "Documento informativo del criadero. No es el certificado oficial de ANCO.",
+      sinRegistro: "Sin registro propio",
+      registro: (numero: string, estado: string) => `Registro propio: ${numero} (${estado})`,
+      fecha: "Fecha",
+      imprimirTitulo: "Pedigrí imprimible",
+      imprimirAyuda: "Genera el pedigrí de este animal en PDF, tenga o no registro propio. Es un documento informativo del criadero.",
+      cuatroGeneraciones: "Cuatro generaciones (en lugar de tres)",
+      imprimir: "Pedigrí en PDF…",
+      generando: "Generando…",
+    },
+    // Libro genealógico del criadero.
+    libroGenealogico: {
+      titulo: "Libro genealógico del criadero",
+      generado: (fecha: string) => `Generado el ${fecha}`,
+      total: (n: number) => (n === 1 ? "1 registro" : `${n} registros`),
+      vacio: "No hay registros emitidos con esos filtros.",
+      filtros: "Filtros",
+      sinFiltros: "Todos los libros, razas y fechas",
+      libro: (nombre: string) => `Libro: ${nombre}`,
+      raza: (nombre: string) => `Raza: ${nombre}`,
+      periodo: (desde?: string, hasta?: string) =>
+        desde && hasta ? `Registrados del ${desde} al ${hasta}` : desde ? `Registrados desde el ${desde}` : `Registrados hasta el ${hasta ?? ""}`,
+      incluyeAnulados: "Incluye registros anulados",
+      hoja: "Libro genealógico",
+      columnas: {
+        libro: "Libro",
+        numero: "Número",
+        nombre: "Nombre",
+        identificador: "Identificador principal",
+        nacimiento: "Nacimiento",
+        raza: "Raza",
+        padre: "Padre",
+        madre: "Madre",
+        fechaRegistro: "Fecha de registro",
+        version: "Versión",
+        estado: "Estado",
+      },
+    },
+    // Requisitos de la lista de verificación (R31), con el mismo orden con que se muestran.
+    requisitos: {
+      nombre: "Nombre",
+      sexo: "Sexo",
+      nacimiento: "Fecha de nacimiento",
+      identificador: "Identificador principal vigente",
+      composicion: "Raza o composición racial que sume 100 %",
+      libro: "Libro",
+      prefijo: "Prefijo del libro",
+      padre: "Padre",
+      madre: "Madre",
+      genealogia: "Genealogía sin errores",
+      criador: "Criador",
+      propietario: "Propietario",
+      criadero: "Criadero",
+    } satisfies Record<Requisito, string>,
   },
 
   certificado: {
@@ -844,6 +1148,7 @@ export const textos = {
       pesos: "Pesos",
       salud: "Salud",
       documentos: "Documentos",
+      registro: "Registro",
       historial: "Historial",
     },
     reproduccionVacio: "Sin servicios ni partos registrados.",
@@ -987,6 +1292,7 @@ export const textos = {
       evento_salud: "Salud",
       certificado: "Documento",
       contacto: "Contacto",
+      registro_genealogico: "Registro genealógico",
     } as Record<string, string>,
     campo: (c: string) => campos[c] ?? c,
   },
