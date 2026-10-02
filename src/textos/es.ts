@@ -306,6 +306,20 @@ function motivo(m: Motivo): string {
       return `Este contacto es propietario de ${m.cantidad === 1 ? "1 animal" : `${m.cantidad} animales`}. Cámbielos de propietario antes de retirarlo.`;
     case "margen_invalido":
       return "El margen de la ventana de gestación debe ser un número entero de 0 a 60 días.";
+    case "equipo_ya_vinculado":
+      return "Este equipo ya está vinculado a una finca en el servidor.";
+    case "equipo_con_datos":
+      return "Este equipo ya tiene datos. Para unirse a una finca ajena debe estar recién instalado y vacío: así no se mezclan dos bases. Haga primero una copia de respaldo.";
+    case "subida_rechazada":
+      return `El servidor no aceptó los datos de este equipo (${m.motivo}). No se perdió nada: los datos siguen aquí.`;
+    case "restaurar_vinculado":
+      return "Un equipo vinculado a un servidor no puede restaurar una copia de respaldo. Primero desvincúlelo en Ajustes → Sincronización.";
+    case "registro_cambiado_en_otro_equipo":
+      return "Otro equipo cambió este registro antes que usted. Espere a que se sincronice, revíselo y vuelva a intentarlo.";
+    case "servidor_rechazo":
+      return `El servidor no aceptó la operación (${m.motivo}). No se cambió nada.`;
+    case "requiere_servidor":
+      return "Este cambio necesita conexión con el servidor de sincronización, porque lo decide el servidor (por ejemplo, el número de un registro). Conéctese a internet y vuelva a intentarlo.";
     case "registro_incompleto":
       return `No se puede emitir el registro. Falta: ${m.faltantes.map((f) => textos.registros.requisitos[f].toLowerCase()).join(", ")}.`;
     case "animal_no_elegible":
@@ -395,6 +409,141 @@ export const textos = {
     version: (version: string) => `Versión ${version}`,
   },
 
+  sincronizacion: {
+    titulo: "Sincronización entre equipos",
+    introduccion:
+      "Si usa el programa en más de un computador, la sincronización los mantiene iguales. Cada equipo sigue funcionando sin internet; los cambios se envían cuando hay conexión.",
+    sinServidor:
+      "Esta versión del programa no trae la dirección del servidor de sincronización, así que todo se guarda solo en este equipo. Es lo normal hasta que se configure el servidor.",
+    indicador: {
+      alDia: "Al día",
+      sincronizando: "Sincronizando…",
+      preparando: "Preparando los datos…",
+      pendiente: (n: number) => (n === 1 ? "1 cambio por enviar" : `${n} cambios por enviar`),
+      sinConexion: (n: number) => (n === 0 ? "Sin conexión" : n === 1 ? "Sin conexión · 1 cambio por enviar" : `Sin conexión · ${n} cambios por enviar`),
+      sesionCaducada: "Falta iniciar sesión de nuevo",
+      esquemaAntiguo: "Actualice el programa para sincronizar",
+      revocado: "Este equipo fue desvinculado",
+      problema: "No se pudo sincronizar",
+      ultima: (cuando: string) => `Última vez: ${cuando}`,
+      nuncaSincronizo: "Aún no ha sincronizado",
+      avisos: (n: number) => (n === 1 ? "1 aviso por revisar" : `${n} avisos por revisar`),
+      etiqueta: "Estado de la sincronización",
+    },
+    cuenta: {
+      titulo: "Cuenta del servidor",
+      ayuda: "Escriba el correo y la contraseña de su cuenta. Si todavía no tiene cuenta, créela aquí.",
+      correo: "Correo",
+      contrasena: "Contraseña",
+      entrar: "Iniciar sesión",
+      crear: "Crear cuenta",
+      confirmar: "Le enviamos un correo para confirmar la cuenta. Ábralo, confirme y vuelva a iniciar sesión.",
+      conectado: (correo: string) => `Sesión iniciada como ${correo}.`,
+      salir: "Cerrar sesión",
+      minimoContrasena: "La contraseña debe tener al menos 8 caracteres.",
+    },
+    equipo: {
+      nombre: "Nombre de este equipo",
+      nombreAyuda: "Por ejemplo: «Computador de la oficina». Sirve para reconocerlo en la lista de equipos.",
+      nombrePorDefecto: "Este equipo",
+    },
+    vincular: {
+      titulo: "Vincular este equipo",
+      explicacion:
+        "Se crea la finca en el servidor y se suben todos los datos de este equipo. Después podrá unir otros equipos con un código. No se borra nada de este equipo.",
+      boton: "Vincular y subir los datos",
+      subiendo: "Subiendo los datos de este equipo…",
+      verificando: "Comprobando que no falte nada…",
+      listo: "Equipo vinculado.",
+    },
+    progreso: (entidad: string, hechas: number, total: number) => `${entidad ? `${entidad}: ` : ""}${hechas} de ${total}`,
+    unirse: {
+      titulo: "Unir este equipo a una finca",
+      explicacion: "Este equipo debe estar recién instalado y vacío: se descargan los datos de la finca y quedan iguales a los del otro equipo.",
+      conMiCuenta: "Mis fincas en el servidor",
+      sinFincas: "Esta cuenta todavía no tiene fincas.",
+      unirseA: (nombre: string) => `Unirme a «${nombre}»`,
+      conCodigo: "Tengo un código de invitación",
+      codigo: "Código de invitación",
+      codigoAyuda: "Lo genera el propietario en Ajustes → Sincronización de otro equipo. Dura 24 horas y sirve una vez.",
+      boton: "Unirme con el código",
+      descargando: "Descargando los datos de la finca…",
+      listo: "Listo: este equipo ya tiene los datos de la finca.",
+      continuar: "Continuar",
+    },
+    estado: {
+      titulo: "Estado",
+      cuenta: "Cuenta",
+      equipo: "Equipo",
+      ultima: "Última sincronización",
+      pendientes: "Cambios por enviar",
+      sincronizarAhora: "Sincronizar ahora",
+      iniciarSesion: "Iniciar sesión de nuevo",
+    },
+    verificar: {
+      titulo: "Comprobar contra el servidor",
+      explicacion: "Compara, tabla por tabla, lo que hay en este equipo con lo que hay en el servidor.",
+      boton: "Comprobar ahora",
+      coincide: "Todo coincide: este equipo y el servidor tienen los mismos datos.",
+      noCoincide: "Hay diferencias. Sincronice y vuelva a comprobar; si siguen, avise a quien mantiene el servidor.",
+      columnas: { tabla: "Tabla", aqui: "En este equipo", servidor: "En el servidor", estado: "Resultado" },
+      igual: "Igual",
+      distinta: "Diferente",
+      guardarCsv: "Guardar informe (CSV)",
+    },
+    invitacion: {
+      titulo: "Unir otro equipo",
+      explicacion: "Genere un código y escríbalo en el otro equipo, en la pantalla de bienvenida («Ya tengo una finca en otro equipo»).",
+      generar: "Generar código",
+      codigo: (codigo: string) => `Código: ${codigo}`,
+      vence: (cuando: string) => `Vence ${cuando} y sirve una sola vez.`,
+    },
+    equipos: {
+      titulo: "Equipos de la finca",
+      columnas: { nombre: "Equipo", letra: "Letra", ultima: "Última vez", cuenta: "Cuenta", estado: "Estado" },
+      este: "este equipo",
+      activo: "Activo",
+      retirado: "Retirado",
+      retirar: "Retirar",
+      retirarConfirmar: (nombre: string) => `¿Retirar «${nombre}»? Dejará de sincronizar; sus datos en ese equipo no se borran.`,
+      nunca: "Nunca",
+    },
+    avisos: {
+      titulo: "Avisos de la sincronización",
+      ninguno: "No hay avisos pendientes.",
+      entendido: "Entendido",
+      reintentar: "Reintentar",
+      descartar: "Descartar",
+      restaurado: (etiqueta: string) => `Un registro que alguien eliminó en otro equipo se volvió a usar en otro, y quedó activo: ${etiqueta}.`,
+      renombrado: (de: string, a: string) => `Dos equipos crearon «${de}» al mismo tiempo. Uno quedó como «${a}».`,
+      conflicto: (entidad: string) => `Un cambio de otro equipo (${entidad}) no se pudo aplicar aquí. Se vuelve a intentar solo; si no se resuelve, puede descartarlo.`,
+      rechazo: "El servidor no aceptó un cambio hecho en este equipo. Puede reintentarlo o descartarlo.",
+      revision: "Hay algo para revisar en los datos.",
+      reloj: "El reloj de este equipo estaba muy adelantado: el servidor corrigió la hora de algunos cambios.",
+    },
+    desvincular: {
+      titulo: "Dejar de sincronizar",
+      explicacion: "Este equipo conserva todos sus datos, pero ya no se envía ni se recibe nada. Para volver a sincronizar tendría que unirse de nuevo a la finca con un equipo vacío.",
+      boton: "Desvincular este equipo",
+      confirmar: (n: number) => (n > 0 ? `Hay ${n} cambios sin enviar que no llegarán a otros equipos. ¿Desvincular de todos modos?` : "¿Desvincular este equipo?"),
+    },
+    errores: {
+      sin_conexion: "No hay conexión con el servidor. Revise internet e inténtelo de nuevo.",
+      tiempo: "El servidor tardó demasiado en contestar. Inténtelo de nuevo.",
+      http: "El servidor no aceptó la solicitud. Inténtelo de nuevo en un rato.",
+      no_configurado: "Este programa no trae la dirección del servidor.",
+      sesion: "El correo o la contraseña no son correctos, o la sesión caducó.",
+      respuesta_invalida: "El servidor contestó algo inesperado.",
+      no_autorizada: "Esta cuenta no está autorizada para crear una finca en el servidor.",
+      finca_existente: "Esta finca ya existe en el servidor.",
+      sin_permiso: "Esta cuenta no tiene permiso para hacer eso.",
+      esquema_antiguo: "Este programa es más antiguo que el servidor. Actualícelo para sincronizar.",
+      dispositivo_revocado: "Este equipo fue retirado de la finca.",
+      parametro_invalido: "El servidor no aceptó el código o los datos escritos.",
+      otro: (codigo: string) => `El servidor respondió con un problema (${codigo}).`,
+    },
+  },
+
   menu: {
     titulo: "Menú principal",
     inicio: "Inicio",
@@ -470,6 +619,9 @@ export const textos = {
     propietarioAyuda:
       "El propietario puede hacer todo: cargar animales, editar la genealogía y cambiar los ajustes. Después podrá crear usuarios operarios.",
     terminar: "Crear y empezar",
+    yaTengoFinca: "Ya tengo una finca en otro equipo",
+    yaTengoFincaAyuda: "Si usa el programa en otro computador, una este equipo a esa finca: se descargan sus datos y quedan iguales.",
+    volverAEmpezar: "Volver",
   },
 
   finca: {
@@ -507,6 +659,13 @@ export const textos = {
     comprobando: "Comprobando…",
     pinIncorrecto: "El PIN no es correcto. Inténtelo de nuevo.",
     conPin: "Con PIN",
+    pinPorDefinir: "PIN por definir",
+    definirPin: (nombre: string) => `Defina el PIN de ${nombre} para este equipo`,
+    definirPinAyuda: "El PIN no se comparte entre equipos: cada equipo guarda el suyo. Puede ser el mismo que usa en el otro equipo.",
+    pinNuevo: "PIN nuevo (4 a 6 números)",
+    pinRepetir: "Repita el PIN",
+    pinNoCoincide: "Los dos PIN no son iguales.",
+    guardarPin: "Guardar PIN y entrar",
     elegirOtro: "Elegir otro usuario",
     usuarioActual: (nombre: string, rolUsuario: Rol) => `${nombre} · ${rol[rolUsuario]}`,
   },
@@ -1770,6 +1929,7 @@ export const textos = {
       libros: "Libros",
       lotes: "Lotes",
       datos: "Base de datos",
+      sincronizacion: "Sincronización",
     },
     usuariosAgregar: "Agregar usuario",
     usuariosColumnas: { nombre: "Nombre", rol: "Rol", contacto: "Contacto", pin: "PIN", acciones: "Acciones" },

@@ -22,7 +22,12 @@ function archivosDelPrograma(carpeta = "src"): string[] {
   return resultado;
 }
 /** Solo para pruebas y scripts (Node): nunca los importa la ventana del programa. */
-const SOLO_NODE = new Set(["src/datos/conexion-memoria.ts", "src/datos/ayudas-pruebas.ts", "src/documentos/pdf-node.ts"]);
+const SOLO_NODE = new Set([
+  "src/datos/conexion-memoria.ts",
+  "src/datos/ayudas-pruebas.ts",
+  "src/datos/sincronizacion/ayudas-pruebas.ts",
+  "src/documentos/pdf-node.ts",
+]);
 
 describe("CA-10: el programa no hace llamadas de red", () => {
   it("ningún archivo del programa usa fetch, XMLHttpRequest, WebSocket, EventSource, sendBeacon ni direcciones web", () => {
@@ -69,6 +74,8 @@ describe("CA-10: el programa no hace llamadas de red", () => {
       "@noble/hashes",
       "@tauri-apps/api",
       "@tauri-apps/plugin-dialog",
+      // Etapa 10 (D-057): red solo con el plugin HTTP oficial de Tauri, con una sola dirección declarada.
+      "@tauri-apps/plugin-http",
       "@tauri-apps/plugin-sql",
       "pdfmake",
       "react",
@@ -83,9 +90,37 @@ describe("CA-10: el programa no hace llamadas de red", () => {
       .split("\n")
       .map((l) => l.split("=")[0].trim())
       .filter((l) => l && !l.startsWith("#"));
-    expect(dependencias.sort()).toEqual(["serde", "serde_json", "tauri", "tauri-plugin-dialog", "tauri-plugin-sql", "zip"]);
+    expect(dependencias.sort()).toEqual([
+      // Etapa 10 (sección 10 del diseño): llavero del sistema para la sesión. Núcleo de `keyring` (MIT o Apache-2.0); los
+      // almacenes de Windows y macOS están en las dependencias por sistema (más abajo) y en Linux no hay almacén.
+      "keyring-core",
+      "serde",
+      "serde_json",
+      // Etapa 10 (D-004): `ejecutar_lote` usa la misma versión de sqlx que el plugin SQL, solo con SQLite.
+      "sqlx",
+      "tauri",
+      "tauri-plugin-dialog",
+      // Etapa 10 (D-057): red solo con el plugin HTTP oficial, con una sola dirección permitida (capabilities/sincronizacion.json).
+      "tauri-plugin-http",
+      "tauri-plugin-sql",
+      "zip",
+    ]);
+    // Dependencias que solo se compilan en un sistema: los almacenes nativos del llavero.
+    const porSistema: Record<string, string[]> = {};
+    let seccion = "";
+    for (const linea of cargo.split("\n")) {
+      const titulo = linea.match(/^\[target\.'(.+)'\.dependencies\]$/);
+      if (linea.startsWith("[")) seccion = titulo ? titulo[1] : "";
+      else if (seccion && linea.trim() && !linea.trim().startsWith("#")) (porSistema[seccion] ??= []).push(linea.split("=")[0].trim());
+    }
+    expect(porSistema).toEqual({
+      'cfg(target_os = "macos")': ["apple-native-keyring-store"],
+      "cfg(windows)": ["windows-native-keyring-store"],
+    });
     // El plugin SQL solo con SQLite (MySQL y PostgreSQL abrirían conexiones de red).
     expect(cargo).toMatch(/tauri-plugin-sql = \{ version = "2", features = \["sqlite"\] \}/);
+    // sqlx directo: sin características por defecto y solo SQLite con el motor asíncrono de Tokio.
+    expect(cargo).toMatch(/\nsqlx = \{ version = "0\.8", default-features = false, features = \["sqlite", "runtime-tokio"\] \}/);
   });
 });
 
@@ -102,7 +137,49 @@ describe("permisos mínimos de Tauri (Etapa 5)", () => {
       "dialog:allow-open",
       "dialog:allow-save",
     ]);
-    expect(readdirSync(new URL("src-tauri/capabilities/", raiz))).toEqual(["default.json"]);
+    // Etapa 10: la red es otra capacidad aparte, con un solo permiso y una sola dirección.
+    expect(readdirSync(new URL("src-tauri/capabilities/", raiz)).sort()).toEqual(["default.json", "sincronizacion.json"]);
+  });
+
+  it("la única red permitida es el plugin HTTP con una sola dirección https (Etapa 10, D-057)", () => {
+    const capacidad = JSON.parse(leer("src-tauri/capabilities/sincronizacion.json"));
+    expect(capacidad.identifier).toBe("sincronizacion");
+    expect(capacidad.windows).toEqual(["main"]);
+    expect(capacidad.permissions).toHaveLength(1);
+    const [permiso] = capacidad.permissions;
+    expect(Object.keys(permiso).sort()).toEqual(["allow", "identifier"]); // sin «deny» ni otros campos
+    expect(permiso.identifier).toBe("http:default");
+    expect(permiso.allow).toHaveLength(1);
+    expect(Object.keys(permiso.allow[0])).toEqual(["url"]);
+    expect(permiso.allow[0].url).toMatch(/^https:\/\/[a-z0-9.-]+\/\*$/);
+    // La política de seguridad de la ventana no cambia: la red la hace Rust, no la ventana.
+    const conf = JSON.parse(leer("src-tauri/tauri.conf.json"));
+    expect(conf.app.security.csp["connect-src"]).toBe("ipc: http://ipc.localhost");
+    // Sin esto el plugin sigue una redirección del servidor hacia cualquier otra dirección (la lista de direcciones
+    // solo se revisaría en la primera). Con `scopeRedirects`, cada salto debe estar también en la lista.
+    expect(conf.plugins?.http).toEqual({ scopeRedirects: true });
+  });
+
+  it("el plugin HTTP va sin cookies y sin características peligrosas", () => {
+    const cargo = leer("src-tauri/Cargo.toml");
+    const linea = cargo.split("\n").find((l) => l.startsWith("tauri-plugin-http")) ?? "";
+    expect(linea).toContain("default-features = false"); // las de por defecto traen «cookies»
+    const caracteristicas = (linea.match(/features = \[([^\]]*)\]/)?.[1] ?? "").split(",").map((c) => c.trim().replace(/"/g, ""));
+    expect(caracteristicas.sort()).toEqual(["rustls-tls", "system-proxy"]);
+    for (const peligrosa of ["cookies", "dangerous-settings", "unsafe-headers", "native-tls"]) {
+      expect(caracteristicas).not.toContain(peligrosa);
+    }
+  });
+
+  it("los comandos propios de Rust de la Etapa 10 están registrados en lib.rs", () => {
+    const rust = leer("src-tauri/src/lib.rs");
+    const lista = rust.match(/generate_handler!\[([^\]]*)\]/)?.[1] ?? "";
+    for (const comando of ["ejecutar_lote", "guardar_secreto", "leer_secreto", "borrar_secreto"]) {
+      expect(lista, comando).toMatch(new RegExp(`\\b${comando}\\b`));
+    }
+    expect(rust).toMatch(/\.plugin\(tauri_plugin_http::init\(\)\)/);
+    // Solo se pueden usar las bases que declara el programa.
+    expect(leer("src-tauri/src/lote.rs")).toMatch(/validar_base\(&base, &BASES_DE_DATOS\)/);
   });
 
   it("el protocolo asset solo puede leer la carpeta de fotos", () => {

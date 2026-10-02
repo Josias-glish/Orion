@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CamposFinca, fincaVacia } from "../componentes/CamposFinca";
 import { CamposUsuario, pinDelFormulario, usuarioVacio } from "../componentes/CamposUsuario";
-import { useConexion } from "../componentes/contextos";
+import { useConexion, useSincronizacion } from "../componentes/contextos";
 import { ListaMotivos } from "../componentes/ListaMotivos";
 import { completarAsistente } from "../datos/arranque";
 import { elegirRespaldo, extraerArchivosRespaldo } from "../datos/archivos";
@@ -11,6 +11,7 @@ import { ErrorDeRegistro } from "../datos/errores";
 import { validarFinca, type Finca } from "../datos/repositorios/finca";
 import type { Usuario } from "../datos/repositorios/usuarios";
 import { textos } from "../textos/es";
+import { UnirseAFinca } from "./sincronizacion/UnirseAFinca";
 
 interface Props {
   /** Si la finca ya existe (por ejemplo, el asistente se interrumpió), solo se pide el propietario. */
@@ -18,11 +19,15 @@ interface Props {
   alTerminar: (usuario: Usuario) => void;
   /** Después de restaurar una copia de respaldo: el programa vuelve a leer la finca y los usuarios. */
   alRestaurar: (mensaje: string) => void;
+  /** Después de unirse a una finca de otro equipo (Etapa 10): el programa vuelve a leer la finca y los usuarios. */
+  alUnirse: () => void | Promise<void>;
 }
 
 /** Primer arranque: finca y usuario propietario (RF-06). */
-export function Asistente({ fincaExistente, alTerminar, alRestaurar }: Props) {
+export function Asistente({ fincaExistente, alTerminar, alRestaurar, alUnirse }: Props) {
   const conexion = useConexion();
+  const { configurada } = useSincronizacion();
+  const [unirse, setUnirse] = useState(false);
   const pasos = fincaExistente ? 1 : 2;
   const [paso, setPaso] = useState(fincaExistente ? 2 : 1);
   const [finca, setFinca] = useState(fincaVacia());
@@ -74,6 +79,17 @@ export function Asistente({ fincaExistente, alTerminar, alRestaurar }: Props) {
     }
   }
 
+  if (unirse) {
+    return (
+      <main className="centrado">
+        <section className="tarjeta tarjeta--ancha">
+          <h1>{t.titulo}</h1>
+          <UnirseAFinca alTerminar={alUnirse} alVolver={() => setUnirse(false)} />
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="centrado">
       <section className="tarjeta tarjeta--ancha">
@@ -102,6 +118,15 @@ export function Asistente({ fincaExistente, alTerminar, alRestaurar }: Props) {
                 {textos.comun.siguiente}
               </button>
             </div>
+            {!fincaExistente && configurada && (
+              <div className="tarjeta tarjeta--suave">
+                <p className="destacado">{t.yaTengoFinca}</p>
+                <p className="nota">{t.yaTengoFincaAyuda}</p>
+                <button type="button" className="boton boton--secundario" disabled={ocupado} onClick={() => setUnirse(true)} data-prueba="ya-tengo-finca">
+                  {t.yaTengoFinca}
+                </button>
+              </div>
+            )}
             {!fincaExistente && (
               <div className="tarjeta tarjeta--suave">
                 <p className="destacado">{textos.respaldo.restaurarAsistente}</p>

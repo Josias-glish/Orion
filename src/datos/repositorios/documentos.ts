@@ -6,6 +6,7 @@ import type { DatosCertificado } from "../../documentos/certificado";
 import { Cambios, exigirPermiso } from "../cambios";
 import type { Conexion, ContextoCambio } from "../conexion";
 import { ErrorDeRegistro } from "../errores";
+import { leerVinculo } from "../sincronizacion/estado";
 import { obtenerAnimal, type Animal } from "./animales";
 import { obtenerFinca } from "./finca";
 import { calcularConsanguinidad, consultarArbol } from "./genealogia";
@@ -130,7 +131,10 @@ export async function siguienteNumero(conexion: Conexion, tipo: Exclude<TipoDocu
     "SELECT max(CAST(substr(numero, ?) AS INTEGER)) AS ultimo FROM certificado WHERE numero LIKE ? || '%'",
     [prefijo.length + 1, prefijo],
   );
-  return `${prefijo}${String((ultimo ?? 0) + 1).padStart(4, "0")}`;
+  // En un equipo vinculado el número lleva al final la letra del equipo (S-88): dos equipos nunca producen el mismo.
+  const vinculo = await leerVinculo(conexion);
+  const sufijo = vinculo?.codigoEquipo ? `-${vinculo.codigoEquipo}` : "";
+  return `${prefijo}${String((ultimo ?? 0) + 1).padStart(4, "0")}${sufijo}`;
 }
 
 export interface DatosDocumento {

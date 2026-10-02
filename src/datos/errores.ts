@@ -50,7 +50,14 @@ export type Motivo =
   | { codigo: "respaldo_danado" }
   | { codigo: "elegir_padre" }
   | { codigo: "contacto_en_uso"; cantidad: number }
-  | { codigo: "margen_invalido" };
+  | { codigo: "margen_invalido" }
+  | { codigo: "requiere_servidor" }
+  | { codigo: "equipo_ya_vinculado" }
+  | { codigo: "equipo_con_datos" }
+  | { codigo: "subida_rechazada"; motivo: string }
+  | { codigo: "restaurar_vinculado" }
+  | { codigo: "registro_cambiado_en_otro_equipo" }
+  | { codigo: "servidor_rechazo"; motivo: string };
 
 /** Error esperado: el cambio no cumple una regla. Lleva todos los motivos para mostrarlos juntos. */
 export class ErrorDeRegistro extends Error {

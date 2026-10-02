@@ -1,0 +1,618 @@
+{
+  "version": 1,
+  "descripcion": "Vectores de la mezcla por campo (R16). Los usan la prueba en TypeScript (src/dominio/sincronizacion/fusion.test.ts) y la del servidor en SQL (servidor/pruebas). Se aplican las operaciones desde un registro inexistente. Salvo ordenFijo, el resultado debe ser el mismo en cualquier orden de las operaciones (conmutatividad). `marcas` está en forma canónica: base = la menor marca; campos = solo las que difieren de la base. `eliminado` es el efecto calculado de eliminado_en (S-85).",
+  "casos": [
+    {
+      "nombre": "crear un registro",
+      "que": "Un crear fija todos los campos con la misma marca.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "sexo": "hembra",
+            "peso": 3.5,
+            "eliminado_en": null,
+            "creado_en": "2026-10-02T10:00:00.000Z"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "sexo": "hembra",
+          "peso": 3.5,
+          "eliminado_en": null,
+          "creado_en": "2026-10-02T10:00:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "campos distintos se conservan los dos",
+      "que": "R16 y CA-27: dos equipos editan campos distintos del mismo registro.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "peso": 3
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Luna II"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "color": "negra"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna II",
+          "peso": 3,
+          "color": "negra"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "nombre": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+            "color": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "mismo campo: gana la marca más reciente (mismo instante, otro equipo)",
+      "que": "A igual hora y contador gana el código de equipo mayor.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "A"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "B"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "B"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-bbbbbbbb",
+          "campos": {}
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "mismo campo: gana el cambio más reciente aunque llegue antes",
+      "que": "El orden de llegada no importa.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "X"
+          },
+          "marca": "2026-10-02T10:07:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Y"
+          },
+          "marca": "2026-10-02T10:06:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "X"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:07:00.000Z-0000-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "el contador desempata dentro del mismo instante",
+      "que": "Misma hora y mismo equipo: gana el contador mayor.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "primero"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "segundo"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0001-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "segundo"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0001-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "reenviar un cambio no cambia nada",
+      "que": "Idempotencia (R15).",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "peso": 3
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Luna",
+            "peso": 3
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "peso": 4
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "peso": 4
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "peso": 4
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "peso": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "un campo que el registro nunca tuvo se aplica aunque su marca sea vieja",
+      "que": "Un crear tardío no pisa lo nuevo pero agrega lo que faltaba.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Vieja",
+            "peso": 9
+          },
+          "marca": "2026-10-02T09:55:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "peso": 9
+        },
+        "marcas": {
+          "base": "2026-10-02T09:55:00.000Z-0000-bbbbbbbb",
+          "campos": {
+            "nombre": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "un valor vacío es un valor",
+      "que": "Dejar un campo vacío es un cambio como cualquier otro.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "color": "negra"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "color": null
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "color": null
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "color": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "borrar y luego editar otro campo restaura el registro",
+      "que": "R16 y CA-27: una edición posterior al borrado restaura (S-85).",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Luna II"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna II",
+          "eliminado_en": "2026-10-02T10:05:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "nombre": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "editar y luego borrar deja el registro eliminado",
+      "que": "El borrado es posterior a la edición.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "X"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:15:00.000Z"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "X",
+          "eliminado_en": "2026-10-02T10:15:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "eliminado_en": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+          }
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "una edición anterior al borrado no restaura",
+      "que": "El otro equipo editó antes de que se borrara.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "Antes"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-bbbbbbbb"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:15:00.000Z"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Antes",
+          "eliminado_en": "2026-10-02T10:15:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-bbbbbbbb",
+          "campos": {
+            "eliminado_en": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "borrar y editar en la misma operación sigue eliminado",
+      "que": "Con marcas iguales el registro queda eliminado.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z",
+            "nombre": "X"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "X",
+          "eliminado_en": "2026-10-02T10:05:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "restaurar a propósito",
+      "que": "Dejar eliminado_en vacío con una marca posterior restaura.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "eliminado_en": null
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "eliminado_en": "2026-10-02T10:10:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": false
+      }
+    },
+    {
+      "nombre": "un borrado posterior a la restauración vuelve a eliminar",
+      "que": "Borrar, editar (restaura) y volver a borrar.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "E"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:15:00.000Z"
+          },
+          "marca": "2026-10-02T10:15:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "E",
+          "eliminado_en": "2026-10-02T10:15:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb",
+          "campos": {
+            "eliminado_en": "2026-10-02T10:15:00.000Z-0000-aaaaaaaa"
+          }
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "crear un registro que ya estaba eliminado (subida inicial)",
+      "que": "Los registros borrados de antes también se suben.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Vieja",
+            "eliminado_en": "2026-10-02T10:05:00.000Z"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Vieja",
+          "eliminado_en": "2026-10-02T10:05:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "creado_en y modificado_en no cuentan como edición",
+      "que": "Repetir un crear con otra marca no restaura un registro eliminado.",
+      "ordenFijo": false,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "Luna",
+            "eliminado_en": null,
+            "creado_en": "2026-10-02T10:00:00.000Z"
+          },
+          "marca": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "creado_en": "2026-10-02T10:00:00.000Z"
+          },
+          "marca": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "Luna",
+          "eliminado_en": "2026-10-02T10:05:00.000Z",
+          "creado_en": "2026-10-02T10:00:00.000Z"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:00:00.000Z-0000-aaaaaaaa",
+          "campos": {
+            "eliminado_en": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+            "creado_en": "2026-10-02T10:10:00.000Z-0000-bbbbbbbb"
+          }
+        },
+        "eliminado": true
+      }
+    },
+    {
+      "nombre": "dos cambios del mismo grupo sobre el mismo campo: el último gana",
+      "que": "Con marcas iguales, el orden de la operación decide.",
+      "ordenFijo": true,
+      "operaciones": [
+        {
+          "campos": {
+            "nombre": "1"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        },
+        {
+          "campos": {
+            "nombre": "2"
+          },
+          "marca": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa"
+        }
+      ],
+      "esperado": {
+        "valores": {
+          "nombre": "2"
+        },
+        "marcas": {
+          "base": "2026-10-02T10:05:00.000Z-0000-aaaaaaaa",
+          "campos": {}
+        },
+        "eliminado": false
+      }
+    }
+  ]
+}
