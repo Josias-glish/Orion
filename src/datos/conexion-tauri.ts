@@ -25,14 +25,13 @@ export function abrirConexionTauri(): Promise<Conexion> {
       consultar<T>(sql: string, parametros: readonly (string | number | null)[] = []) {
         return db.select<T[]>(sql, [...parametros]);
       },
-      // D-004 (aprobada en la Etapa 10): el plugin reparte las órdenes entre varias conexiones, así que no se puede
-      // enviar BEGIN/COMMIT por él. El comando de Rust `ejecutar_lote` (src-tauri/src/lote.rs) toma una conexión del
-      // mismo pool y corre todas las sentencias en una sola transacción: se aplican todas o ninguna.
-      // Si una falla, la promesa se rechaza con «Falló la sentencia N de M: …» (sin los valores de los parámetros).
+      // D-004 (D-054): el plugin reparte las órdenes entre varias conexiones, así que no se puede enviar BEGIN/COMMIT
+      // por separado. El lote entero va a un comando de Rust (`ejecutar_lote`, src-tauri/src/lote.rs) que lo aplica
+      // en una sola transacción sobre el mismo pool: o se escribe todo o no se escribe nada.
       async ejecutarLote(sentencias) {
         if (sentencias.length === 0) return;
         await invoke("ejecutar_lote", {
-          base: URL_BASE_DATOS,
+          db: URL_BASE_DATOS,
           sentencias: sentencias.map(({ sql, parametros }) => ({ sql, parametros: [...parametros] })),
         });
       },

@@ -113,7 +113,7 @@ export class ErrorDeServidor extends Error {
 
 function normalizarError(error: unknown): Error {
   if (error instanceof Error && typeof (error as { code?: unknown }).code === "string") {
-    return new ErrorDeServidor(error.message, (error as { code: string }).code);
+    return new ErrorDeServidor(error.message, (error as unknown as { code: string }).code);
   }
   return error instanceof Error ? error : new Error(String(error));
 }

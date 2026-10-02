@@ -9,6 +9,10 @@ antes de construir funciones. Fecha: 2026-10-01.
 (varias escrituras que deben guardarse todas o ninguna). Propongo resolverlo con un comando pequeño en Rust
 (decisión D-004) antes de la Etapa 2, y espero tu aprobación.
 
+> **Actualización (2026-10-02):** D-004 se aprobó y se implementó (decisión D-054): el comando Rust `ejecutar_lote`
+> aplica cada lote de escrituras dentro de una transacción real. Con el programa real, el mismo experimento
+> (`pruebas-e2e/transacciones.mjs`) pasó de 19 de 20 rondas con fallos a 0 de 20. El texto de abajo es el informe de la Etapa 1, tal como se escribió.
+
 | Prueba | Resultado | Dónde se verificó |
 | --- | --- | --- |
 | a) Crear un animal con su identificador | Funciona | Programa real en Linux + Vitest |

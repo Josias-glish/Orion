@@ -15,6 +15,14 @@ La rama tiene todo el avance, pero **todavía no es una versión terminable**: f
 - Interfaz: indicador en la barra lateral, «Ya tengo una finca en otro equipo» en el asistente (`UnirseAFinca`), PIN por definir en equipos que reciben usuarios, textos en `src/textos/es.ts`.
 - Servidor Postgres (agente): migraciones 0001 a 0007 en `servidor/migraciones/` y pruebas en `servidor/pruebas/` (ver el informe del agente en la conversación; puede estar incompleto).
 
+## Nota de la fusión (21:20)
+
+Otra sesión ya había implementado D-004 en la rama (D-054, `src-tauri/src/lote.rs`, PR #17). Se fusionó y se dejó su versión: mi `ejecutar_lote` se descartó. Las decisiones propias de esta etapa empiezan en **D-055**.
+
+## Servidor: estado final del agente
+
+`npx vitest run servidor`: 202 pruebas pasan (mezcla, sincronizar, cuentas, numeracion). Migraciones 0006 (descarga) y 0007 (storage) escritas pero sin pruebas. Falta: `aislamiento.test.ts` (privilegios y políticas), `descarga.test.ts`, `candado-real.test.ts` (Postgres real con `POSTGRES_URL_PRUEBAS`), `huellas.json` de las migraciones del servidor y `servidor/LEEME.md`. Desviaciones del protocolo: `unirse_a_finca` devuelve `{error:"codigo_invalido"}` en vez de lanzar (para no perder el contador de intentos); errores extra `cambio_id_reutilizado` y `registro_inconsistente`. Duda: la CLI de Supabase exige prefijo de fecha y hora en los nombres de migración; verificar si valen `0001_…`.
+
 ## Falta (en este orden)
 
 1. `servidor/`: revisar lo que dejó el agente (`npx vitest run servidor`), corregir el error de tipos de `servidor/pruebas/ayudas.ts`, y que `emitir_registros` ponga el número asignado dentro de la instantánea (el cliente manda un marcador).

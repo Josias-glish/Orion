@@ -178,8 +178,8 @@ describe("permisos mínimos de Tauri (Etapa 5)", () => {
       expect(lista, comando).toMatch(new RegExp(`\\b${comando}\\b`));
     }
     expect(rust).toMatch(/\.plugin\(tauri_plugin_http::init\(\)\)/);
-    // Solo se pueden usar las bases que declara el programa.
-    expect(leer("src-tauri/src/lote.rs")).toMatch(/validar_base\(&base, &BASES_DE_DATOS\)/);
+    // Solo se pueden usar las bases que declara el programa (D-054).
+    expect(rust).toMatch(/BASES_DE_DATOS\.contains\(&db\.as_str\(\)\)/);
   });
 
   it("el protocolo asset solo puede leer la carpeta de fotos", () => {
