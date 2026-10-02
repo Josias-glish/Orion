@@ -66,6 +66,7 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 | Lo mismo para la Etapa 8, sin red (R18, R19, CA-21, CA-22, R30, R23) | ver el encabezado de `pruebas-e2e/etapa8.mjs` |
 | Lo mismo para la Etapa 9, sin red (R32, R20, R21, CA-23 a CA-25, R23; necesita `pdftotext`) | ver el encabezado de `pruebas-e2e/etapa9.mjs` |
 | D-004 / D-054: los lotes son transacciones reales en el programa (20 rondas con consultas simultáneas; usa una carpeta de datos temporal) | ver el encabezado de `pruebas-e2e/transacciones.mjs` |
+| Datos de una versión más nueva: el programa explica qué hacer y no toca la base (sin red; usa una carpeta de datos temporal) | ver el encabezado de `pruebas-e2e/base-mas-nueva.mjs` |
 | CA-33 con los programas reales: base creada por la 0.1.0, abierta con la versión nueva | ver el encabezado de `pruebas-e2e/actualizacion.mjs` |
 | CA-10: las pruebas del programa real (etapas 2, 3, 4, 6, 7, 8 y 9) seguidas y sin red (Linux) | `sudo sh pruebas-e2e/todas.sh capturas` |
 
@@ -149,6 +150,10 @@ actualizaciones (Etapa 12), integración con ANCO (Etapa 13) y suscripción (Eta
 - Parámetros SQL con `?` (valen en sqlx y en node:sqlite). Un cambio de varias sentencias va siempre por `Cambios` / `ejecutarLote`, que es una
   transacción real (en el programa, el comando Rust `ejecutar_lote`, D-054). Nunca enviar `BEGIN`/`COMMIT` sueltos por el plugin (ver D-004).
 - Los errores esperados se lanzan como `ErrorDeRegistro([...motivos])`; la interfaz los muestra con `ListaMotivos`.
+- Abrir datos de una versión **más nueva** que el programa (p. ej. el instalador de la 0.1.0 sobre datos de la 0.5.0) no se puede: el plugin SQL
+  rechaza la base antes de cambiar nada (`migration N was previously applied but is missing in the resolved migrations`). `src/datos/error-al-abrir.ts`
+  reconoce ese texto de sqlx (una prueba de Rust vigila que no cambie) y `App.tsx` explica en español qué hacer; las guías
+  (`docs/INSTALACION.md`, `docs/PRUEBA_CA12.md`) mandan a la última versión (`/releases/latest`), nunca a una vieja.
 
 ## Decisiones
 

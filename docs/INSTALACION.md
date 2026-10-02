@@ -23,10 +23,10 @@ el instalador.
 
 ### Desde la página de versiones (Releases)
 
-1. Abra la página de la versión 0.4.0: <https://github.com/Josias-glish/Orion/releases/tag/v0.4.0>
-   (o, en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases** → «Registro Caprino v0.4.0»).
-   Las versiones anteriores siguen en <https://github.com/Josias-glish/Orion/releases/tag/v0.2.0> y
-   <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0>.
+1. Abra la página de la **última versión**: <https://github.com/Josias-glish/Orion/releases/latest> (hoy es la 0.5.0;
+   también está en <https://github.com/Josias-glish/Orion>, a la derecha, **Releases**, la que dice «Latest»).
+   **No descargue una versión anterior** (0.1.0, 0.2.0…) si ya usó una más nueva: el programa viejo no abre los datos
+   que guardó uno más nuevo (ver la sección 8).
 2. Si el repositorio es privado, primero inicie sesión en GitHub con una cuenta que tenga acceso.
 3. Baje hasta **Assets** y descargue el archivo para su computador:
 
@@ -197,7 +197,12 @@ Para no borrar ni mezclar datos sin querer, el programa **solo restaura en una i
 3. Al abrir, el programa actualiza la base de datos por su cuenta. Sus datos se conservan (CA-33: se prueba en cada
    versión con datos de ejemplo de la 0.1.0).
 4. Compruebe que todo sigue ahí: entre con su usuario y su PIN, abra **Animales** y revise que estén sus animales.
-   Abajo, en la barra lateral, debe decir la versión nueva (por ejemplo «Versión 0.4.0»).
+   Abajo, en la barra lateral, debe decir la versión nueva (por ejemplo «Versión 0.5.0»).
+
+> **Solo hacia adelante.** Actualizar a una versión más nueva conserva los datos. **Lo contrario no funciona**: si instala
+> una versión más vieja encima de una más nueva, el programa viejo no entiende los datos que guardó el nuevo y muestra
+> «No se pudo abrir la base de datos» (ver la sección 8). No se pierde nada, pero hay que volver a instalar la más reciente.
+> Tampoco instale el `.exe` y el `.msi` a la vez: el menú Inicio puede abrir el programa más viejo.
 
 **De la 0.1.0 a la 0.2.0.** Aparecen en Animales las pestañas **«De otras fincas»** (sementales y ancestros que no son
 de la finca) y **«Contactos»** (sus propietarios). Si en la 0.1.0 registró animales «solo para la genealogía», ahora
@@ -225,8 +230,19 @@ se conservan; las copias hechas con versiones anteriores se pueden restaurar en 
 
 - **Windows dice que falta «WebView2»**: Windows 11 ya lo trae. En un Windows 10 muy desactualizado, el instalador lo
   descarga (para eso, y solo durante la instalación, necesita internet). También puede instalarlo desde Windows Update.
-- **El programa muestra «No se pudo abrir la base de datos»**: abra «Detalle técnico», copie el texto y repórtelo
-  (ver abajo). No borre la carpeta de datos.
+- **El programa muestra «No se pudo abrir la base de datos» y el detalle técnico dice `migration 5 was previously
+  applied but is missing in the resolved migrations`** (el número puede ser otro; en las versiones que ya traen la ayuda,
+  además dice «Estos datos los guardó una versión más nueva…»): la causa es que se abrió una versión **más vieja** que la
+  que guardó los datos (por ejemplo, la 0.1.0 después de usar la 0.5.0). **No se perdió nada**: el programa viejo se
+  niega a abrir antes de cambiar cualquier cosa. Qué hacer:
+  1. Cierre el programa. **No borre la carpeta de datos** (sección 4).
+  2. Descargue la última versión desde <https://github.com/Josias-glish/Orion/releases/latest> e instálela encima
+     (sección 7). Los datos siguen ahí.
+  3. Si tiene dos versiones instaladas (por ejemplo, una con el `.exe` y otra con el `.msi`), desinstale la más vieja:
+     Configuración → Aplicaciones → Registro Caprino → Desinstalar, **sin** marcar «Eliminar los datos de aplicación».
+  4. Si prefiere seguir con la versión vieja, restaure en ella una copia de respaldo hecha con esa versión (sección 5).
+- **El programa muestra «No se pudo abrir la base de datos» con otro detalle técnico**: abra «Detalle técnico», copie el
+  texto y repórtelo (ver abajo). No borre la carpeta de datos.
 - **Para reportar un error**: siga las indicaciones de la sección «Cómo reportar errores» del
   [README](../README.md#cómo-reportar-errores).
 

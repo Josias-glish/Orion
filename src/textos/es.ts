@@ -454,6 +454,13 @@ export const textos = {
 
   errores: {
     abrirBase: "No se pudo abrir la base de datos del programa.",
+    /** Los datos son de una versión más nueva que el programa abierto (ver src/datos/error-al-abrir.ts). */
+    baseDeVersionMasNueva: {
+      explicacion:
+        "Estos datos los guardó una versión más nueva de Registro Caprino que la que está abierta. No se perdió nada: este programa no cambió sus datos.",
+      queHacer:
+        "Cierre este programa, instale la versión más reciente desde la página de versiones y ábrala. Si tiene dos versiones instaladas, desinstale la más vieja sin marcar «Eliminar los datos de aplicación».",
+    },
     detalleTecnico: "Detalle técnico (para quien da soporte):",
     operacion: "No se pudo completar la operación.",
     titulo: "No se pudo guardar:",
