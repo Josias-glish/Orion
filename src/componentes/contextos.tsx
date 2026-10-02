@@ -48,7 +48,7 @@ export type SeccionReproduccion = "servicios" | "proximos" | "intervalos";
 export type SeccionLeche = "ordeno" | "lactancias" | "calidad";
 export type SeccionPesos = "registrar" | "metas";
 export type SeccionSalud = "registrar" | "calendario" | "retiros" | "historial";
-export type SeccionDocumentos = "certificado" | "expediente" | "emitidos" | "respaldo";
+export type SeccionDocumentos = "certificado" | "expediente" | "inventario" | "hojaVenta" | "emitidos" | "respaldo";
 /** R31: registros genealógicos propios (solo el propietario). */
 export type SeccionRegistros = "registros" | "verificacion" | "libro" | "configuracion";
 /** RF-33 y RF-34: ingresos, gastos y resumen (solo el propietario, R23). */
@@ -70,6 +70,12 @@ export type Ruta =
   | { pantalla: "documentos"; seccion: SeccionDocumentos; animalId?: string }
   | { pantalla: "registros"; seccion: SeccionRegistros; registroId?: string }
   | { pantalla: "finanzas"; seccion: SeccionFinanzas }
+  /** RF-50 y RF-16: historial de compras y ventas (solo el propietario, R23). */
+  | { pantalla: "traspasos" }
+  /** R32: registrar una compra; con `animalId`, el animal de otra finca que se promueve a comprado. */
+  | { pantalla: "registrarCompra"; animalId?: string }
+  /** R20: registrar la venta de un animal del hato. */
+  | { pantalla: "registrarVenta"; animalId: string }
   | { pantalla: "ajustes"; seccion: SeccionAjustes };
 
 export const NavegacionContexto = createContext<(ruta: Ruta) => void>(() => {});

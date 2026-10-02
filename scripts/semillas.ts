@@ -2,7 +2,7 @@
 // Nunca toca la base del programa instalado. Ver sección 12 de docs/ESPECIFICACION.md.
 //   npm run semillas                    animales de ejemplo con reproducción, leche, pesos, salud, un semental de otra finca
 //                                       animales para probar los registros genealógicos (listos y con requisitos pendientes),
-//                                       muestras de calidad de la leche y movimientos de ingresos y gastos
+//                                       muestras de calidad de la leche, movimientos de ingresos y gastos, y una compra y una venta
 //   npm run semillas -- --rendimiento   además, 500 animales de prueba y la medición de CA-09
 //   npm run semillas -- --donde         solo muestra la ruta de la base de desarrollo
 import { existsSync, readFileSync } from "node:fs";
@@ -16,11 +16,13 @@ import { listarComparacionCalidad, listarLactancias } from "../src/datos/reposit
 import { resumenFinanciero } from "../src/datos/repositorios/finanzas";
 import { listarPartosProximos, serviciosComoMacho } from "../src/datos/repositorios/reproduccion";
 import { listarVerificaciones } from "../src/datos/repositorios/registros";
+import { listarTraspasos } from "../src/datos/repositorios/traspasos";
 import { listarAlertasRetiro } from "../src/datos/repositorios/salud";
 import { fechaLocal, marcaDeTiempo } from "../src/dominio/fechas";
 import { formatearPorcentaje } from "../src/textos/es";
 import { asegurarFinca, cargarDatosDeEjemplo } from "./datos-de-ejemplo";
 import { cargarDatosDeRendimiento, medirOrdeno } from "./datos-de-rendimiento";
+import { cargarTraspasosDeEjemplo } from "./traspasos-de-ejemplo";
 
 /** Carpeta de configuración del programa, igual que la que usa Tauri (app_config_dir). */
 function carpetaDeDatos(): string {
@@ -106,6 +108,13 @@ async function principal() {
         `Finanzas (todo el tiempo): ingresos ${pesos(finca.ingresos)}, gastos ${pesos(finca.gastos)} ` +
           `(generales ${pesos(finca.gastosGenerales)}), rentabilidad ${pesos(finca.rentabilidad)}.`,
       );
+    }
+
+    // Etapa 9: una compra y una venta (también en una base que ya tenía los demás datos).
+    const finca = await asegurarFinca(conexion);
+    if (await cargarTraspasosDeEjemplo(conexion, finca.contexto, hoy)) {
+      const pesos = (v: number | null) => (v === null ? "sin precio" : `$ ${v.toLocaleString("es-CO")}`);
+      console.log(`Compras y ventas: ${(await listarTraspasos(conexion)).map((t) => `${t.tipo} de ${t.animal} (${pesos(t.precio)})`).join(", ")}.`);
     }
 
     if (process.argv.includes("--rendimiento")) {

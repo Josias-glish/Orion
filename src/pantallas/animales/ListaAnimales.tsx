@@ -16,6 +16,8 @@ export function ListaAnimales() {
   const conexion = useConexion();
   const navegar = useNavegar();
   const puedeCrear = usePermiso("crear_animal");
+  // R23: las compras las registra solo el propietario.
+  const puedeComprar = usePermiso("gestionar_traspasos");
   const [filtro, setFiltroEstado] = useState<FiltroAnimales>(ultimoFiltro);
   const setFiltro = (f: FiltroAnimales) => {
     ultimoFiltro = f;
@@ -29,11 +31,18 @@ export function ListaAnimales() {
 
   return (
     <div>
-      {puedeCrear && (
+      {(puedeCrear || puedeComprar) && (
         <div className="acciones">
-          <button type="button" className="boton" onClick={() => navegar({ pantalla: "nuevoAnimal" })} data-prueba="registrar-animal">
-            {t.registrar}
-          </button>
+          {puedeCrear && (
+            <button type="button" className="boton" onClick={() => navegar({ pantalla: "nuevoAnimal" })} data-prueba="registrar-animal">
+              {t.registrar}
+            </button>
+          )}
+          {puedeComprar && (
+            <button type="button" className="boton boton--secundario" onClick={() => navegar({ pantalla: "registrarCompra" })} data-prueba="registrar-compra">
+              {t.registrarCompra}
+            </button>
+          )}
         </div>
       )}
 

@@ -24,6 +24,8 @@ import { generarPdf } from "../../documentos/pdf-navegador";
 import { armarExpediente } from "../../dominio/expediente";
 import { fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { textos } from "../../textos/es";
+import { HojaDeVenta } from "./HojaDeVenta";
+import { InventarioHato } from "./InventarioHato";
 
 const t = textos.documentos;
 
@@ -34,12 +36,14 @@ export function Documentos({ seccion, animalId }: { seccion: SeccionDocumentos; 
     <section className="pantalla pantalla--ancha">
       <h1>{t.titulo}</h1>
       <Pestanas
-        opciones={(["certificado", "expediente", "emitidos", "respaldo"] as const).map((valor) => ({ valor, texto: t.secciones[valor] }))}
+        opciones={(["certificado", "expediente", "inventario", "hojaVenta", "emitidos", "respaldo"] as const).map((valor) => ({ valor, texto: t.secciones[valor] }))}
         actual={seccion}
         alElegir={(s) => navegar({ pantalla: "documentos", seccion: s, animalId: animalId ?? undefined })}
       />
       {seccion === "certificado" && <EmitirCertificado animalInicial={animalId} />}
       {seccion === "expediente" && <EmitirExpediente animalInicial={animalId} />}
+      {seccion === "inventario" && <InventarioHato />}
+      {seccion === "hojaVenta" && <HojaDeVenta animalInicial={animalId} />}
       {seccion === "emitidos" && <ListaEmitidos animalId={null} />}
       {seccion === "respaldo" && <Respaldo />}
     </section>

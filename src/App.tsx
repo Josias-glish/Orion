@@ -21,6 +21,9 @@ import { Leche } from "./pantallas/leche/Leche";
 import { Documentos } from "./pantallas/documentos/Documentos";
 import { Finanzas } from "./pantallas/finanzas/Finanzas";
 import { Registros } from "./pantallas/registros/Registros";
+import { HistorialTraspasos } from "./pantallas/traspasos/HistorialTraspasos";
+import { RegistrarCompra } from "./pantallas/traspasos/RegistrarCompra";
+import { RegistrarVenta } from "./pantallas/traspasos/RegistrarVenta";
 import { Pesos } from "./pantallas/pesos/Pesos";
 import { Salud } from "./pantallas/salud/Salud";
 import { RegistrarParto } from "./pantallas/reproduccion/RegistrarParto";
@@ -35,6 +38,9 @@ const PERMISO_DE: Partial<Record<Ruta["pantalla"], Accion>> = {
   ajustes: "ver_ajustes",
   registros: "ver_registros",
   finanzas: "ver_finanzas",
+  traspasos: "ver_traspasos",
+  registrarCompra: "gestionar_traspasos",
+  registrarVenta: "gestionar_traspasos",
 };
 
 function PantallaActual({ ruta }: { ruta: Ruta }) {
@@ -67,6 +73,12 @@ function PantallaActual({ ruta }: { ruta: Ruta }) {
       return <Registros key={ruta.registroId ?? ""} seccion={ruta.seccion} registroId={ruta.registroId ?? null} />;
     case "finanzas":
       return <Finanzas seccion={ruta.seccion} />;
+    case "traspasos":
+      return <HistorialTraspasos />;
+    case "registrarCompra":
+      return <RegistrarCompra key={ruta.animalId ?? "nueva"} animalInicial={ruta.animalId ?? null} />;
+    case "registrarVenta":
+      return <RegistrarVenta key={ruta.animalId} animalId={ruta.animalId} />;
     case "ajustes":
       return <Ajustes seccion={ruta.seccion} />;
   }

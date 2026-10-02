@@ -62,6 +62,12 @@ fn migraciones() -> Vec<Migration> {
             sql: include_str!("../../src/datos/migraciones/0007_calidad_y_finanzas.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "compra_venta",
+            sql: include_str!("../../src/datos/migraciones/0008_compra_venta.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -112,6 +118,19 @@ fn guardar_copia(destino: String, contenido: Vec<u8>) -> Result<(), String> {
     archivos::guardar_copia(Path::new(&destino), &contenido)
 }
 
+/// R32: copia un PDF o una imagen elegidos por el usuario a la carpeta «documentos» como adjunto de una compra.
+/// Devuelve la ruta relativa que se anota en `traspaso.adjuntos`.
+#[tauri::command]
+fn copiar_adjunto(app: tauri::AppHandle, origen: String, nombre: String) -> Result<String, String> {
+    archivos::copiar_adjunto(&carpeta_datos(&app)?, Path::new(&origen), &nombre)
+}
+
+/// Escribe una copia de un adjunto de compra donde la eligió el usuario con el diálogo «Guardar».
+#[tauri::command]
+fn guardar_copia_de_adjunto(app: tauri::AppHandle, ruta: String, destino: String) -> Result<(), String> {
+    archivos::guardar_copia_de_adjunto(&carpeta_datos(&app)?, &ruta, Path::new(&destino))
+}
+
 /// RF-43: crea la copia de respaldo (.zip con datos.json, fotos y documentos). Devuelve su tamaño en bytes.
 #[tauri::command]
 fn crear_respaldo(app: tauri::AppHandle, destino: String, datos: String) -> Result<u64, String> {
@@ -144,6 +163,8 @@ pub fn run() {
             copiar_foto,
             guardar_documento,
             guardar_copia,
+            copiar_adjunto,
+            guardar_copia_de_adjunto,
             crear_respaldo,
             leer_respaldo,
             extraer_archivos_respaldo
