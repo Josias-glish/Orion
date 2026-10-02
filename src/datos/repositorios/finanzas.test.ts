@@ -75,6 +75,7 @@ describe("categorías (RF-33: catálogo editable)", () => {
   it("la migración precarga las cinco categorías pedidas y «Montas y pajillas»", async () => {
     expect((await listarCategorias(db)).map((c) => [c.nombre, c.tipo, c.activo])).toEqual([
       ["Alimento", "gasto", true],
+      ["Compra de animales", "gasto", true], // la agrega la migración 0008 (Etapa 9)
       ["Mano de obra", "gasto", true],
       ["Medicamentos", "gasto", true],
       ["Montas y pajillas", "gasto", true],

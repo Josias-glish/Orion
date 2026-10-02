@@ -14,6 +14,7 @@ import { emitirRegistro, listarConfigLibros, listarRegistros } from "./repositor
 import { listarCategorias, listarMovimientos, registrarMovimiento, resumenFinanciero } from "./repositorios/finanzas";
 import { guardarPesajeLeche, listarComparacionCalidad, listarLactancias, listarOrdeno } from "./repositorios/leche";
 import { listarServicios } from "./repositorios/reproduccion";
+import { datosInventario, listarTraspasos, registrarCompra, registrarVenta } from "./repositorios/traspasos";
 import { comprobarPin, listarUsuarios } from "./repositorios/usuarios";
 
 const MUESTRA = new URL("./muestras/respaldo-0.1.0-ejemplo.json", import.meta.url);
@@ -127,7 +128,7 @@ describe("CA-33: actualizar desde la versión 0.1.0", () => {
     );
     expect([n, kilos, conCalidad]).toEqual([pesajesAntes, kilosAntes, 0]);
     expect((await listarComparacionCalidad(db, { soloAbiertas: false })).every((f) => f.resumen.celulas.promedio === null)).toBe(true);
-    expect((await listarCategorias(db)).map((c) => c.nombre)).toEqual(["Alimento", "Mano de obra", "Medicamentos", "Montas y pajillas", "Venta de animales", "Venta de leche"]);
+    expect((await listarCategorias(db)).map((c) => c.nombre)).toEqual(["Alimento", "Compra de animales", "Mano de obra", "Medicamentos", "Montas y pajillas", "Venta de animales", "Venta de leche"]);
     expect(await listarMovimientos(db)).toEqual([]);
 
     // Se puede anotar la calidad en un pesaje que ya existía (se corrige, no se duplica) y registrar un gasto.
@@ -146,6 +147,34 @@ describe("CA-33: actualizar desde la versión 0.1.0", () => {
     await registrarMovimiento(db, { fecha: "2026-09-01", tipo: "gasto", categoriaId: categorias[0].id, valor: 250000, animalId: null, loteId: null, descripcion: "Gasto de prueba" }, PROPIETARIO);
     expect((await resumenFinanciero(db)).finca.gastosGenerales).toBe(250000);
     expect(await listarOrdeno(db, lactancia.fecha, lactancia.jornada)).toBeInstanceOf(Array);
+  });
+
+  it("Etapa 9: la 0.1.0 no tenía compras ni ventas; el animal de otra finca se compra y uno del hato se vende sin perder nada", async () => {
+    for (const archivo of archivosDeMigracion().filter((a) => !DE_LA_0_1_0(a))) db.ejecutarScript(leerMigracion(archivo));
+    expect(await listarTraspasos(db)).toEqual([]);
+    const inventarioAntes = await datosInventario(db, "2026-10-02");
+    expect(inventarioAntes.filas.length).toBe(15);
+
+    // El ancestro «solo genealogía» de la 0.1.0 ahora es un animal de otra finca; al comprarlo conserva su id y entra al hato.
+    const [abuelo] = await listarExternos(db);
+    const vendedor = await guardarContacto(db, { ...contactoVacio(), nombre: "Vendedor de ejemplo" }, PROPIETARIO);
+    const compra = await registrarCompra(
+      db,
+      { animalId: abuelo.id, nuevo: null, padreNuevo: null, madreNuevo: null, vendedorId: vendedor, fechaIngreso: "2026-10-01", precio: 800000, registroAsociacion: null, adjuntos: [], observaciones: null, loteId: null, crearGasto: true, descripcionMovimiento: "Compra de ejemplo" },
+      PROPIETARIO,
+    );
+    expect(compra.animalId).toBe(abuelo.id);
+    expect((await listarExternos(db)).length).toBe(0);
+    expect((await datosInventario(db, "2026-10-02")).filas.length).toBe(16);
+    expect((await resumenFinanciero(db)).finca.gastos).toBe(800000);
+
+    // Venta de una hembra de la 0.1.0: sale del inventario y su historial y su genealogía siguen ahí.
+    const estrella = (await listarAnimales(db, { texto: "EJ-10" }))[0];
+    const consanguinidad = (await calcularConsanguinidad(db, estrella.id)).coeficiente;
+    await registrarVenta(db, { animalId: estrella.id, compradorId: vendedor, fecha: "2026-10-02", precio: 900000, observaciones: null, crearIngreso: false, descripcionMovimiento: "" }, PROPIETARIO);
+    expect((await datosInventario(db, "2026-10-02")).filas.length).toBe(15);
+    expect((await calcularConsanguinidad(db, estrella.id)).coeficiente).toBeCloseTo(consanguinidad, 10);
+    expect((await listarTraspasos(db)).map((t) => t.tipo).sort()).toEqual(["compra", "venta"]);
   });
 });
 

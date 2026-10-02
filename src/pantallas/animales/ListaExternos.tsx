@@ -15,6 +15,8 @@ export function ListaExternos() {
   const conexion = useConexion();
   const navegar = useNavegar();
   const puedeCrear = usePermiso("crear_animal");
+  // R23: las compras las registra solo el propietario.
+  const puedeComprar = usePermiso("gestionar_traspasos");
   const [texto, setTexto] = useState("");
   const [sexo, setSexo] = useState<Sexo | null>(null);
   const { datos: animales } = useCarga(() => listarExternos(conexion, { texto, sexo }), [conexion, texto, sexo]);
@@ -23,16 +25,23 @@ export function ListaExternos() {
   return (
     <div>
       <p className="nota">{t.externosAyuda}</p>
-      {puedeCrear && (
+      {(puedeCrear || puedeComprar) && (
         <div className="acciones">
-          <button
-            type="button"
-            className="boton"
-            onClick={() => navegar({ pantalla: "nuevoAnimal", externo: true })}
-            data-prueba="registrar-externo"
-          >
-            {t.registrarExterno}
-          </button>
+          {puedeCrear && (
+            <button
+              type="button"
+              className="boton"
+              onClick={() => navegar({ pantalla: "nuevoAnimal", externo: true })}
+              data-prueba="registrar-externo"
+            >
+              {t.registrarExterno}
+            </button>
+          )}
+          {puedeComprar && (
+            <button type="button" className="boton boton--secundario" onClick={() => navegar({ pantalla: "registrarCompra" })} data-prueba="registrar-compra">
+              {t.registrarCompra}
+            </button>
+          )}
         </div>
       )}
       <div className="filtros">
@@ -64,6 +73,7 @@ export function ListaExternos() {
               <th>{t.columnas.nacimiento}</th>
               <th>{t.columnas.propietario}</th>
               <th>{t.columnas.estado}</th>
+              {puedeComprar && <th />}
             </tr>
           </thead>
           <tbody>
@@ -86,6 +96,23 @@ export function ListaExternos() {
                 <td>{a.fechaNacimiento ? formatearFecha(a.fechaNacimiento) : textos.comun.sinDato}</td>
                 <td>{a.propietario ?? <span className="nota">{t.sinPropietario}</span>}</td>
                 <td>{textos.comun.estado[a.estado]}</td>
+                {puedeComprar && (
+                  <td>
+                    {a.estado === "activo" && (
+                      <button
+                        type="button"
+                        className="boton boton--secundario boton--pequeno"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navegar({ pantalla: "registrarCompra", animalId: a.id });
+                        }}
+                        data-prueba="comprar-externo"
+                      >
+                        {t.comprar}
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

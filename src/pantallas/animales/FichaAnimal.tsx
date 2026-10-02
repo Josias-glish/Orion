@@ -13,6 +13,7 @@ import { RegistroAnimal } from "../registros/RegistroAnimal";
 import { useCarga } from "../../componentes/useCarga";
 import { eliminarAnimal, obtenerAnimal, type Animal, type Pariente } from "../../datos/repositorios/animales";
 import { consultarHijos } from "../../datos/repositorios/genealogia";
+import { traspasosDeAnimal } from "../../datos/repositorios/traspasos";
 import { edadEnMeses, fechaLocal, formatearFecha } from "../../dominio/fechas";
 import { textos } from "../../textos/es";
 import { Genealogia } from "./Genealogia";
@@ -155,9 +156,45 @@ function DocumentosAnimal({ animalId }: { animalId: string }) {
           <button type="button" className="boton" onClick={() => navegar({ pantalla: "documentos", seccion: "expediente", animalId })} data-prueba="ir-expediente">
             {d.secciones.expediente}
           </button>
+          <button type="button" className="boton" onClick={() => navegar({ pantalla: "documentos", seccion: "hojaVenta", animalId })} data-prueba="ir-hoja-venta">
+            {d.secciones.hojaVenta}
+          </button>
         </div>
       )}
       <ListaEmitidos animalId={animalId} />
+    </div>
+  );
+}
+
+/** RF-50 y RF-16: la compra y la venta de este animal, en su ficha (solo el propietario, R23). */
+function TraspasosDeAnimal({ animalId }: { animalId: string }) {
+  const conexion = useConexion();
+  const { datos } = useCarga(() => traspasosDeAnimal(conexion, animalId), [conexion, animalId]);
+  const t = textos.traspasos;
+  if (!datos || datos.length === 0) return null;
+  return (
+    <div data-prueba="traspasos-animal">
+      <h2>{t.enLaFicha}</h2>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>{t.columnas.fecha}</th>
+            <th>{t.columnas.tipo}</th>
+            <th>{t.columnas.contacto}</th>
+            <th className="numero">{t.columnas.precio}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {datos.map((f) => (
+            <tr key={f.id}>
+              <td>{formatearFecha(f.fecha)}</td>
+              <td>{t.tipo[f.tipo]}</td>
+              <td>{f.contacto}</td>
+              <td className="numero">{f.precio === null ? <span className="nota">{t.sinPrecio}</span> : textos.comun.pesos(f.precio)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -181,6 +218,10 @@ function DatosFicha({ animal }: { animal: Animal }) {
   const navegar = useNavegar();
   const contexto = useContextoCambio();
   const puedeEditar = usePermiso("editar_animal");
+  // R23: compras y ventas solo para el propietario; la hoja de venta es un documento (`emitir_documento`).
+  const puedeTraspasar = usePermiso("gestionar_traspasos");
+  const puedeVerTraspasos = usePermiso("ver_traspasos");
+  const puedeEmitir = usePermiso("emitir_documento");
   // R28 (SUPOSICION): el teléfono y el correo del propietario solo los ve quien puede ver los contactos.
   const verContactos = usePermiso("ver_contactos");
   const [confirmando, setConfirmando] = useState(false);
@@ -203,11 +244,29 @@ function DatosFicha({ animal }: { animal: Animal }) {
   return (
     <div>
       <ListaMotivos error={error} />
-      {puedeEditar && (
+      {(puedeEditar || puedeTraspasar || puedeEmitir) && (
         <div className="acciones">
-          <button type="button" className="boton" onClick={() => navegar({ pantalla: "editarAnimal", id: animal.id })} data-prueba="editar">
-            {textos.comun.editar}
-          </button>
+          {puedeEditar && (
+            <button type="button" className="boton" onClick={() => navegar({ pantalla: "editarAnimal", id: animal.id })} data-prueba="editar">
+              {textos.comun.editar}
+            </button>
+          )}
+          {/* R20: se vende un animal del hato que sigue activo; R32: se compra uno de otra finca. */}
+          {puedeTraspasar && animal.enHato && animal.origen !== "externo" && animal.estado === "activo" && (
+            <button type="button" className="boton" onClick={() => navegar({ pantalla: "registrarVenta", animalId: animal.id })} data-prueba="registrar-venta">
+              {t.registrarVenta}
+            </button>
+          )}
+          {puedeTraspasar && !animal.enHato && animal.estado === "activo" && (
+            <button type="button" className="boton" onClick={() => navegar({ pantalla: "registrarCompra", animalId: animal.id })} data-prueba="comprar-animal">
+              {textos.animales.comprar}
+            </button>
+          )}
+          {puedeEmitir && animal.enHato && (
+            <button type="button" className="boton boton--secundario" onClick={() => navegar({ pantalla: "documentos", seccion: "hojaVenta", animalId: animal.id })} data-prueba="hoja-de-venta">
+              {t.hojaDeVenta}
+            </button>
+          )}
         </div>
       )}
       <div className="ficha-con-foto">
@@ -227,9 +286,16 @@ function DatosFicha({ animal }: { animal: Animal }) {
           <dd>{textos.comun.estado[animal.estado]}</dd>
           <dt>{c.origen}</dt>
           <dd data-prueba="origen">{animal.enHato || animal.origen === "externo" ? textos.comun.origen[animal.origen] : textos.animales.soloGenealogia}</dd>
-          {animal.propietario && (
+          {animal.fechaIngreso && (
             <>
-              <dt>{c.propietario}</dt>
+              <dt>{c.fechaIngreso}</dt>
+              <dd data-prueba="fecha-ingreso">{formatearFecha(animal.fechaIngreso)}</dd>
+            </>
+          )}
+          {/* R23: quién vendió el animal es parte de la compra; el operario no la ve. */}
+          {animal.propietario && (animal.origen !== "comprado" || puedeVerTraspasos) && (
+            <>
+              <dt>{animal.origen === "comprado" ? c.vendedor : c.propietario}</dt>
               <dd data-prueba="propietario">
                 {[
                   animal.propietario.nombre,
@@ -270,6 +336,8 @@ function DatosFicha({ animal }: { animal: Animal }) {
           <dd>{animal.observaciones ?? textos.comun.sinDato}</dd>
         </dl>
       </div>
+
+      {puedeVerTraspasos && <TraspasosDeAnimal animalId={animal.id} />}
 
       <h2>{t.identificadoresTitulo}</h2>
       {animal.identificadores.length === 0 ? (

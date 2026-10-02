@@ -83,3 +83,17 @@ describe("R23: finanzas (Etapa 8)", () => {
     expect(puede("operario", "registrar_leche")).toBe(true);
   });
 });
+
+describe("R23: compra y venta de animales (Etapa 9)", () => {
+  it("solo el propietario ve el historial de compras y ventas y registra compras o ventas", () => {
+    for (const accion of ["ver_traspasos", "gestionar_traspasos"] as const) {
+      expect(puede("propietario", accion), accion).toBe(true);
+      expect(puede("operario", accion), accion).toBe(false);
+    }
+  });
+
+  it("el inventario y la hoja de venta son documentos: solo el propietario los emite", () => {
+    expect(puede("propietario", "emitir_documento")).toBe(true);
+    expect(puede("operario", "emitir_documento")).toBe(false);
+  });
+});

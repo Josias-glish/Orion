@@ -67,6 +67,12 @@ export async function retirarContacto(conexion: Conexion, id: string, contexto: 
   const actual = await obtenerContacto(conexion, id);
   if (!actual) throw new ErrorDeRegistro([{ codigo: "no_encontrado" }]);
   if (actual.animales > 0) throw new ErrorDeRegistro([{ codigo: "contacto_en_uso", cantidad: actual.animales }]);
+  // Etapa 9: tampoco si figura como vendedor o comprador en el historial de compras y ventas.
+  const [{ traspasos }] = await conexion.consultar<{ traspasos: number }>(
+    "SELECT count(*) AS traspasos FROM traspaso WHERE contacto_id = ? AND eliminado_en IS NULL",
+    [id],
+  );
+  if (traspasos > 0) throw new ErrorDeRegistro([{ codigo: "contacto_con_traspasos", cantidad: traspasos }]);
   const cambios = new Cambios(contexto);
   cambios.eliminar("contacto", id);
   await cambios.aplicar(conexion);

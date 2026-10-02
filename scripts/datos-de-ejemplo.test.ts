@@ -177,7 +177,7 @@ describe("calidad de la leche y finanzas de ejemplo (etapa 8)", () => {
 
   it("deja ingresos y gastos con el resumen del cálculo manual y los gastos generales aparte (R19)", async () => {
     await cargarDatosDeEjemplo(db, HOY);
-    expect((await listarCategorias(db)).length).toBe(6);
+    expect((await listarCategorias(db)).length).toBe(7);
     expect((await listarMovimientos(db)).length).toBe(8);
     const { finca, lotes, animales } = await resumenFinanciero(db);
     expect(finca).toMatchObject({
