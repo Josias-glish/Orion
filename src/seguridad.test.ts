@@ -83,9 +83,12 @@ describe("CA-10: el programa no hace llamadas de red", () => {
       .split("\n")
       .map((l) => l.split("=")[0].trim())
       .filter((l) => l && !l.startsWith("#"));
-    expect(dependencias.sort()).toEqual(["serde", "serde_json", "tauri", "tauri-plugin-dialog", "tauri-plugin-sql", "zip"]);
+    // `sqlx` (D-054) es el mismo que ya trae el plugin SQL, solo SQLite; se declara para ejecutar un lote en una transacción.
+    expect(dependencias.sort()).toEqual(["serde", "serde_json", "sqlx", "tauri", "tauri-plugin-dialog", "tauri-plugin-sql", "zip"]);
     // El plugin SQL solo con SQLite (MySQL y PostgreSQL abrirían conexiones de red).
     expect(cargo).toMatch(/tauri-plugin-sql = \{ version = "2", features = \["sqlite"\] \}/);
+    // Y el sqlx propio igual: sin controladores de red (MySQL, PostgreSQL) ni TLS.
+    expect(cargo).toMatch(/sqlx = \{ version = "0\.8", default-features = false, features = \["sqlite", "runtime-tokio"\] \}/);
   });
 });
 

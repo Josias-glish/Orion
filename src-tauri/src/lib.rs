@@ -1,9 +1,10 @@
 mod archivos;
+mod lote;
 
 use std::path::{Path, PathBuf};
 
 use tauri::Manager;
-use tauri_plugin_sql::{Migration, MigrationKind};
+use tauri_plugin_sql::{DbInstances, DbPool, Migration, MigrationKind};
 
 /// Bases de datos que puede abrir la interfaz: la del programa instalado y la de
 /// desarrollo (`npm run tauri dev`), para que las pruebas no toquen datos reales.
@@ -149,6 +150,27 @@ fn extraer_archivos_respaldo(app: tauri::AppHandle, origen: String) -> Result<us
     archivos::extraer_archivos(&carpeta_datos(&app)?, Path::new(&origen))
 }
 
+/// D-004 (implementada en D-054): aplica un lote de sentencias dentro de una sola transacción, sobre el pool del plugin SQL.
+/// Solo acepta las bases de `BASES_DE_DATOS`, que la interfaz ya abrió con el plugin.
+#[tauri::command]
+async fn ejecutar_lote(
+    instancias: tauri::State<'_, DbInstances>,
+    db: String,
+    sentencias: Vec<lote::SentenciaLote>,
+) -> Result<(), tauri_plugin_sql::Error> {
+    if !BASES_DE_DATOS.contains(&db.as_str()) {
+        return Err(tauri_plugin_sql::Error::DatabaseNotLoaded(db));
+    }
+    let bases = instancias.0.read().await;
+    // El plugin se compila solo con SQLite (la prueba de seguridad lo exige), así que `DbPool` tiene una única variante.
+    #[allow(unreachable_patterns)]
+    let pool = match bases.get(&db) {
+        Some(DbPool::Sqlite(pool)) => pool,
+        _ => return Err(tauri_plugin_sql::Error::DatabaseNotLoaded(db)),
+    };
+    lote::ejecutar_en_transaccion(pool, &sentencias).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut sql = tauri_plugin_sql::Builder::default();
@@ -160,6 +182,7 @@ pub fn run() {
         .plugin(sql.build())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            ejecutar_lote,
             copiar_foto,
             guardar_documento,
             guardar_copia,
