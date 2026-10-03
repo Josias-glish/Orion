@@ -16,7 +16,7 @@ import { clave, leerMarcas } from "../datos/sincronizacion/marcas";
 import type { Conexion, Sentencia, ValorSql } from "../datos/conexion";
 import { aplicarRespuesta, sentenciasDeMarcasCorregidas, type ClienteDeSincronizacion } from "./cliente";
 import type { InicioDeDescarga, OperacionEnviada, PaginaDescargada, RespuestaSincronizar, ResumenDeFinca } from "./protocolo";
-import type { Red } from "./red";
+import { ErrorDeRed, type Red } from "./red";
 
 export type FaseDePrimera = "subiendo" | "descargando" | "sincronizando" | "verificando" | "lista";
 
@@ -151,7 +151,7 @@ export async function subirDatosIniciales(conexion: Conexion, red: Red, cliente:
   await conexion.ejecutarLote([sentenciaEstado(CLAVES.subidaInicial, "completa", (await ahoraCorregido(conexion)).iso)]);
   opciones.alProgreso?.({ fase: "sincronizando", hechas: total, total });
   // Lo que el servidor produjo al recibir (por ejemplo, los contadores de los libros) y lo que se hizo mientras tanto.
-  await cliente.sincronizar();
+  await terminarConUnCiclo(cliente);
 }
 
 async function enviarLote(conexion: Conexion, red: Red, fincaId: string, dispositivoId: string, versionEsquema: number, operaciones: OperacionEnviada[]): Promise<void> {
@@ -219,6 +219,14 @@ async function fijarContadores(conexion: Conexion, red: Red, fincaId: string, di
       p_libro_id: libro.id,
       p_valor: libro.siguiente_numero,
     });
+  }
+}
+
+/** El ciclo final de una primera sincronización: si no llega a «al día» (se cortó la red), el usuario vuelve a intentarlo en vez de ver un éxito falso. */
+async function terminarConUnCiclo(cliente: ClienteDeSincronizacion): Promise<void> {
+  const resultado = await cliente.sincronizar();
+  if (resultado.estado === "sin_conexion" || resultado.estado === "sesion_caducada") {
+    throw new ErrorDeRed(resultado.estado === "sin_conexion" ? "sin_conexion" : "sesion", "La sincronización se interrumpió; vuelva a intentarlo.");
   }
 }
 
@@ -330,7 +338,7 @@ export async function descargarDatosIniciales(conexion: Conexion, red: Red, clie
     sentenciaEstado(CLAVES.descargaInicial, "completa", ahora.iso),
   ]);
   opciones.alProgreso?.({ fase: "sincronizando", hechas: total, total });
-  await cliente.sincronizar();
+  await terminarConUnCiclo(cliente);
 }
 
 export interface FilaDelInforme {

@@ -309,6 +309,19 @@ describe("marca futura (R17, S-84)", () => {
     expect(await marcaUltima()).toBe(nueva);
   });
 
+  it("si el equipo reenvía el mismo cambio (la respuesta se perdió), la corrección vuelve a llegar aunque el cambio esté en ya_aplicados", async () => {
+    const op = operacion({ operacion: "crear", campos: { nombre: "Luna" }, marca: marca(HORA_BASE + 3 * 24 * 3_600_000, 3, "bbbbbbbb") });
+    const primera = await sincronizar([op]);
+    const otra = await sincronizar([op]);
+    expect(otra.aceptados).toEqual([]);
+    expect(otra.ya_aplicados).toEqual([op.id]);
+    expect(otra.corregidos).toEqual(primera.corregidos);
+    // Un cambio con la marca sin corregir no genera corrección al reenviarse.
+    const normal = operacion({ campos: { a: 1 }, marca: marca(HORA_BASE, 1, "bbbbbbbb") });
+    await sincronizar([normal]);
+    expect((await sincronizar([normal])).corregidos).toEqual([]);
+  });
+
   it("exactamente 10 minutos no se corrige; 1 ms más, sí", async () => {
     const justa = operacion({ campos: { a: 1 }, marca: marca(HORA_BASE + 600_000) });
     const pasada = operacion({ campos: { b: 1 }, marca: marca(HORA_BASE + 600_001) });
