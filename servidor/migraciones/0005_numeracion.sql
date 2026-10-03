@@ -740,6 +740,13 @@ begin
   loop
     insert into public.libro_numeracion (finca_id, libro_id, siguiente) values (p_finca_id, v_libro_id, v_siguiente)
       on conflict (finca_id, libro_id) do update set siguiente = excluded.siguiente;
+    -- Los demás equipos reciben el contador del libro como cualquier otro cambio (como en `emitir_registros`).
+    v_seq := interno.aplicar_arbitrado(
+      p_finca_id, p_dispositivo_id, p_cambio_id, v_grupo, v_orden,
+      'libro', v_libro_id, 'modificar', jsonb_build_object('siguiente_numero', v_siguiente),
+      interno.marca_de_llamada(p_finca_id, v_ahora_ms), null, v_ahora
+    );
+    v_orden := v_orden + 1;
   end loop;
 
   v_resultado := jsonb_build_object('importados', jsonb_array_length(p_registros), 'seq_final', v_seq, 'hora_servidor_ms', v_ahora_ms);

@@ -8,7 +8,7 @@ import { entreComillas } from "../datos/sincronizacion/esquema";
 import { CLAVES, sentenciaEstado, leerVinculo } from "../datos/sincronizacion/estado";
 import type { Conexion, Sentencia } from "../datos/conexion";
 import type { VinculoDelServidor } from "./protocolo";
-import type { Red } from "./red";
+import { ErrorDelServidor, type Red } from "./red";
 
 export interface DatosDelEquipo {
   nombre: string;
@@ -131,13 +131,15 @@ export async function vincularSegundoEquipo(
   await red.rpc("registrar_cuenta", {});
   const dispositivoId = nuevoId();
   const { respuesta: vinculo, desfase, ahoraIso } = await medir(conexion, () =>
-    red.rpc<VinculoDelServidor>("unirse_a_finca", {
+    red.rpc<VinculoDelServidor & { error?: string }>("unirse_a_finca", {
       p_finca_id: "fincaId" in destino ? destino.fincaId : null,
       p_codigo: "codigo" in destino ? destino.codigo : null,
       p_dispositivo: { id: dispositivoId, nombre: datos.nombre, plataforma: datos.plataforma },
       p_version_esquema: versionEsquema,
     }),
   );
+  // Un código malo, vencido o usado vuelve como valor (no como error) para que el servidor cuente los intentos fallidos.
+  if (vinculo.error) throw new ErrorDelServidor(vinculo.error);
   await guardarVinculo(conexion, vinculo, sesion?.correo ?? "", datos, desfase, { subida: false }, ahoraIso);
   return vinculo;
 }

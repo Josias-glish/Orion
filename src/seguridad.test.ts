@@ -26,6 +26,8 @@ const SOLO_NODE = new Set([
   "src/datos/conexion-memoria.ts",
   "src/datos/ayudas-pruebas.ts",
   "src/datos/sincronizacion/ayudas-pruebas.ts",
+  "src/sincronizacion/red-simulada.ts",
+  "src/sincronizacion/equipos-de-prueba.ts",
   "src/documentos/pdf-node.ts",
 ]);
 

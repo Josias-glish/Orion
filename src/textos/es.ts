@@ -540,6 +540,7 @@ export const textos = {
       esquema_antiguo: "Este programa es más antiguo que el servidor. Actualícelo para sincronizar.",
       dispositivo_revocado: "Este equipo fue retirado de la finca.",
       parametro_invalido: "El servidor no aceptó el código o los datos escritos.",
+      codigo_invalido: "El código no es válido, venció o ya se usó.",
       otro: (codigo: string) => `El servidor respondió con un problema (${codigo}).`,
     },
   },
