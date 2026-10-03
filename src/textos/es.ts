@@ -313,7 +313,7 @@ function motivo(m: Motivo): string {
     case "subida_rechazada":
       return `El servidor no aceptó los datos de este equipo (${m.motivo}). No se perdió nada: los datos siguen aquí.`;
     case "restaurar_vinculado":
-      return "Un equipo vinculado a un servidor no puede restaurar una copia de respaldo. Primero desvincúlelo en Ajustes → Sincronización.";
+      return "Un equipo vinculado a un servidor no puede restaurar una copia de respaldo ni limpiar los datos de prueba. Primero desvincúlelo en Ajustes → Sincronización.";
     case "registro_cambiado_en_otro_equipo":
       return "Otro equipo cambió este registro antes que usted. Espere a que se sincronice, revíselo y vuelva a intentarlo.";
     case "servidor_rechazo":
@@ -480,6 +480,36 @@ export const textos = {
       sincronizarAhora: "Sincronizar ahora",
       iniciarSesion: "Iniciar sesión de nuevo",
     },
+    entidades: {
+      finca: "Finca",
+      usuario: "Usuarios",
+      raza: "Razas",
+      libro: "Libros",
+      categoria_economica: "Categorías de gastos e ingresos",
+      lote: "Lotes",
+      animal: "Animales",
+      identificador: "Identificadores",
+      composicion_racial: "Composición racial",
+      evento_reproductivo: "Servicios",
+      parto: "Partos",
+      lactancia: "Lactancias",
+      pesaje_leche: "Pesajes de leche",
+      pesaje_corporal: "Pesos corporales",
+      meta_peso: "Metas de peso",
+      evento_salud: "Salud",
+      certificado: "Documentos",
+      registro_genealogico: "Registros genealógicos",
+      movimiento_economico: "Ingresos y gastos",
+      traspaso: "Compras y ventas",
+    } as Record<string, string>,
+    reanudar: {
+      subida: "La primera subida de datos quedó a medias. Termínela para que los otros equipos reciban todo.",
+      descarga: "La descarga de los datos de la finca quedó a medias. Termínela para que este equipo quede completo.",
+      boton: "Continuar",
+    },
+    sesionNueva: "La sesión de este equipo caducó. Inicie sesión de nuevo para seguir sincronizando.",
+    sincronizadoAhora: (enviados: number, recibidos: number) => `Listo. Enviados: ${enviados}. Recibidos: ${recibidos}.`,
+    desvinculado: "Este equipo ya no sincroniza. Sus datos siguen aquí.",
     verificar: {
       titulo: "Comprobar contra el servidor",
       explicacion: "Compara, tabla por tabla, lo que hay en este equipo con lo que hay en el servidor.",

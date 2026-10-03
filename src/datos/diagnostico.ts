@@ -2,6 +2,8 @@
 import { Cambios, exigirPermiso } from "./cambios";
 import type { Conexion, ContextoCambio } from "./conexion";
 import { listarAnimales, type AnimalResumen } from "./repositorios/animales";
+import { ErrorDeRegistro } from "./errores";
+import { leerVinculo } from "./sincronizacion/estado";
 
 /** Texto que la Etapa 1 guardó en «observaciones» de los animales de la prueba técnica. */
 export const MARCA_DIAGNOSTICO = "[diagnóstico]";
@@ -53,6 +55,7 @@ export async function listarAnimalesDePrueba(conexion: Conexion): Promise<Animal
 /** Borrado lógico de los animales de la prueba técnica y de sus identificadores. Devuelve cuántos se retiraron. */
 export async function retirarDatosDePrueba(conexion: Conexion, contexto: ContextoCambio): Promise<number> {
   exigirPermiso(contexto, "ver_ajustes");
+  if (await leerVinculo(conexion)) throw new ErrorDeRegistro([{ codigo: "restaurar_vinculado" }]);
   const animales = await listarAnimalesDePrueba(conexion);
   if (animales.length === 0) return 0;
   const cambios = new Cambios(contexto);

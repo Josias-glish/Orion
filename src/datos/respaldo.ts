@@ -5,6 +5,7 @@ import { exigirPermiso } from "./cambios";
 import type { Conexion, ContextoCambio, Sentencia, ValorSql } from "./conexion";
 import { ErrorDeRegistro } from "./errores";
 import { obtenerFinca } from "./repositorios/finca";
+import { leerVinculo } from "./sincronizacion/estado";
 
 export const FORMATO_RESPALDO = "registro-caprino-respaldo";
 export const VERSION_FORMATO = 1;
@@ -152,6 +153,8 @@ const MAX_VARIABLES = 30000;
  * conocidos; versión del esquema) y escribe en un solo lote. Los catálogos precargados se actualizan.
  */
 export async function restaurarRespaldo(conexion: Conexion, r: Respaldo): Promise<void> {
+  // Un equipo vinculado no restaura: la base restaurada no coincidiría con el cursor ni con las marcas de la sincronización.
+  if (await leerVinculo(conexion)) throw new ErrorDeRegistro([{ codigo: "restaurar_vinculado" }]);
   if (r.versionEsquema > VERSION_ESQUEMA) throw new ErrorDeRegistro([{ codigo: "respaldo_mas_nuevo" }]);
 
   // 1. Forma: solo tablas y columnas que existen (los nombres van dentro del SQL), valores simples.
