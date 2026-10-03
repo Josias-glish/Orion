@@ -34,7 +34,10 @@ const leerBase = () =>
 db = sqlite3.connect(sys.argv[1])
 db.row_factory = sqlite3.Row
 tablas = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> '_sqlx_migrations'")]
-print(json.dumps({t: [dict(r) for r in db.execute(f"SELECT * FROM {t} ORDER BY id")] for t in tablas}))`,
+def orden(t):
+    pk = [r[1] for r in sorted(db.execute(f"PRAGMA table_info({t})"), key=lambda r: r[5]) if r[5] > 0]
+    return ", ".join(pk) if pk else "rowid"
+print(json.dumps({t: [dict(r) for r in db.execute(f"SELECT * FROM {t} ORDER BY {orden(t)}")] for t in tablas}))`,
         BASE,
       ],
       { encoding: "utf8", maxBuffer: 1 << 30 },
@@ -128,6 +131,11 @@ try {
     "CA-33: la 0.1.0 no tenía compras ni ventas: la tabla de traspasos llega vacía (Etapa 9)",
     Array.isArray(despues.traspaso) && despues.traspaso.length === 0,
     `${despues.traspaso?.length} traspasos`,
+  );
+  comprobar(
+    "CA-33 (Etapa 10): el equipo actualizado queda sin vincular, con la tabla de estado vacía y sin nada en la cola",
+    despues.sincronizacion_estado.every((f) => f.clave !== "finca_servidor") && (despues.cola_cambios?.length ?? 0) === 0,
+    `${despues.sincronizacion_estado.length} claves de estado`,
   );
   comprobar(
     "CA-33: los animales existentes quedan «nacido_aqui»",
