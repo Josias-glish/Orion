@@ -162,6 +162,23 @@ describe("permisos mínimos de Tauri (Etapa 5)", () => {
     expect(conf.plugins?.http).toEqual({ scopeRedirects: true });
   });
 
+  it("solo src/sincronizacion/red.ts importa el plugin HTTP: toda la red del programa pasa por ahí", () => {
+    const usan = archivosDelPrograma().filter((ruta) => /@tauri-apps\/plugin-http/.test(leer(ruta)));
+    expect(usan).toEqual(["src/sincronizacion/red.ts"]);
+    // Las pruebas tampoco tocan la red real: la red simulada y las pruebas del cliente usan `fetchPropio` o `RedSimulada`.
+    const rutasDeRed = ["src/sincronizacion/red.ts"];
+    expect(rutasDeRed.every((r) => /\bfetchDeTauri\b/.test(leer(r)))).toBe(true);
+  });
+
+  it("la dirección permitida en la capacidad es la misma que declara el programa en servidor.json (mismo servidor)", () => {
+    const declarada = new URL(JSON.parse(leer("src/sincronizacion/servidor.json")).url);
+    const permitida = new URL(JSON.parse(leer("src-tauri/capabilities/sincronizacion.json")).permissions[0].allow[0].url.replace("/*", "/"));
+    expect(permitida.protocol).toBe("https:");
+    expect(permitida.host).toBe(declarada.host);
+    // Un `.invalid` (la dirección de ejemplo) nunca resuelve; una dirección real solo se pone al construir el instalador (docs/SERVIDOR.md).
+    if (declarada.hostname.endsWith(".invalid")) expect(JSON.parse(leer("src/sincronizacion/servidor.json")).claveAnonima).toBe("");
+  });
+
   it("el plugin HTTP va sin cookies y sin características peligrosas", () => {
     const cargo = leer("src-tauri/Cargo.toml");
     const linea = cargo.split("\n").find((l) => l.startsWith("tauri-plugin-http")) ?? "";
