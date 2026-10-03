@@ -1,0 +1,9 @@
+{
+  "0001_tablas.sql": "e4f4d3ca3ea13034de1757332e616602a432a7bdf7c04aea9d7ad41794ee1f8e",
+  "0002_mezcla.sql": "57de55862d1c54cadef1e7b123a6353713eea6603f4ebcacf367efa67d57eb13",
+  "0003_cuentas_y_fincas.sql": "630bc942048a510b0888ba4e4263b9224d41e635c830c75484a5208efe2217ad",
+  "0004_sincronizar.sql": "5ad7c5ca3238c997367bd7a83fd4b3d39bf378cc82498dcf02df9dc480ceb3d3",
+  "0005_numeracion.sql": "ec6786f5a571b072613de04cfc7321959f1fa38b3d7a45ccc53d9f7a5e56aca4",
+  "0006_descarga.sql": "de8bf58d3a4d7e8285053da8f69b1e2ee1d0e3ede833a5822c38568bf318fc74",
+  "0007_storage.sql": "3c09ebcdf8aa0d99b5232fdd04c5b639187e0eb311f9ce8f1cd5a192265f7789"
+}

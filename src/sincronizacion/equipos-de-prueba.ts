@@ -46,10 +46,12 @@ export interface OpcionesDeEquipo {
   relojMs?: number;
   limiteEnvio?: number;
   limitePagina?: number;
+  /** Una base ya armada (por ejemplo, una actualizada desde la 0.1.0). Por defecto, una base nueva. */
+  conexion?: ConexionMemoria;
 }
 
 export function crearEquipo(opciones: OpcionesDeEquipo): EquipoSimulado {
-  const conexion = crearBaseDePrueba();
+  const conexion = opciones.conexion ?? crearBaseDePrueba();
   const reloj: RelojDeEquipo = {
     ms: opciones.relojMs ?? HORA_DE_LOS_EQUIPOS,
     ahoraMs() {

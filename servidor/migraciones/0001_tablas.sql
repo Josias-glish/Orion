@@ -121,6 +121,9 @@ begin
   raise exception using errcode = 'P0001', message = 'cambio_solo_se_agrega';
 end $$;
 
+-- Es una función de disparador: la API no debe poder ejecutarla (Postgres da EXECUTE a `public` por defecto).
+revoke all on function interno.cambio_solo_se_agrega() from public, anon, authenticated;
+
 create trigger cambio_sin_actualizar before update on public.cambio
   for each row execute function interno.cambio_solo_se_agrega();
 create trigger cambio_sin_borrar before delete on public.cambio

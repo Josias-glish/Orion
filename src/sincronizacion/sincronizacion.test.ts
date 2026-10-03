@@ -1,9 +1,12 @@
 // Dos (o tres) equipos simulados contra el servidor de pruebas: primera sincronización, CA-26, CA-27, CA-28 y R15 a R17.
 // Cada equipo es una base SQLite en memoria con su reloj; el servidor es Postgres en memoria (servidor/pruebas/ayudas.ts).
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { crearServidorDePrueba, type ServidorDePrueba } from "../../servidor/pruebas/ayudas";
 import { cargarDatosDeEjemplo } from "../../scripts/datos-de-ejemplo";
 import { arete } from "../datos/ayudas-pruebas";
+import { abrirConexionMemoria, archivosDeMigracion, leerMigracion } from "../datos/conexion-memoria";
+import { animalesEnOrden, leerRespaldo, type Fila } from "../datos/respaldo";
 import { guardarAnimal, animalVacio, eliminarAnimal, obtenerAnimal } from "../datos/repositorios/animales";
 import { crearLote } from "../datos/repositorios/lotes";
 import { listarAnimales } from "../datos/repositorios/animales";
@@ -664,6 +667,43 @@ describe("primera sincronización interrumpida (RF-40)", () => {
     await reanudar(() => descargarDatosIniciales(b.conexion, b.red, b.cliente, { versionEsquema: 9 }));
     const informe = await verificarContraElServidor(b.conexion, b.red);
     expect(informe.filas.filter((f) => !f.coincide)).toEqual([]);
+    expect(await volcarDatos(b.conexion)).toEqual(await volcarDatos(a.conexion));
+  });
+});
+
+describe("CA-33 con la sincronización: un equipo que viene de la 0.1.0", () => {
+  it("se actualiza sin tocar sus datos, no deja nada por enviar hasta vincularlo, y al vincularlo sube todo y el otro equipo lo recibe", async () => {
+    const respaldo = leerRespaldo(readFileSync(new URL("../datos/muestras/respaldo-0.1.0-ejemplo.json", import.meta.url), "utf8"));
+    const db = abrirConexionMemoria();
+    for (const archivo of archivosDeMigracion().filter((a) => Number(a.slice(0, 4)) <= 4)) db.ejecutarScript(leerMigracion(archivo));
+    for (const [tabla, filas] of Object.entries(respaldo.tablas) as [string, Fila[]][]) {
+      for (const fila of tabla === "animal" ? animalesEnOrden(filas) : filas) {
+        const columnas = Object.keys(fila);
+        const precargada = tabla === "raza" || tabla === "libro";
+        await db.ejecutar(
+          `INSERT INTO ${tabla} (${columnas.join(", ")}) VALUES (${columnas.map(() => "?").join(", ")})${
+            precargada ? ` ON CONFLICT (id) DO UPDATE SET ${columnas.filter((c) => c !== "id").map((c) => `${c} = excluded.${c}`).join(", ")}` : ""
+          }`,
+          columnas.map((c) => fila[c]),
+        );
+      }
+    }
+    for (const archivo of archivosDeMigracion().filter((a) => Number(a.slice(0, 4)) > 4)) db.ejecutarScript(leerMigracion(archivo));
+    const correo = "josias@ejemplo.com";
+    const cuentaId = await servidor.crearCuenta(correo);
+    await servidor.autorizarCorreo(correo);
+    const a = registrar(crearEquipo({ servidor, cuentaId, correo, nombre: "A", archivos, conexion: db }));
+    // Sin vincular, la actualización no deja cola, marcas ni avisos.
+    for (const tabla of ["cola_cambios", "marca_registro", "aviso_sincronizacion"]) {
+      expect((await a.conexion.consultar<{ n: number }>(`SELECT count(*) AS n FROM ${tabla}`))[0].n, tabla).toBe(0);
+    }
+    const animales = (await a.conexion.consultar<{ n: number }>("SELECT count(*) AS n FROM animal"))[0].n;
+    const informeA = await vincularYSubir(a);
+    expect(informeA.filas.filter((f) => !f.coincide)).toEqual([]);
+    const b = registrar(crearEquipo({ servidor, cuentaId, correo, nombre: "B", archivos }));
+    const informeB = await unirYDescargar(b);
+    expect(informeB.filas.filter((f) => !f.coincide)).toEqual([]);
+    expect((await b.conexion.consultar<{ n: number }>("SELECT count(*) AS n FROM animal"))[0].n).toBe(animales);
     expect(await volcarDatos(b.conexion)).toEqual(await volcarDatos(a.conexion));
   });
 });

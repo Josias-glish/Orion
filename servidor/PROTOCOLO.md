@@ -23,6 +23,7 @@ contradice ese documento, manda este archivo y se corrige el documento. Lo imple
   `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z-[0-9a-f]{4}-[0-9a-f]{8}$` y fecha real.
 - **Límites:** un envío tiene como máximo 500 operaciones y 2 MB de JSON (`demasiado_grande`). `entidad` cumple `^[a-z][a-z_]{0,39}$`.
   `campos` es un objeto cuyos valores son texto, número o null (nunca objetos ni arreglos).
+- **Otros errores** (además de los de cada sección): `sin_sesion` (sin `auth.uid()`), `sin_permiso` (miembro que no es propietario), `parametro_invalido` (parámetros nulos, mal formados o en conflicto), `cambio_id_reutilizado` (un `p_cambio_id` ya usado por una función arbitrada distinta), `registro_inconsistente` (en `emitir_registros`, el borrador existente es de otro animal que el indicado) y, solo dentro de `rechazados`, `registro_invalido`. `emitir_registros` y `reemitir_registro` aceptan hasta 500 elementos u 8 MB; `importar_registros_emitidos`, hasta 2000 elementos u 8 MB.
 
 ## 2. Mezcla por campo (R16): las dos funciones puras
 
@@ -84,13 +85,14 @@ equipo devuelven el **objeto de vínculo**:
   del código en mayúsculas y sin guion.
 - `unirse_a_finca(p_finca_id uuid, p_codigo text, p_dispositivo jsonb, p_version_esquema int)` → objeto de vínculo. Se da **uno** de los dos:
   `p_finca_id` (la cuenta ya es miembro) o `p_codigo`. Con código: se normaliza y se busca una invitación vigente (no vencida, no usada); si no
-  coincide, vencida o usada, siempre el mismo error `codigo_invalido`, y se cuenta el intento en `cuenta.intentos_codigo`; con 5 fallos seguidos la
-  cuenta queda bloqueada una hora (`bloqueo_hasta`; mismo error `codigo_invalido`, aunque el código sea bueno). Si coincide: se marca usada,
+  coincide, vencida o usada, siempre el mismo resultado `{ "error": "codigo_invalido" }` (**se devuelve, no se lanza**: una excepción desharía la transacción y con ella la cuenta del intento, y el límite de 5 no serviría), y se cuenta el intento en `cuenta.intentos_codigo`; con 5 fallos seguidos la
+  cuenta queda bloqueada una hora (`bloqueo_hasta`; mismo resultado `codigo_invalido`, aunque el código sea bueno). Si coincide: se marca usada,
   se crea la membresía con el rol de la invitación (si ya era miembro, no cambia) y se registra el equipo; el contador de intentos vuelve a 0.
   Registrar un equipo con un `id` que ya existe para esa cuenta y finca es idempotente; si existe para otra cuenta o finca: `dispositivo_desconocido`.
 - `listar_dispositivos(p_finca_id uuid)` → `[ { "id", "nombre", "plataforma", "codigo_equipo", "ultima_sincronizacion_ms", "revocado": bool, "cuenta_correo" } ]`. Cualquier miembro.
 - `revocar_dispositivo(p_finca_id uuid, p_dispositivo_id uuid)` → `{ "ok": true }`. Un propietario (puede ser el propio equipo: así se desvincula).
   Pone `revocado_en`. Un equipo revocado recibe `dispositivo_revocado` en `sincronizar` y en toda llamada que lo mencione.
+  Límite conocido: revocar corta **el equipo**, no la cuenta. Una cuenta miembro puede registrar otro equipo con `unirse_a_finca(p_finca_id)`, y Storage (sección 8) se decide por cuenta. Quitar a una persona de la finca (retirar su membresía) queda para la Etapa 14.
 
 ## 5. `sincronizar`
 
