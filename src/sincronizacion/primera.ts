@@ -14,9 +14,9 @@ import { CLAVES, leerClave, leerVinculo, sentenciaEstado } from "../datos/sincro
 import { huellasLocales } from "../datos/sincronizacion/huellas";
 import { clave, leerMarcas } from "../datos/sincronizacion/marcas";
 import type { Conexion, Sentencia, ValorSql } from "../datos/conexion";
-import { aplicarRespuesta, type ClienteDeSincronizacion } from "./cliente";
+import { aplicarRespuesta, sentenciasDeMarcasCorregidas, type ClienteDeSincronizacion } from "./cliente";
 import type { InicioDeDescarga, OperacionEnviada, PaginaDescargada, RespuestaSincronizar, ResumenDeFinca } from "./protocolo";
-import type { Red } from "./red";
+import { ErrorDeRed, type Red } from "./red";
 
 export type FaseDePrimera = "subiendo" | "descargando" | "sincronizando" | "verificando" | "lista";
 
@@ -151,7 +151,7 @@ export async function subirDatosIniciales(conexion: Conexion, red: Red, cliente:
   await conexion.ejecutarLote([sentenciaEstado(CLAVES.subidaInicial, "completa", (await ahoraCorregido(conexion)).iso)]);
   opciones.alProgreso?.({ fase: "sincronizando", hechas: total, total });
   // Lo que el servidor produjo al recibir (por ejemplo, los contadores de los libros) y lo que se hizo mientras tanto.
-  await cliente.sincronizar();
+  await terminarConUnCiclo(cliente);
 }
 
 async function enviarLote(conexion: Conexion, red: Red, fincaId: string, dispositivoId: string, versionEsquema: number, operaciones: OperacionEnviada[]): Promise<void> {
@@ -168,7 +168,12 @@ async function enviarLote(conexion: Conexion, red: Red, fincaId: string, disposi
   });
   const fin = reloj.ahoraMs();
   if (respuesta.rechazados.length > 0) throw new ErrorDeRegistro([{ codigo: "subida_rechazada", motivo: respuesta.rechazados[0].motivo }]);
-  await aplicarRespuesta(conexion, respuesta, { cursor, inicio, fin }, async () => 0);
+  // Si el servidor corrigió alguna marca (el reloj de este equipo iba adelantado), las marcas locales quedan iguales a las suyas.
+  await aplicarRespuesta(conexion, respuesta, { cursor, inicio, fin }, async (ahoraIso) => {
+    const corregidas = await sentenciasDeMarcasCorregidas(conexion, operaciones, respuesta.corregidos, ahoraIso);
+    if (corregidas.length > 0) await conexion.ejecutarLote(corregidas);
+    return 0;
+  });
 }
 
 /** Los registros emitidos o anulados los recibe el servidor de una sola vez, y deja el contador de cada libro en `último + 1` (R31). */
@@ -217,6 +222,23 @@ async function fijarContadores(conexion: Conexion, red: Red, fincaId: string, di
   }
 }
 
+/** El ciclo final de una primera sincronización: si no llega a «al día» (se cortó la red), el usuario vuelve a intentarlo en vez de ver un éxito falso. */
+async function terminarConUnCiclo(cliente: ClienteDeSincronizacion): Promise<void> {
+  const resultado = await cliente.sincronizar();
+  if (resultado.estado === "sin_conexion" || resultado.estado === "sesion_caducada") {
+    throw new ErrorDeRed(resultado.estado === "sin_conexion" ? "sin_conexion" : "sesion", "La sincronización se interrumpió; vuelva a intentarlo.");
+  }
+}
+
+function porLibroYConsecutivo(a: PaginaDescargada["registros"][number], b: PaginaDescargada["registros"][number]): number {
+  const libroA = String(a.campos.libro_id ?? "");
+  const libroB = String(b.campos.libro_id ?? "");
+  if (libroA !== libroB) return libroA < libroB ? -1 : 1;
+  const ca = a.campos.consecutivo === null || a.campos.consecutivo === undefined ? 0 : Number(a.campos.consecutivo);
+  const cb = b.campos.consecutivo === null || b.campos.consecutivo === undefined ? 0 : Number(b.campos.consecutivo);
+  return ca - cb;
+}
+
 /** Descarga el estado actual de la finca, entidad por entidad y por páginas, en un equipo recién unido. */
 export async function descargarDatosIniciales(conexion: Conexion, red: Red, cliente: ClienteDeSincronizacion, opciones: OpcionesDePrimera): Promise<void> {
   const vinculo = await leerVinculo(conexion);
@@ -242,7 +264,8 @@ export async function descargarDatosIniciales(conexion: Conexion, red: Red, clie
   let hechas = 0;
   for (const def of ENTIDADES_SINCRONIZADAS) {
     if (avance && ENTIDADES_SINCRONIZADAS.findIndex((e) => e.tabla === avance!.entidad) > ENTIDADES_SINCRONIZADAS.indexOf(def)) continue;
-    let despues: string | null = avance && avance.entidad === def.tabla ? (avance.despues ?? null) : null;
+    let despues: string | null = avance && avance.entidad === def.tabla && def.tabla !== "registro_genealogico" ? (avance.despues ?? null) : null;
+    const pendientesDeNumero: PaginaDescargada["registros"] = [];
     for (;;) {
       const pagina = await red.rpc<PaginaDescargada & { hora_servidor_ms?: number }>("descargar_pagina", {
         p_finca_id: fincaId,
@@ -251,35 +274,56 @@ export async function descargarDatosIniciales(conexion: Conexion, red: Red, clie
         p_despues_de: despues,
         p_limite: PAGINA_DESCARGA,
       });
-      const ahora = await ahoraCorregido(conexion);
-      const autorref = new Set(definicionDeEntidad(def.tabla)?.autorreferencias ?? []);
-      const cambios: CambioRemoto[] = [];
-      const segundaPasada: CambioRemoto[] = [];
-      for (const registro of pagina.registros) {
-        const construir = (op: { campos: Record<string, ValorCampo>; marca: string }, i: number, pasada: number): CambioRemoto => ({
-          seq: 0,
-          cambio_id: idDeterminista(fincaId, "descarga", def.tabla, registro.registro_id, String(pasada), String(i)),
-          grupo_id: idDeterminista(fincaId, "descarga", def.tabla, registro.registro_id),
-          orden: i,
-          dispositivo_id: dispositivoId,
-          usuario_id: null,
-          entidad: def.tabla,
-          registro_id: registro.registro_id,
-          operacion: i === 0 && pasada === 0 ? "crear" : "modificar",
-          campos: op.campos,
-          marca: op.marca,
-        });
-        const valores = registro.campos as Record<string, ValorCampo>;
-        const primera = operacionesDeInstantanea(valores, registro.marcas, { omitir: autorref });
-        primera.forEach((op, i) => cambios.push(construir(op, i, 0)));
-        if (autorref.size > 0) operacionesDeInstantanea(valores, registro.marcas, { solo: autorref }).forEach((op, i) => segundaPasada.push(construir(op, i, 1)));
+      const aplicarRegistros = async (registros: PaginaDescargada["registros"], siguiente: string | null): Promise<void> => {
+        const ahora = await ahoraCorregido(conexion);
+        const autorref = new Set(definicionDeEntidad(def.tabla)?.autorreferencias ?? []);
+        const cambios: CambioRemoto[] = [];
+        const segundaPasada: CambioRemoto[] = [];
+        for (const registro of registros) {
+          const construir = (op: { campos: Record<string, ValorCampo>; marca: string }, i: number, pasada: number): CambioRemoto => ({
+            seq: 0,
+            cambio_id: idDeterminista(fincaId, "descarga", def.tabla, registro.registro_id, String(pasada), String(i)),
+            grupo_id: idDeterminista(fincaId, "descarga", def.tabla, registro.registro_id),
+            orden: i,
+            dispositivo_id: dispositivoId,
+            usuario_id: null,
+            entidad: def.tabla,
+            registro_id: registro.registro_id,
+            operacion: i === 0 && pasada === 0 ? "crear" : "modificar",
+            campos: op.campos,
+            marca: op.marca,
+          });
+          const valores = registro.campos as Record<string, ValorCampo>;
+          const primera = operacionesDeInstantanea(valores, registro.marcas, { omitir: autorref });
+          primera.forEach((op, i) => cambios.push(construir(op, i, 0)));
+          if (autorref.size > 0) operacionesDeInstantanea(valores, registro.marcas, { solo: autorref }).forEach((op, i) => segundaPasada.push(construir(op, i, 1)));
+        }
+      
+        const progreso: Sentencia[] = [
+          sentenciaEstado("descarga_avance", JSON.stringify({ entidad: def.tabla, desplazamiento: 0, despues: siguiente }), ahora.iso),
+        ];
+        await aplicarCambios(conexion, cambios, { ahoraIso: ahora.iso, ahoraMs: ahora.ms, sinHistorial: true, extra: segundaPasada.length === 0 ? progreso : [] });
+        if (segundaPasada.length > 0) await aplicarCambios(conexion, segundaPasada, { ahoraIso: ahora.iso, ahoraMs: ahora.ms, sinHistorial: true, extra: progreso });
+      };
+      if (def.tabla === "registro_genealogico") {
+        // R31: la base exige que los consecutivos de un libro lleguen en orden y sin saltos, y las páginas vienen por id. Se juntan todas y se
+        // aplican ordenadas por libro y consecutivo (los borradores, sin número, primero). Si la descarga se interrumpe, esta tabla se repite entera.
+        pendientesDeNumero.push(...pagina.registros);
+        hechas += pagina.registros.length;
+        opciones.alProgreso?.({ fase: "descargando", entidad: def.tabla, hechas: Math.min(hechas, total), total });
+        if (pagina.siguiente === null) {
+          pendientesDeNumero.sort(porLibroYConsecutivo);
+          for (let i = 0; i < pendientesDeNumero.length; i += PAGINA_DESCARGA) {
+            await aplicarRegistros(pendientesDeNumero.slice(i, i + PAGINA_DESCARGA), null);
+          }
+          pendientesDeNumero.length = 0;
+          break;
+        }
+        despues = pagina.siguiente;
+        continue;
       }
+      await aplicarRegistros(pagina.registros, pagina.siguiente);
       const siguiente = pagina.siguiente;
-      const progreso: Sentencia[] = [
-        sentenciaEstado("descarga_avance", JSON.stringify({ entidad: def.tabla, desplazamiento: 0, despues: siguiente }), ahora.iso),
-      ];
-      await aplicarCambios(conexion, cambios, { ahoraIso: ahora.iso, ahoraMs: ahora.ms, sinHistorial: true, extra: segundaPasada.length === 0 ? progreso : [] });
-      if (segundaPasada.length > 0) await aplicarCambios(conexion, segundaPasada, { ahoraIso: ahora.iso, ahoraMs: ahora.ms, sinHistorial: true, extra: progreso });
       hechas += pagina.registros.length;
       avance = { entidad: def.tabla, desplazamiento: 0, despues: siguiente };
       opciones.alProgreso?.({ fase: "descargando", entidad: def.tabla, hechas: Math.min(hechas, total), total });
@@ -294,7 +338,7 @@ export async function descargarDatosIniciales(conexion: Conexion, red: Red, clie
     sentenciaEstado(CLAVES.descargaInicial, "completa", ahora.iso),
   ]);
   opciones.alProgreso?.({ fase: "sincronizando", hechas: total, total });
-  await cliente.sincronizar();
+  await terminarConUnCiclo(cliente);
 }
 
 export interface FilaDelInforme {

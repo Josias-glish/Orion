@@ -150,18 +150,9 @@ export class ClienteDeSincronizacion {
         const op = porId.get(c.cambio_id);
         if (!op) continue;
         sentencias.push(sentenciaCorregirMarca(op.id, c.marca_nueva, ahoraIso));
-        const columnas = await columnasQueViajan(this.conexion, op.entidad);
-        const previo = (await leerMarcas(this.conexion, op.entidad, [op.registro_id])).get(clave(op.entidad, op.registro_id));
-        if (previo) {
-          const porCampo: Record<string, string> = {};
-          for (const columna of columnas) {
-            const m = previo.marcas.campos[columna] ?? previo.marcas.base;
-            porCampo[columna] = m === op.marca ? c.marca_nueva : m;
-          }
-          sentencias.push(sentenciaMarcas(op.entidad, op.registro_id, { marcas: canonizarMarcas(porCampo), eliminadoValor: previo.eliminadoValor }, ahoraIso));
-        }
         if (ultima === op.marca) ultima = c.marca_nueva;
       }
+      sentencias.push(...(await sentenciasDeMarcasCorregidas(this.conexion, lote, r.corregidos, ahoraIso)));
       if (ultima !== null && r.corregidos.length > 0) sentencias.push(sentenciaEstado(CLAVES.marcaUltima, ultima, ahoraIso));
 
       sentencias.push(...sentenciasEnviados([...r.aceptados, ...r.ya_aplicados].filter((id) => porId.has(id)), ahoraIso));
@@ -218,6 +209,36 @@ export class ClienteDeSincronizacion {
 }
 
 /** Cuántas acciones esperan para enviarse (para el indicador de estado). */
+/**
+ * Las marcas por campo de un registro cuando el servidor corrige la marca de un cambio (reloj adelantado): se reemplaza exactamente igual
+ * la marca que ese cambio dejó en cada columna. Varios cambios del mismo registro en un envío dan una sola sentencia por registro.
+ */
+export async function sentenciasDeMarcasCorregidas(
+  conexion: Conexion,
+  enviados: readonly { id: string; entidad: string; registro_id: string; marca: string }[],
+  corregidos: readonly { cambio_id: string; marca_nueva: string }[],
+  ahoraIso: string,
+): Promise<Sentencia[]> {
+  const porId = new Map(enviados.map((o) => [o.id, o]));
+  const registros = new Map<string, { entidad: string; id: string; porCampo: Record<string, string>; eliminadoValor: string | null }>();
+  for (const c of corregidos) {
+    const op = porId.get(c.cambio_id);
+    if (!op) continue;
+    const llave = clave(op.entidad, op.registro_id);
+    let actual = registros.get(llave);
+    if (!actual) {
+      const previo = (await leerMarcas(conexion, op.entidad, [op.registro_id])).get(llave);
+      if (!previo) continue;
+      const porCampo: Record<string, string> = {};
+      for (const columna of await columnasQueViajan(conexion, op.entidad)) porCampo[columna] = previo.marcas.campos[columna] ?? previo.marcas.base;
+      actual = { entidad: op.entidad, id: op.registro_id, porCampo, eliminadoValor: previo.eliminadoValor };
+      registros.set(llave, actual);
+    }
+    for (const columna of Object.keys(actual.porCampo)) if (actual.porCampo[columna] === op.marca) actual.porCampo[columna] = c.marca_nueva;
+  }
+  return [...registros.values()].map((r) => sentenciaMarcas(r.entidad, r.id, { marcas: canonizarMarcas(r.porCampo), eliminadoValor: r.eliminadoValor }, ahoraIso));
+}
+
 export function pendientesDeEnvio(conexion: Conexion): Promise<number> {
   return contarPendientes(conexion);
 }

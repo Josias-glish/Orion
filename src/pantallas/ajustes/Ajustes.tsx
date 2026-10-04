@@ -6,8 +6,9 @@ import { SeccionDatos } from "./SeccionDatos";
 import { SeccionFinca } from "./SeccionFinca";
 import { SeccionLotes } from "./SeccionLotes";
 import { SeccionUsuarios } from "./SeccionUsuarios";
+import { SeccionSincronizacion } from "../sincronizacion/SeccionSincronizacion";
 
-const SECCIONES: SeccionAjustes[] = ["finca", "usuarios", "razas", "libros", "lotes", "datos"];
+const SECCIONES: SeccionAjustes[] = ["finca", "usuarios", "razas", "libros", "lotes", "sincronizacion", "datos"];
 
 /** Ajustes (solo propietario, R14): finca, usuarios, catálogos, lotes y datos técnicos. */
 export function Ajustes({ seccion }: { seccion: SeccionAjustes }) {
@@ -25,6 +26,7 @@ export function Ajustes({ seccion }: { seccion: SeccionAjustes }) {
       {seccion === "razas" && <SeccionCatalogo catalogo="raza" />}
       {seccion === "libros" && <SeccionCatalogo catalogo="libro" />}
       {seccion === "lotes" && <SeccionLotes />}
+      {seccion === "sincronizacion" && <SeccionSincronizacion />}
       {seccion === "datos" && <SeccionDatos />}
     </section>
   );

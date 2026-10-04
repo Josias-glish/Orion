@@ -235,8 +235,9 @@ los equipos convergen aunque reciban los cambios en distinto orden o repetidos.
 
 `eliminado_en` es un campo más con su propia marca, pero su efecto se **calcula** para que sea igual en todos los equipos:
 
-> El registro está eliminado si `eliminado_en` tiene valor **y** su marca es mayor que la marca más reciente de cualquier otro campo
+> El registro está eliminado si `eliminado_en` tiene valor **y** su marca no es anterior a la marca más reciente de cualquier otro campo
 > (sin contar `creado_en` ni `modificado_en`). Si hay una edición posterior al borrado, el registro queda restaurado.
+> (Con marcas iguales gana el borrado: borrar y tocar otros campos en la misma operación no se «restaura» a sí mismo.)
 
 - Un equipo borra a las 10:00 y otro edita el nombre a las 10:05: el registro se restaura y los dos equipos muestran el aviso
   «X se eliminó en un equipo y se editó después en otro: se restauró» (`aviso_sincronizacion`, tipo `restaurado`).
@@ -470,7 +471,8 @@ Todo con las convenciones de siempre (tablas `STRICT`, UUID, marcas de tiempo UT
 - `cola_cambios`, `marca_registro` (clave primaria `entidad` y `registro_id`) y `aviso_sincronizacion` (`tipo`: `restaurado`, `renombrado`, `conflicto`,
   `revision`, `reloj`; `entidad`, `registro_id`, `detalle`, `operacion` opcional, `resuelto_en`).
 - `contacto.marcador` (0 o 1, por defecto 0), `usuario.pin_pendiente` (0 o 1, por defecto 0).
-- `historial_cambios`: columnas `marca`, `dispositivo_id`, `aplicado` (por defecto 1), con un índice para consultar por registro y campo.
+- `historial_cambios`: columnas `marca`, `dispositivo_id`, `aplicado` (por defecto 1). No se agregó ningún índice nuevo: la base de la prueba de 500 animales
+  tiene unas 70 MB de historial y un índice más habría ocupado espacio sin que ninguna consulta de la sincronización lo necesite.
 - Las tablas locales se agregan a una lista de «sin respaldo» con su motivo; la prueba de `TABLAS_RESPALDO` sigue exigiendo que no se olvide ninguna.
 - La migración, su huella y su registro en `src-tauri/src/lib.rs` (D-005 y D-010), como siempre.
 
@@ -502,7 +504,7 @@ Todo con las convenciones de siempre (tablas `STRICT`, UUID, marcas de tiempo UT
   Si el plan gratuito no permite dos proyectos activos, se verifica al implementar y se te propone la alternativa.
 - **Datos reales:** no los uso ni los subo a ningún servicio sin tu permiso.
 - **Registro de actividad del servidor:** sin contraseñas ni tokens; el programa tampoco los escribe en sus archivos de registro.
-- **Copia periódica de la base central:** el plan gratuito no trae copias automáticas. Un flujo semanal de GitHub Actions (apagado hasta que agregues el
+- **Copia periódica de la base central:** el plan gratuito no trae copias automáticas. Un flujo semanal de GitHub Actions (propuesto; **no se construyó en la 0.6.0**, ver docs/SERVIDOR.md, sección 8; apagado hasta que agregues el
   secreto) haría un volcado de la base y lo guardaría 14 días como artefacto del repositorio. Si el repositorio es público, **no** se activa. Cada equipo
   tiene una réplica completa de los datos y el respaldo `.zip` local; esta copia es una capa extra, y con el plan de pago se reemplaza por las copias del servicio.
 - **Límites del plan gratuito que importan:** se pausa tras unos 7 días sin actividad (el programa muestra «Servidor en pausa; se reactiva desde el panel»
@@ -558,12 +560,23 @@ una dirección declarada; y la aprobación de D-004.
 
 ## 18. Riesgos y lo que no cubre
 
+**Limitaciones conocidas de la versión 0.6.0 (lo que se construyó y cómo se comporta de verdad):**
+
+- **El equipo que se une no recibe el historial anterior** (`historial_cambios` de antes de unirse): recibe el estado actual de cada registro, no cómo llegó a él.
+  El historial sigue completo en el equipo donde ocurrió el cambio; desde que se une, cada equipo anota también lo que recibe.
+- **Dos conflictos se resuelven a mano**, con un aviso en Ajustes → Sincronización: que dos equipos pongan identificador «principal» distinto al mismo animal y que dos equipos
+  abran una lactancia al mismo tiempo para la misma hembra. La base impide quedarse con dos, así que el cambio que no cabe queda guardado completo en el aviso (nada se pierde).
+- **No hay `revisarIntegridad`** de dominio automática después de mezclar (sección 6.4): la base impide lo que rompe sus reglas (R1, R2, R31) y lo demás se ve en la comprobación contra el servidor.
+- **Las marcas corregidas por el servidor** (reloj adelantado) se reenvían si la respuesta se perdió, así que las marcas del equipo y las del servidor terminan iguales.
+- **La verificación** compara cantidad de filas y una huella por tabla; no compara el contenido campo por campo.
+
 - **Es la etapa más grande hasta ahora** y toca el único punto por el que pasan todas las escrituras (`Cambios`). Por eso hay una prueba de reproducción y una de convergencia.
-- **No se puede probar la red real desde mi entorno** (Supabase está bloqueado). Dependo de las pruebas con Postgres local y de tu prueba con los dos computadores.
-- **Verificar al implementar** (comportamientos de Supabase que no confirmé en su documentación oficial): límites del Auth con correo y confirmación (el remitente
-  gratuito tiene límites muy bajos; puede hacer falta desactivar la confirmación en el piloto o usar tu propio remitente), cantidad de proyectos gratuitos,
-  qué cuenta como actividad para la pausa de 7 días, tiempo máximo de una consulta con el rol `authenticated` (afecta el tamaño de los lotes), el tamaño máximo de un archivo
-  y la forma de leer `auth.uid()`.
+- **Desde mi entorno no se puede salir a Supabase.** El 2026-10-04 el contrato del servidor se probó por internet contra el proyecto de pruebas real llamando desde dentro de su base (resultado en `docs/PRUEBAS.md`; ningún defecto del servidor).
+  Sigue sin probarse el programa de escritorio contra el servidor ni los dos computadores: eso depende de tu prueba.
+- **Todo miembro es propietario** (único rol): puede invitar y retirar cualquier equipo de la finca, también los de otras cuentas. Confirmado en el servidor real; los roles son de la Etapa 14.
+- **Comportamientos de Supabase que quedaban por verificar (revisado el 2026-10-04 con la documentación oficial y el servidor real):** Auth con correo exige confirmar el correo y el remitente integrado solo escribe a miembros del equipo de la
+  organización, con un tope bajo (para el piloto: desactivar la confirmación en el proyecto de pruebas o usar un remitente propio); el plan gratuito permite dos proyectos activos y pausa los de poca actividad durante 7 días; una consulta de 500 acciones
+  tardó 1,5 s frente a un límite de 8 s; `auth.uid()` funciona con los tokens reales. **Sigue sin verificar:** el tamaño máximo de un archivo.
 - **Sin seguimiento en tiempo real:** si dos personas ordeñan a la vez en dos equipos, ven lo del otro en minutos, no al instante.
 - **Un equipo con el reloj muy mal puesto** antes de unirse puede perder choques que merecía ganar (sección 5).
 - **Fusionar dos bases con datos** no se hace: el equipo que se une debe estar vacío (sección 10).

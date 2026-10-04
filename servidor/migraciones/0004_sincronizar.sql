@@ -117,6 +117,8 @@ declare
   v_ya jsonb := '[]'::jsonb;
   v_rechazados jsonb := '[]'::jsonb;
   v_corregidos jsonb := '[]'::jsonb;
+  v_marca_conocida text;
+  v_marca_original_conocida text;
   v_g_aceptados jsonb;
   v_g_corregidos jsonb;
   v_g_marca text;
@@ -202,10 +204,16 @@ begin
     -- Los cambios que el servidor ya conoce no se aplican otra vez (idempotencia por `cambio_id`, R15).
     v_nuevos := '[]'::jsonb;
     for v_op in select e.value from jsonb_array_elements(v_grupo -> 'ops') as e loop
-      if exists (
-        select 1 from public.cambio c where c.finca_id = p_finca_id and c.cambio_id = (v_op ->> 'id')::uuid
-      ) then
+      select c.marca, c.marca_original into v_marca_conocida, v_marca_original_conocida
+        from public.cambio c where c.finca_id = p_finca_id and c.cambio_id = (v_op ->> 'id')::uuid;
+      if found then
         v_ya := v_ya || jsonb_build_array(((v_op ->> 'id')::uuid)::text);
+        -- Si la respuesta con la marca corregida se perdió, el reintento la vuelve a recibir: sin esto el equipo quedaría con una marca
+        -- en el futuro que el servidor ya acortó.
+        if v_marca_original_conocida is not null and v_marca_conocida is distinct from v_marca_original_conocida then
+          v_corregidos := v_corregidos
+            || jsonb_build_array(jsonb_build_object('cambio_id', (v_op ->> 'id')::uuid, 'marca_nueva', v_marca_conocida));
+        end if;
       else
         v_nuevos := v_nuevos || jsonb_build_array(v_op);
       end if;

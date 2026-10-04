@@ -84,6 +84,16 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # Etapa 10: la dirección del servidor de sincronización y su clave PÚBLICA se toman de las variables del repositorio
+      # (Settings → Secrets and variables → Actions → Variables). Si no existen, el instalador sale sin sincronización.
+      # La clave secreta del servidor nunca va aquí: el script la rechaza.
+      - name: Configurar el servidor de sincronización
+        shell: bash
+        env:
+          SERVIDOR_URL: ${{ vars.SERVIDOR_URL }}
+          SERVIDOR_CLAVE_PUBLICA: ${{ vars.SERVIDOR_CLAVE_PUBLICA }}
+        run: node scripts/configurar-servidor.mjs
+
       # Pruebas de la parte en Rust (documentos y copia de respaldo .zip) en Windows y macOS.
       # Necesitan la interfaz construida (dist/) porque el programa la incluye al compilar.
       - name: Pruebas de Rust
