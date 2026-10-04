@@ -76,8 +76,8 @@ se queda sin prueba o si estas tablas dejan de nombrar alguno.
 
 ## Prueba con dos computadores (Etapa 10)
 
-Necesita: el servidor de pruebas ya creado (docs/SERVIDOR.md), un instalador construido con su dirección (variables `SERVIDOR_URL` y `SERVIDOR_CLAVE_PUBLICA` del repositorio; el instalador de prueba sale de los «artifacts» de la ejecución
-del pull request, no de «Run workflow»: ver SERVIDOR.md, sección 6), dos computadores con el programa y una forma de confirmar el correo de su cuenta: Auth pide confirmarlo y el remitente integrado de Supabase solo escribe a miembros del
+Necesita: el servidor de pruebas ya creado (docs/SERVIDOR.md), un instalador construido con su dirección (variables `SERVIDOR_URL` y `SERVIDOR_CLAVE_PUBLICA` del repositorio; el instalador de prueba sale de «Run workflow» con la casilla «Solo probar»
+marcada, que deja los instaladores en «Artifacts» y no crea ningún release: ver SERVIDOR.md, sección 6), dos computadores con el programa y una forma de confirmar el correo de su cuenta: Auth pide confirmarlo y el remitente integrado de Supabase solo escribe a miembros del
 equipo de la organización (SERVIDOR.md, sección 3, paso 3). Al pulsar el enlace del correo, el navegador mostrará un error de conexión a `localhost`: es lo esperado.
 
 1. En el computador 1, abra el programa con los datos de la finca. Vaya a **Ajustes → Sincronización**, inicie sesión con su cuenta (o créela) y pulse **Vincular y subir los datos**.
