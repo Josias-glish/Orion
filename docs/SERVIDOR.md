@@ -41,6 +41,17 @@ usan el servidor real: corren contra una base en memoria.
    cuántos mensajes por hora permite el remitente gratuito) **no se pudo verificar**: pruébalo al crear tu primera cuenta y, si el correo tarda o no llega, revisa los ajustes de correo del panel.
    Para las pruebas puedes desactivar la confirmación por correo; para producción déjala activada.
 
+## 3b. El proyecto de pruebas que ya existe (2026-10-04)
+
+Este paso ya está hecho en la organización de Supabase de Josias, con el conector de Supabase de Claude (no hizo falta ninguna clave por el chat):
+
+- Proyecto **`registro-caprino-pruebas`** (región `us-east-1`, plan gratuito de la organización), dirección `https://drhmqbtrcahbmyerizvh.supabase.co`. Es un proyecto aparte del que ya tenías (`rutina`), que no se tocó.
+- Las 7 migraciones están aplicadas (el conector las registra con marca de tiempo en `supabase_migrations`; se enviaron sin los comentarios del archivo, el código es el mismo). Para que `servidor/aplicar.mjs` y el conector no choquen, se anotaron también en `migraciones_servidor.aplicada` con las huellas de `huellas.json`: `node servidor/aplicar.mjs --ver` debe decir «Todo está al día».
+- Revisado en la base real: `anon` no puede ejecutar ninguna función, `authenticated` solo las 12 públicas del protocolo y `interno.es_miembro_de_finca` (para Storage), ninguna tabla es legible por la API (RLS sin políticas), el bucket `archivos` es privado y tiene sus 2 políticas. El asesor de seguridad de Supabase solo marca lo esperado: 10 avisos informativos «RLS sin políticas» (a propósito) y 12 avisos «función ejecutable por usuarios con sesión» (son las funciones del protocolo, cada una exige miembro de la finca).
+- Probado dentro de una transacción que se deshizo (no quedó ningún dato): crear finca, sincronizar y repetir el mismo envío (0 aceptados, 2 ya aplicados), emitir registros (`PPE-0001`, `PPE-0002`; un reintento devuelve el mismo número), invitación y segundo equipo (letra B, descarga completa), código malo o ya usado (`codigo_invalido`), una cuenta ajena (`finca_inexistente`) y una cuenta no autorizada (`no_autorizada`). Un envío de 500 operaciones tardó 0,8 s; el límite de Supabase para la API es de 8 s por consulta, así que hay margen.
+- **Lo que sigue sin probar:** la conexión desde el programa por internet (esta sesión no puede salir a `*.supabase.co`), el registro con correo y contraseña de Supabase Auth y su correo de confirmación (el conector no cambia esos ajustes), y los dos computadores.
+- Falta **autorizar tu correo** (paso 5) y fijar las variables del repositorio (paso 6): la clave pública se ve en el panel (Project Settings → API Keys, la llamada «publishable» o «anon»).
+
 ## 4. Instalar las tablas y funciones (migraciones)
 
 Desde la raíz del repositorio, en **tu terminal** (no en el chat):
