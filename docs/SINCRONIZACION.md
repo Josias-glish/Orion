@@ -571,11 +571,12 @@ una dirección declarada; y la aprobación de D-004.
 - **La verificación** compara cantidad de filas y una huella por tabla; no compara el contenido campo por campo.
 
 - **Es la etapa más grande hasta ahora** y toca el único punto por el que pasan todas las escrituras (`Cambios`). Por eso hay una prueba de reproducción y una de convergencia.
-- **No se puede probar la red real desde mi entorno** (Supabase está bloqueado). Dependo de las pruebas con Postgres local y de tu prueba con los dos computadores.
-- **Verificar al implementar** (comportamientos de Supabase que no confirmé en su documentación oficial): límites del Auth con correo y confirmación (el remitente
-  gratuito tiene límites muy bajos; puede hacer falta desactivar la confirmación en el piloto o usar tu propio remitente), cantidad de proyectos gratuitos,
-  qué cuenta como actividad para la pausa de 7 días, tiempo máximo de una consulta con el rol `authenticated` (afecta el tamaño de los lotes), el tamaño máximo de un archivo
-  y la forma de leer `auth.uid()`.
+- **Desde mi entorno no se puede salir a Supabase.** El 2026-10-04 el contrato del servidor se probó por internet contra el proyecto de pruebas real llamando desde dentro de su base (resultado en `docs/PRUEBAS.md`; ningún defecto del servidor).
+  Sigue sin probarse el programa de escritorio contra el servidor ni los dos computadores: eso depende de tu prueba.
+- **Todo miembro es propietario** (único rol): puede invitar y retirar cualquier equipo de la finca, también los de otras cuentas. Confirmado en el servidor real; los roles son de la Etapa 14.
+- **Comportamientos de Supabase que quedaban por verificar (revisado el 2026-10-04 con la documentación oficial y el servidor real):** Auth con correo exige confirmar el correo y el remitente integrado solo escribe a miembros del equipo de la
+  organización, con un tope bajo (para el piloto: desactivar la confirmación en el proyecto de pruebas o usar un remitente propio); el plan gratuito permite dos proyectos activos y pausa los de poca actividad durante 7 días; una consulta de 500 acciones
+  tardó 1,5 s frente a un límite de 8 s; `auth.uid()` funciona con los tokens reales. **Sigue sin verificar:** el tamaño máximo de un archivo.
 - **Sin seguimiento en tiempo real:** si dos personas ordeñan a la vez en dos equipos, ven lo del otro en minutos, no al instante.
 - **Un equipo con el reloj muy mal puesto** antes de unirse puede perder choques que merecía ganar (sección 5).
 - **Fusionar dos bases con datos** no se hace: el equipo que se une debe estar vacío (sección 10).

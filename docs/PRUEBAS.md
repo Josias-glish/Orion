@@ -71,12 +71,14 @@ se queda sin prueba o si estas tablas dejan de nombrar alguno.
   dos emisiones de registros a la vez, sin red y con la respuesta perdida; tres equipos con cambios al azar y semilla fija que terminan idénticos y
   coinciden con el servidor; aislamiento entre cuentas y fincas; invitaciones y equipos retirados; relojes adelantados; CA-33),
   `servicio.test.ts` (segundo plano y CA-30), `archivos-y-pin.test.ts` (fotos y adjuntos, PIN de cada equipo), `red.test.ts`, y en `servidor/pruebas/`
-  las funciones de Postgres (mezcla, sincronizar, cuentas, numeración, aislamiento, descarga). No se puede probar la red real ni Supabase desde el entorno
-  de desarrollo: eso lo hace usted con la guía de abajo.
+  las funciones de Postgres (mezcla, sincronizar, cuentas, numeración, aislamiento, descarga). Desde el entorno de desarrollo no se puede salir a Supabase; el servidor sí se probó por internet
+  el 2026-10-04 (ver «Resultado de la prueba contra el servidor real» más abajo). El programa de escritorio contra el servidor y los dos computadores los prueba usted con la guía de abajo.
 
 ## Prueba con dos computadores (Etapa 10)
 
-Necesita: el servidor de pruebas ya creado (docs/SERVIDOR.md), un instalador construido con su dirección y dos computadores con el programa.
+Necesita: el servidor de pruebas ya creado (docs/SERVIDOR.md), un instalador construido con su dirección (variables `SERVIDOR_URL` y `SERVIDOR_CLAVE_PUBLICA` del repositorio; el instalador de prueba sale de los «artifacts» de la ejecución
+del pull request, no de «Run workflow»: ver SERVIDOR.md, sección 6), dos computadores con el programa y una forma de confirmar el correo de su cuenta: Auth pide confirmarlo y el remitente integrado de Supabase solo escribe a miembros del
+equipo de la organización (SERVIDOR.md, sección 3, paso 3). Al pulsar el enlace del correo, el navegador mostrará un error de conexión a `localhost`: es lo esperado.
 
 1. En el computador 1, abra el programa con los datos de la finca. Vaya a **Ajustes → Sincronización**, inicie sesión con su cuenta (o créela) y pulse **Vincular y subir los datos**.
    Debería ver el avance por tablas y, al final, «Equipo vinculado». Pulse **Comprobar ahora**: debe decir «Todo coincide».
@@ -143,8 +145,33 @@ pasando por `ejecutar_lote`. CA-12 sigue pendiente: lo hace el aprisco con [PRUE
 | Programa real sin red, Etapa 9 (R32, R20, R21, CA-23 a CA-25, R23) | 65 de 65 |
 | CA-33 con los programas reales (base de la 0.1.0 abierta con la 0.6.0, migraciones 1 a 9) | 14 de 14 |
 
-**No probado desde el entorno de desarrollo:** la conexión real a Supabase (Auth con correo, tiempos reales, límites del plan) y las pruebas con dos computadores de verdad.
+**No probado desde el entorno de desarrollo:** el programa de escritorio contra un servidor real y las pruebas con dos computadores de verdad (la conexión del servidor con Supabase sí se probó el 2026-10-04: ver la sección siguiente).
 Eso lo hace usted con [SERVIDOR.md](SERVIDOR.md) y «Prueba con dos computadores» (arriba). CA-12 sigue pendiente (lo hace el aprisco con [PRUEBA_CA12.md](PRUEBA_CA12.md)).
+
+## Resultado de la prueba contra el servidor real (2026-10-04, sobre el código de la 0.6.0)
+
+Servidor probado: el proyecto de pruebas `registro-caprino-pruebas` de Supabase (plan gratuito, `us-east-1`). La sesión de desarrollo no puede salir a `*.supabase.co`, así que las llamadas HTTPS se hicieron desde dentro de su base
+(extensión `pgsql-http`, con el conector de Supabase) a la dirección pública del proyecto, con las cabeceras del programa, tres cuentas de prueba y datos de ejemplo. **No prueba el programa de escritorio.** El informe completo (las 99 filas, los tiempos
+y lo que queda por limpiar en el proyecto) está en la carpeta de archivos del proyecto: `etapa10/prueba-real-supabase-2026-10-04.md`.
+
+| Bloque | Qué cubre | Verdes a la primera |
+| --- | --- | --- |
+| Auth y permisos sin sesión | inicio de sesión, renovación y contraseña mala; sin sesión no hay funciones ni tablas; el esquema interno no se expone | 13 de 13 |
+| Cuentas, fincas e invitaciones | `registrar_cuenta`, `crear_finca`, invitación de un solo uso, equipos, aislamiento entre cuentas | 17 de 19 (2 expectativas reescritas: todo miembro es propietario) |
+| Sincronizar y descargar | reintentos sin duplicar, campo reservado, marca adelantada, envíos de 200, 500 y 501 acciones, descarga de 700 cambios, huella de verificación, esquema viejo, equipo retirado | 21 de 26 (5 rojas por una expectativa mía de `seq`, repetidas bien) |
+| Números de registro (R31) | emitir, reemitir, anular, importar, reintentos y contador | 11 de 12 (1 roja por una cuenta mía mal hecha, repetida bien) |
+| Archivos (Storage) | subir, repetir, bajar; cuenta ajena y sin sesión rechazadas; bucket privado | 11 de 11 |
+| Primera subida e importación | segunda finca, registros ya emitidos, libros con contador propio, segundo equipo | 12 de 12 |
+| Sesiones y tokens | token alterado, cierre de sesión, renovar tras cerrar | 4 de 4 |
+| Alta de cuenta por la API | `/auth/v1/signup` con un correo de `example.com` | sin concluir (Auth rechaza `example.com`) |
+
+**Nueve discrepancias a la primera, ninguna del servidor:** ocho eran expectativas mías mal puestas (el contador de cambios ya iba en 506 por pruebas anteriores deshechas, una cuenta mal hecha y dos filas que esperaban un rol «sin permiso» que esta versión
+no tiene) y una quedó sin concluir (el alta con `example.com`).
+
+Tiempos (optimistas: la llamada nace en el mismo centro de datos que el servidor): inicio de sesión de 72 a 220 ms; `sincronizar` con 200 acciones 0,5 s y con 500 acciones (el máximo, 301 kB) 1,5 s frente a los 8 s que permite la API;
+bajar 700 cambios en dos páginas, 93 ms la mayor.
+
+**Sigue sin probarse:** el programa de escritorio contra el servidor, los dos computadores, el alta de cuentas nuevas con confirmación por correo (el remitente integrado de Supabase solo envía a miembros del equipo de la organización) y los cortes de internet reales a mitad de un envío.
 
 ## Resultado de la versión 0.5.0 (2026-10-02)
 
