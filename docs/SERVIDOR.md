@@ -114,8 +114,10 @@ Debería decir «Servidor configurado: https://xxxx.supabase.co». Cambia dos ar
 **En los instaladores de GitHub Actions:** en el repositorio, Settings → Secrets and variables → Actions → pestaña **Variables**, crea `SERVIDOR_URL` y
 `SERVIDOR_CLAVE_PUBLICA`. El flujo «Instaladores» las lee y ejecuta el mismo script antes de construir. Si no existen, los instaladores salen sin sincronización.
 Un instalador apunta a **un solo** servidor: para probar usa los valores del proyecto de pruebas; para el instalador del aprisco, los de producción.
-**El instalador de prueba sale de los «artifacts» de la ejecución del pull request** (Actions → Instaladores → la ejecución del PR → Artifacts). No uses «Run workflow» con los valores de pruebas puestos: eso crea el borrador del release de la
-versión con el servidor de pruebas dentro, y publicarlo lo repartiría a todos.
+**El instalador de prueba** se saca así: en GitHub, **Actions → Instaladores → Run workflow**, marca la casilla que empieza por **«Solo probar»** y pulsa el botón verde **Run workflow**. Tarda unos 15 minutos.
+Al terminar (marca verde), abre esa ejecución y baja el instalador de **Artifacts** (Windows: `nsis` o `msi`; Mac: `dmg`; llega como `.zip`). Esa forma **no crea ningún release**: en la pestaña Releases no debe aparecer nada nuevo.
+**No uses «Run workflow» sin marcar «Solo probar» con los valores de pruebas puestos:** eso crea el borrador del release de la versión con el servidor de pruebas dentro, y publicarlo lo repartiría a todos.
+Antes de construir el instalador del aprisco, cambia las dos variables a los valores de producción.
 
 ## 7. Primera prueba
 

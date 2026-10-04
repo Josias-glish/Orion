@@ -49,6 +49,9 @@ Cada pull request construye los instaladores sin publicarlos:
 
 Para esto hay que haber iniciado sesión en GitHub.
 
+Sin pull request también se puede pedir a mano: **Actions** → flujo **Instaladores** → **Run workflow** → marque la casilla que empieza por
+**«Solo probar»** y pulse **Run workflow**. La ejecución nueva deja los instaladores en **Artifacts**, igual que arriba, y no crea ningún release.
+
 ---
 
 ## 2. Instalar en Windows
