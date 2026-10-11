@@ -4,6 +4,9 @@
 # Cuándo corre:
 #   * Al subir una etiqueta v* (por ejemplo v0.1.0): pruebas, instaladores y borrador de release.
 #   * A mano, desde la pestaña Actions («Run workflow»): igual que con una etiqueta.
+#   * A mano con «prueba» marcado: pruebas e instaladores, sin release (como en un pull request). Los
+#     instaladores quedan como «artifacts» del flujo. Es la forma de sacar un instalador con el servidor de
+#     pruebas dentro (variables SERVIDOR_URL y SERVIDOR_CLAVE_PUBLICA) sin que un borrador de release lo lleve.
 #   * A mano con «publicar» marcado: no construye nada; publica el borrador de release de la versión
 #     actual (después de revisar que tenga los instaladores). Al publicarlo, GitHub crea la etiqueta.
 #   * En cada pull request: pruebas e instaladores, sin release. Los instaladores quedan como
@@ -17,6 +20,10 @@ on:
     inputs:
       publicar:
         description: "Publicar el borrador del release de la versión actual (no construye)"
+        type: boolean
+        default: false
+      prueba:
+        description: "Solo probar: construye los instaladores y los deja como «artifacts», sin crear ni tocar ningún release"
         type: boolean
         default: false
   pull_request:
@@ -107,8 +114,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Sin tagName (pull requests) no se crea release; solo se suben los artifacts.
-          tagName: ${{ github.event_name != 'pull_request' && 'v__VERSION__' || '' }}
+          # Sin tagName (pull requests y «prueba») no se crea release; solo se suben los artifacts.
+          tagName: ${{ github.event_name != 'pull_request' && !inputs.prueba && 'v__VERSION__' || '' }}
           releaseName: "Registro Caprino v__VERSION__"
           releaseBody: |
             Instaladores de Registro Caprino v__VERSION__.
@@ -125,7 +132,8 @@ jobs:
 
   publicar:
     name: Publicar el borrador del release
-    if: ${{ inputs.publicar }}
+    # «prueba» nunca publica nada: con las dos marcadas no corre ningún trabajo.
+    if: ${{ inputs.publicar && !inputs.prueba }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # necesario para publicar el release; GitHub crea la etiqueta al publicarlo

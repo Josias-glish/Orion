@@ -44,10 +44,13 @@ el instalador.
 Cada pull request construye los instaladores sin publicarlos:
 
 1. En GitHub, pestaña **Actions** → flujo **Instaladores** → elija la ejecución más reciente (con marca verde).
-2. Abajo, en **Artifacts**, descargue el que corresponda (Windows: `nsis` o `msi`; Mac: `dmg`).
+2. Abajo, en **Artifacts**, descargue el que corresponda (Windows: `windows-x64-nsis` o `windows-x64-msi`; Mac: `darwin-universal-dmg`).
 3. Llega como `.zip`: haga doble clic para descomprimirlo y obtener el instalador.
 
 Para esto hay que haber iniciado sesión en GitHub.
+
+Sin pull request también se puede pedir a mano: **Actions** → flujo **Instaladores** → **Run workflow** → marque la casilla que empieza por
+**«Solo probar»** y pulse **Run workflow**. La ejecución nueva deja los instaladores en **Artifacts**, igual que arriba, y no crea ningún release.
 
 ---
 
