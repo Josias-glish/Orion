@@ -116,6 +116,8 @@ Debería decir «Servidor configurado: https://xxxx.supabase.co». Cambia dos ar
 Un instalador apunta a **un solo** servidor: para probar usa los valores del proyecto de pruebas; para el instalador del aprisco, los de producción.
 **El instalador de prueba** se saca así: en GitHub, **Actions → Instaladores → Run workflow**, marca la casilla que empieza por **«Solo probar»** y pulsa el botón verde **Run workflow**. Tarda unos 20 minutos (la prueba hecha el 2026-10-04 tardó 18).
 Al terminar (marca verde), abre esa ejecución y baja el instalador de **Artifacts**: en Windows `windows-x64-nsis` (el `.exe`) o `windows-x64-msi`; en Mac `darwin-universal-dmg`. Llega como `.zip`. Esa forma **no crea ningún release**: en la pestaña Releases no debe aparecer nada nuevo.
+Si todavía no hay variables, el mismo formulario de «Run workflow» trae dos campos de texto, `servidor_url` y `servidor_clave_publica`: escribe ahí la dirección y la clave **pública** del proyecto de pruebas (D-062). Solo valen con «Solo probar»
+(un release solo lee las variables) y se ven en la página de la ejecución, que es pública: **nunca escribas ahí una clave secreta** (el script la rechaza, pero ya se habría visto). Para los instaladores del aprisco, usa las variables.
 **No uses «Run workflow» sin marcar «Solo probar» con los valores de pruebas puestos:** eso crea el borrador del release de la versión con el servidor de pruebas dentro, y publicarlo lo repartiría a todos.
 Antes de construir el instalador del aprisco, cambia las dos variables a los valores de producción.
 
