@@ -7,6 +7,9 @@
 #   * A mano con «prueba» marcado: pruebas e instaladores, sin release (como en un pull request). Los
 #     instaladores quedan como «artifacts» del flujo. Es la forma de sacar un instalador con el servidor de
 #     pruebas dentro (variables SERVIDOR_URL y SERVIDOR_CLAVE_PUBLICA) sin que un borrador de release lo lleve.
+#     Si no hay variables, con «prueba» también se pueden escribir la dirección y la clave PÚBLICA al lanzar el
+#     flujo (solo valen con «prueba»; un release solo lee las variables). Esos campos se ven en la página de la
+#     ejecución: nunca escriba ahí una clave secreta.
 #   * A mano con «publicar» marcado: no construye nada; publica el borrador de release de la versión
 #     actual (después de revisar que tenga los instaladores). Al publicarlo, GitHub crea la etiqueta.
 #   * En cada pull request: pruebas e instaladores, sin release. Los instaladores quedan como
@@ -26,6 +29,14 @@ on:
         description: "Solo probar: construye los instaladores y los deja como «artifacts», sin crear ni tocar ningún release"
         type: boolean
         default: false
+      servidor_url:
+        description: "Solo con «Solo probar», si no hay variables: dirección del servidor de pruebas (https://xxxx.supabase.co)"
+        type: string
+        default: ""
+      servidor_clave_publica:
+        description: "Solo con «Solo probar», si no hay variables: clave PÚBLICA del servidor de pruebas (nunca la secreta: esta página es pública)"
+        type: string
+        default: ""
   pull_request:
     paths-ignore:
       - "docs/**"
@@ -97,8 +108,10 @@ jobs:
       - name: Configurar el servidor de sincronización
         shell: bash
         env:
-          SERVIDOR_URL: ${{ vars.SERVIDOR_URL }}
-          SERVIDOR_CLAVE_PUBLICA: ${{ vars.SERVIDOR_CLAVE_PUBLICA }}
+          # Con «prueba» valen los campos escritos al lanzar el flujo (si se dejaron vacíos, las variables); sin «prueba»
+          # solo las variables: un borrador de release nunca lleva un servidor escrito a mano.
+          SERVIDOR_URL: ${{ inputs.prueba && inputs.servidor_url || vars.SERVIDOR_URL }}
+          SERVIDOR_CLAVE_PUBLICA: ${{ inputs.prueba && inputs.servidor_clave_publica || vars.SERVIDOR_CLAVE_PUBLICA }}
         run: node scripts/configurar-servidor.mjs
 
       # Pruebas de la parte en Rust (documentos y copia de respaldo .zip) en Windows y macOS.
