@@ -7,6 +7,13 @@ Esta prueba la hace una persona del aprisco en un computador real, una vez con W
 
 Necesita: el computador, internet **solo para descargar**, y una memoria USB o una carpeta para la copia de respaldo.
 
+> **Use siempre la última versión** (<https://github.com/Josias-glish/Orion/releases/latest>) y la misma en todos los
+> pasos. Si el computador ya abrió una versión más nueva, **no instale una más vieja encima** (por ejemplo, la 0.1.0):
+> el programa viejo no abre los datos del nuevo y muestra «No se pudo abrir la base de datos» con el detalle
+> `migration 5 was previously applied but is missing in the resolved migrations`. Si pasa, instale la última versión
+> (los datos siguen ahí) y vea [INSTALACION.md, sección 8](INSTALACION.md#8-si-algo-falla). Tampoco instale el `.exe` y el
+> `.msi` en el mismo computador a la vez (el paso W16 se hace después de desinstalar).
+
 ---
 
 ## Windows (10 u 11)
@@ -16,7 +23,7 @@ tenía Registro Caprino con datos de verdad, haga primero una copia de respaldo.
 
 | N.º | Paso | Qué debe ver |
 | --- | --- | --- |
-| W1 | Abra <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0> y descargue el archivo que termina en `_x64-setup.exe`. | El archivo queda en Descargas (unos 3 MB). Si el navegador avisa, elija «Conservar». |
+| W1 | Abra <https://github.com/Josias-glish/Orion/releases/latest> y descargue el archivo que termina en `_x64-setup.exe`. | El archivo queda en Descargas (unos 3 MB). Si el navegador avisa, elija «Conservar». |
 | W2 | Doble clic en el archivo. | Pantalla azul «Windows protegió su PC». |
 | W3 | Pulse «Más información» y luego «Ejecutar de todas formas». | Se abre el instalador **en español**. No pide contraseña de administrador. |
 | W4 | Pulse «Siguiente» hasta «Instalar» y luego «Terminar». | Termina sin errores. |
@@ -31,7 +38,7 @@ tenía Registro Caprino con datos de verdad, haga primero una copia de respaldo.
 | W13 | Abra la carpeta `%APPDATA%\co.registrocaprino.escritorio` (tecla Windows + R, péguelo y Enter). | Está `registro-caprino.db` y la carpeta `documentos`. |
 | W14 | Vuelva a conectar internet. Configuración → Aplicaciones → Registro Caprino → Desinstalar. **No** marque «Eliminar los datos de aplicación». | Se desinstala sin errores. |
 | W15 | Instale otra vez (pasos W1 a W4) y ábralo. | Pide el usuario y el PIN: los datos siguen (no aparece la bienvenida). |
-| W16 (opcional) | Repita W1 a W6 con el archivo `.msi` en otro computador o después de desinstalar. | Pide permiso de administrador; luego funciona igual. |
+| W16 (opcional) | Repita W1 a W6 con el archivo `.msi` (de la misma versión) en otro computador o después de desinstalar. | Pide permiso de administrador; luego funciona igual. |
 
 ## Mac (chip Apple o Intel)
 
@@ -39,7 +46,7 @@ tenía Registro Caprino con datos de verdad, haga primero una copia de respaldo.
 
 | N.º | Paso | Qué debe ver |
 | --- | --- | --- |
-| M1 | Abra <https://github.com/Josias-glish/Orion/releases/tag/v0.1.0> y descargue el archivo que termina en `_universal.dmg`. | El archivo queda en Descargas (unos 8 MB). |
+| M1 | Abra <https://github.com/Josias-glish/Orion/releases/latest> y descargue el archivo que termina en `_universal.dmg`. | El archivo queda en Descargas (unos 8 MB). |
 | M2 | Doble clic en el `.dmg`. | Se abre una ventana con el icono de Registro Caprino y la carpeta Aplicaciones. |
 | M3 | Arrastre Registro Caprino a Aplicaciones. Expulse el disco del `.dmg`. | El programa queda en Aplicaciones. |
 | M4 | **Desconecte internet** (wifi apagado y sin cable). | Sin conexión. |

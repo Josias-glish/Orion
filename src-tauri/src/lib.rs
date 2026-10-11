@@ -229,6 +229,16 @@ pub fn run() {
 mod pruebas {
     use super::*;
 
+    /// La interfaz (`src/datos/error-al-abrir.ts`) reconoce este texto de sqlx para explicar que los datos son de una
+    /// versión más nueva del programa. Si una versión nueva de sqlx lo cambia, esta prueba avisa antes de que se pierda la ayuda.
+    #[test]
+    fn el_texto_de_sqlx_para_una_base_de_version_mas_nueva_no_cambio() {
+        assert_eq!(
+            sqlx::migrate::MigrateError::VersionMissing(5).to_string(),
+            "migration 5 was previously applied but is missing in the resolved migrations"
+        );
+    }
+
     /// Etapa 10 (D-057): el plugin HTTP revisa la lista de direcciones también en cada redirección solo si la
     /// configuración lo pide. El plugin rechaza los campos que no conoce, así que esta prueba lee la configuración
     /// real con el mismo tipo que usa el plugin al arrancar: un error de escritura se ve aquí y no al abrir el programa.
