@@ -11,6 +11,11 @@ export interface Usuario {
   rol: Rol;
   contacto: string | null;
   tienePin: boolean;
+  /**
+   * Etapa 10 (S-90): el PIN no sale del equipo. Un usuario que llegó por sincronización no entra hasta que defina un PIN en
+   * este equipo.
+   */
+  pinPendiente: boolean;
 }
 
 export interface DatosUsuario {
@@ -21,21 +26,38 @@ export interface DatosUsuario {
 
 /** Usuarios activos, sin el hash del PIN. */
 export async function listarUsuarios(conexion: Conexion): Promise<Usuario[]> {
-  const filas = await conexion.consultar<Omit<Usuario, "tienePin"> & { tienePin: number }>(
-    `SELECT id, nombre, rol, contacto, pin_hash IS NOT NULL AS tienePin
+  const filas = await conexion.consultar<Omit<Usuario, "tienePin" | "pinPendiente"> & { tienePin: number; pinPendiente: number }>(
+    `SELECT id, nombre, rol, contacto, pin_hash IS NOT NULL AS tienePin, pin_pendiente AS pinPendiente
      FROM usuario WHERE eliminado_en IS NULL ORDER BY rol DESC, nombre COLLATE NOCASE`,
   );
-  return filas.map((u) => ({ ...u, tienePin: u.tienePin === 1 }));
+  return filas.map((u) => ({ ...u, tienePin: u.tienePin === 1, pinPendiente: u.pinPendiente === 1 }));
 }
 
 /** ¿El PIN escrito es el del usuario? Un usuario sin PIN entra sin escribir nada. */
 export async function comprobarPin(conexion: Conexion, usuarioId: string, pin: string): Promise<boolean> {
-  const [fila] = await conexion.consultar<{ pin_hash: string | null }>(
-    "SELECT pin_hash FROM usuario WHERE id = ? AND eliminado_en IS NULL",
+  const [fila] = await conexion.consultar<{ pin_hash: string | null; pin_pendiente: number }>(
+    "SELECT pin_hash, pin_pendiente FROM usuario WHERE id = ? AND eliminado_en IS NULL",
     [usuarioId],
   );
-  if (!fila) return false;
+  if (!fila || fila.pin_pendiente === 1) return false;
   return fila.pin_hash === null ? true : verificarPin(pin, fila.pin_hash);
+}
+
+/**
+ * Etapa 10: el usuario que llegó por sincronización define su PIN en este equipo (obligatorio, S-90). El PIN no se envía al
+ * servidor ni a otros equipos: cada equipo guarda el suyo.
+ */
+export async function definirPinDeEsteEquipo(conexion: Conexion, id: string, pin: string, marcaTiempo: string): Promise<void> {
+  if (!esPinValido(pin)) throw new ErrorDeRegistro([{ codigo: "pin_invalido" }]);
+  const [fila] = await conexion.consultar<{ pin_hash: string | null; pin_pendiente: number; rol: Rol }>(
+    "SELECT pin_hash, pin_pendiente, rol FROM usuario WHERE id = ? AND eliminado_en IS NULL",
+    [id],
+  );
+  if (!fila) throw new ErrorDeRegistro([{ codigo: "no_encontrado" }]);
+  if (fila.pin_pendiente !== 1) throw new ErrorDeRegistro([{ codigo: "sin_permiso" }]);
+  const cambios = new Cambios({ usuarioId: id, rol: fila.rol, marcaTiempo });
+  cambios.actualizar("usuario", id, { pin_hash: fila.pin_hash, pin_pendiente: 1 }, { pin_hash: await crearHashPin(pin), pin_pendiente: 0 });
+  await cambios.aplicar(conexion);
 }
 
 async function validarDatos(conexion: Conexion, datos: DatosUsuario, idActual: string | null): Promise<Motivo[]> {

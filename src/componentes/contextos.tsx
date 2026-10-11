@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext } from "react";
+import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
 import type { Conexion, ContextoCambio } from "../datos/conexion";
 import type { Finca } from "../datos/repositorios/finca";
 import type { Usuario } from "../datos/repositorios/usuarios";
 import { marcaDeTiempo } from "../dominio/fechas";
 import { puede, type Accion } from "../dominio/permisos";
+import type { Sincronizacion } from "../sincronizacion/ensamblaje";
+import type { EstadoVisible } from "../sincronizacion/servicio";
 
 export const ConexionContexto = createContext<Conexion | null>(null);
 
@@ -43,7 +45,7 @@ export function usePermiso(accion: Accion): boolean {
 export type PestanaAnimal = "ficha" | "genealogia" | "reproduccion" | "servicios" | "pesos" | "salud" | "documentos" | "registro" | "historial";
 /** R29: los animales del hato, los de otras fincas y los contactos (propietarios). */
 export type VistaAnimales = "hato" | "externos" | "contactos";
-export type SeccionAjustes = "finca" | "usuarios" | "razas" | "libros" | "lotes" | "datos";
+export type SeccionAjustes = "finca" | "usuarios" | "razas" | "libros" | "lotes" | "datos" | "sincronizacion";
 export type SeccionReproduccion = "servicios" | "proximos" | "intervalos";
 export type SeccionLeche = "ordeno" | "lactancias" | "calidad";
 export type SeccionPesos = "registrar" | "metas";
@@ -82,4 +84,22 @@ export const NavegacionContexto = createContext<(ruta: Ruta) => void>(() => {});
 
 export function useNavegar(): (ruta: Ruta) => void {
   return useContext(NavegacionContexto);
+}
+
+/** Las piezas de la sincronización (Etapa 10), armadas por App. */
+export const SincronizacionContexto = createContext<Sincronizacion | null>(null);
+
+export function useSincronizacion(): Sincronizacion {
+  const sincronizacion = useContext(SincronizacionContexto);
+  if (!sincronizacion) throw new Error("useSincronizacion se usó fuera de SincronizacionContexto");
+  return sincronizacion;
+}
+
+/** El estado que muestra el indicador; React lo vuelve a dibujar cuando cambia. */
+export function useEstadoDeSincronizacion(): EstadoVisible {
+  const { servicio } = useSincronizacion();
+  return useSyncExternalStore(
+    useCallback((avisar: () => void) => servicio.suscribir(avisar), [servicio]),
+    () => servicio.obtenerEstado(),
+  );
 }

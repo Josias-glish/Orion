@@ -159,6 +159,6 @@ describe("publicación (Etapa 5)", () => {
     const cargo = /^version = "([^"]+)"/m.exec(leer("src-tauri/Cargo.toml"))![1];
     const tauri = JSON.parse(leer("src-tauri/tauri.conf.json")).version;
     expect([bloqueo.version, bloqueo.packages[""].version, cargo, tauri]).toEqual([paquete, paquete, paquete, paquete]);
-    expect(paquete).toBe("0.5.0");
+    expect(paquete).toBe("0.6.0");
   });
 });

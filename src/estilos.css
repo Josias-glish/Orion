@@ -170,6 +170,51 @@ input[type="radio"] {
   background: rgb(255 255 255 / 10%);
 }
 
+.indicador-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+button.indicador-sync {
+  cursor: pointer;
+}
+
+.indicador-sync--bien .indicador-sync__estado::before {
+  content: "✓ ";
+}
+
+.indicador-sync--espera .indicador-sync__estado::before {
+  content: "↻ ";
+}
+
+.indicador-sync--aviso {
+  border-color: #fff;
+  border-width: 2px;
+}
+
+.indicador-sync--aviso .indicador-sync__estado::before {
+  content: "! ";
+}
+
+.indicador-sync__estado {
+  font-weight: 600;
+}
+
+.indicador-sync__detalle,
+.indicador-sync__avisos {
+  opacity: 0.9;
+}
+
 .barra-lateral__version {
   font-size: 0.85rem;
   opacity: 0.8;

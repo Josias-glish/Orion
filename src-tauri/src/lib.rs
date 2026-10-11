@@ -1,5 +1,6 @@
 mod archivos;
 mod lote;
+mod secretos;
 
 use std::path::{Path, PathBuf};
 
@@ -69,6 +70,12 @@ fn migraciones() -> Vec<Migration> {
             sql: include_str!("../../src/datos/migraciones/0008_compra_venta.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "sincronizacion",
+            sql: include_str!("../../src/datos/migraciones/0009_sincronizacion.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -126,6 +133,21 @@ fn copiar_adjunto(app: tauri::AppHandle, origen: String, nombre: String) -> Resu
     archivos::copiar_adjunto(&carpeta_datos(&app)?, Path::new(&origen), &nombre)
 }
 
+/// Etapa 10: lee una foto, un documento o un adjunto de la carpeta de datos para subirlo al servidor. Error `no_existe` si no está.
+#[tauri::command]
+fn leer_archivo_de_datos(app: tauri::AppHandle, ruta: String) -> Result<tauri::ipc::Response, String> {
+    match archivos::leer_archivo_de_datos(&carpeta_datos(&app)?, &ruta)? {
+        Some(bytes) => Ok(tauri::ipc::Response::new(bytes)),
+        None => Err("no_existe".into()),
+    }
+}
+
+/// Etapa 10: guarda un archivo que llegó de otro equipo. Devuelve `false` si ya existía (no se pisa).
+#[tauri::command]
+fn escribir_archivo_de_datos(app: tauri::AppHandle, ruta: String, contenido: Vec<u8>) -> Result<bool, String> {
+    archivos::escribir_archivo_de_datos(&carpeta_datos(&app)?, &ruta, &contenido)
+}
+
 /// Escribe una copia de un adjunto de compra donde la eligió el usuario con el diálogo «Guardar».
 #[tauri::command]
 fn guardar_copia_de_adjunto(app: tauri::AppHandle, ruta: String, destino: String) -> Result<(), String> {
@@ -181,6 +203,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(sql.build())
         .plugin(tauri_plugin_dialog::init())
+        // Etapa 10: la red la hace Rust. Sin la capacidad `sincronizacion.json` ninguna dirección está permitida.
+        .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             ejecutar_lote,
             copiar_foto,
@@ -188,9 +212,14 @@ pub fn run() {
             guardar_copia,
             copiar_adjunto,
             guardar_copia_de_adjunto,
+            leer_archivo_de_datos,
+            escribir_archivo_de_datos,
             crear_respaldo,
             leer_respaldo,
-            extraer_archivos_respaldo
+            extraer_archivos_respaldo,
+            secretos::guardar_secreto,
+            secretos::leer_secreto,
+            secretos::borrar_secreto
         ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar Registro Caprino");
@@ -198,6 +227,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod pruebas {
+    use super::*;
+
     /// La interfaz (`src/datos/error-al-abrir.ts`) reconoce este texto de sqlx para explicar que los datos son de una
     /// versión más nueva del programa. Si una versión nueva de sqlx lo cambia, esta prueba avisa antes de que se pierda la ayuda.
     #[test]
@@ -206,5 +237,36 @@ mod pruebas {
             sqlx::migrate::MigrateError::VersionMissing(5).to_string(),
             "migration 5 was previously applied but is missing in the resolved migrations"
         );
+    }
+
+    /// Etapa 10 (D-057): el plugin HTTP revisa la lista de direcciones también en cada redirección solo si la
+    /// configuración lo pide. El plugin rechaza los campos que no conoce, así que esta prueba lee la configuración
+    /// real con el mismo tipo que usa el plugin al arrancar: un error de escritura se ve aquí y no al abrir el programa.
+    #[test]
+    fn el_plugin_http_revisa_la_lista_de_direcciones_en_cada_redireccion() {
+        let configuracion: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json no es JSON válido");
+        let http = configuracion["plugins"]["http"].clone();
+        let http: tauri_plugin_http::Config = serde_json::from_value(http).expect("plugins.http no es válido");
+        assert!(http.scope_redirects);
+    }
+
+    /// Las bases de la lista deben coincidir con las de la interfaz (src/datos/bases.ts).
+    #[test]
+    fn las_bases_de_datos_son_las_de_la_interfaz() {
+        let bases = include_str!("../../src/datos/bases.ts");
+        for base in BASES_DE_DATOS {
+            assert!(bases.contains(&format!("\"{base}\"")), "{base} no está en src/datos/bases.ts");
+        }
+    }
+
+    #[test]
+    fn la_migracion_9_esta_registrada_al_final() {
+        let lista = migraciones();
+        let ultima = lista.last().expect("sin migraciones");
+        assert_eq!(ultima.version, 9);
+        assert_eq!(ultima.description, "sincronizacion");
+        let versiones: Vec<i64> = lista.iter().map(|m| m.version).collect();
+        assert_eq!(versiones, (1..=9).collect::<Vec<i64>>());
     }
 }

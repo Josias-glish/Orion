@@ -11,7 +11,7 @@ import { actualizarCategoria, listarCategorias, listarMovimientos } from "./repo
 import { cambiarPin } from "./repositorios/usuarios";
 import { anularRegistro, emitirRegistro, reemitirRegistro, registrarDocumentoDeRegistro } from "./repositorios/registros";
 import { registrarEventoSalud } from "./repositorios/salud";
-import { exportarRespaldo, leerRespaldo, restaurarRespaldo, TABLAS_RESPALDO, VERSION_ESQUEMA, type Respaldo } from "./respaldo";
+import { exportarRespaldo, leerRespaldo, restaurarRespaldo, TABLAS_LOCALES, TABLAS_RESPALDO, VERSION_ESQUEMA, type Respaldo } from "./respaldo";
 
 let origen: ConexionMemoria;
 let destino: ConexionMemoria;
@@ -151,11 +151,11 @@ describe("CA-11: restaurar un respaldo reproduce los mismos datos", () => {
 });
 
 describe("RF-43: reglas del respaldo (SUPOSICION)", () => {
-  it("incluye todas las tablas de la base (una tabla nueva sin respaldo hace fallar esta prueba)", async () => {
+  it("cada tabla de la base va en el respaldo o es una tabla técnica local (una tabla nueva sin decidir hace fallar esta prueba)", async () => {
     const tablas = await origen.consultar<{ name: string }>(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx%' ORDER BY name",
     );
-    expect(tablas.map((t) => t.name)).toEqual([...TABLAS_RESPALDO].sort());
+    expect(tablas.map((t) => t.name)).toEqual([...TABLAS_RESPALDO, ...TABLAS_LOCALES].sort());
   });
 
   it("VERSION_ESQUEMA coincide con el número de migraciones", () => {

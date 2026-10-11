@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sincronizacion",
+  "description": "Etapa 10: la única dirección de red que puede usar la ventana principal, por el plugin HTTP. Esta es la de ejemplo: no resuelve nada (el dominio .invalid nunca existe) y el flujo de compilación la reemplaza por la del servidor. Sin esta capacidad ninguna dirección está permitida.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://servidor-no-configurado.invalid/*"
+        }
+      ]
+    }
+  ]
+}

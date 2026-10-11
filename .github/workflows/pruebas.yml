@@ -37,3 +37,36 @@ jobs:
 
       - name: Comprobar que el script de datos de ejemplo carga
         run: npm run semillas -- --donde
+
+  # El candado de cada finca (números de registro sin repetir ni saltar) solo se prueba de verdad con conexiones simultáneas a un Postgres normal.
+  # El servicio es desechable y vive solo durante este trabajo; no toca ningún servidor real.
+  candado-postgres:
+    name: Candado con Postgres real
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pruebas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Prueba del candado (Postgres real)
+        run: npx vitest run servidor/pruebas/candado.real.test.ts
+        env:
+          POSTGRES_URL_PRUEBAS: postgres://postgres:pruebas@127.0.0.1:5432/postgres
